@@ -1,0 +1,34 @@
+For the z=1.6 cluster, I think our plan is: 
+
+1. Get the z=1.62 cluster G102 data and G141 data (latter from 3DHST)
+
+
+(2. Reextract everything using Grlzli).  
+
+
+3. Fit G102 + G141 for z~1.6 samples
+
+
+4. Do comparisons. 
+
+
+5. Add new steps and repeat (dust attenuation, extract everything with Grizli).  
+
+*******************************************************************************
+
+Look at these papers and data: 
+
+Information on the HST morphologies of galaxies in the cluster:   
+http://adsabs.harvard.edu/abs/2012ApJ...750...93P
+
+Then we got grism data on the cluster galaxies (10 orbits in G102 and some WFC3 YJH and ACS BV(?) imaging).     
+See the attached proposal: 
+
+There was an early paper by a collaborator to measure D4000 from these data:   
+http://adsabs.harvard.edu/abs/2017ApJ...844...43L
+
+Beware in your interpretation that effects of environment may not be seen b/c everything is in overdense environment:   
+http://adsabs.harvard.edu/abs/2009A%26A...504..331K
+
+Also, check out the paper by Newman et al. 2014:   
+http://adsabs.harvard.edu/abs/2014ApJ...788...51N
