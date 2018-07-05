@@ -2,6 +2,7 @@ __author__ = 'vestrada'
 
 import numpy as np
 from numpy.linalg import inv
+from spec_tools import Mag
 from scipy.interpolate import interp1d, interp2d
 from astropy.cosmology import Planck13 as cosmo
 import sympy as sp
@@ -11,6 +12,8 @@ from astropy.io import ascii
 from astropy.table import Table
 import os
 from glob import glob
+from grizli import model as griz_model
+import collections
 
 import rpy2
 import rpy2.robjects as robjects
@@ -19,7 +22,34 @@ from rpy2.robjects import pandas2ri
 R = robjects.r
 pandas2ri.activate()
 
+def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism = 'G102'):
+    # initialize
+    flt = griz_model.GrismFLT(grism_file = grism_data,
+                          ref_file = mosiac, seg_file = seg_map,
+                            pad=200, ref_ext=0, shrink_segimage=False,force_grism = grism)
+    
+    # catalog / semetation image
+    ref_cat = Table.read( catalog ,format='ascii')
+    seg_cat = flt.blot_catalog(ref_cat,sextractor=False)
+    
+    ## Reset
+    flt.object_dispersers = collections.OrderedDict()
 
+    flt.compute_full_model(ids=seg_cat['id'], mags=-1)
+
+    # reload(grizli.model)
+    beam = flt.object_dispersers[gal_id][2]['A'] # can choose other orders if available
+    beam.compute_model()
+
+    ### BeamCutout object
+    co = griz_model.BeamCutout(flt, beam, conf=flt.conf)
+
+    ### Write the BeamCutout object to a normal FITS file
+    orient = int(fits.open(grism_data)[0].header['PA_V3'])
+    
+    co.write_fits(root='../beams/o{0}_{1}'.format(orient,orient_id), clobber=True)
+    fits.setval('../beams/o{0}_{1}_{2}.g102.A.fits'.format(orient, orient_id, gal_id), 'EXPTIME', ext=0,
+                value=fits.open('../beams/o{0}_{1}_{2}.g102.A.fits'.format(orient, orient_id, gal_id))[1].header['EXPTIME'])
 
 class Gen_spec(object):
     def __init__(self, galaxy_id, redshift, pad=100, delayed = True,minwv = 7900, maxwv = 11300):

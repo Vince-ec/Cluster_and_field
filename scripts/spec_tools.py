@@ -3,6 +3,12 @@ __author__ = 'vestrada'
 import numpy as np
 from scipy.interpolate import interp1d, interp2d
 from astropy.cosmology import Planck13 as cosmo
+from astropy.io import fits
+from astropy import wcs
+
+def Mag(band):
+    magnitude=25-2.5*np.log10(band)
+    return magnitude
 
 def Oldest_galaxy(z):
     return cosmo.age(z).value
@@ -39,6 +45,25 @@ def Likelihood_contours(age, metallicty, prob):
     twosig = np.abs(np.array(prob_int) - 0.95)
 
     return pbin[np.argmin(onesig)], pbin[np.argmin(twosig)]
+
+def Source_present(fn,ra,dec):  ### finds source in flt file, returns if present and the pos in pixels
+    flt=fits.open(fn)
+    present = False
+    pos = [0,0]
+    
+    if np.abs(dec - flt[0].header['DEC_TARG']) < 1:
+        w = wcs.WCS(flt[1].header)
+
+        xpixlim=len(flt[1].data[0])
+        ypixlim=len(flt[1].data)
+
+        [pos]=w.wcs_world2pix([[ra,dec]],1)
+
+        if -100<pos[0]<xpixlim + 100 and -100<pos[1]<ypixlim + 100 and flt[0].header['OBSTYPE'] == 'SPECTROSCOPIC':
+            present=True
+            
+    return present,pos
+    
 
 class Galaxy_set(object):
     def __init__(self, galaxy_id):
