@@ -93,12 +93,12 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
     g102_orients = []
     for i in range(len(flt_g102)):
         dat = fits.open(flt_g102[i])
-        g102_orients.append(np.round(dat[0].header['PA_V3']).astype(int))
+        g102_orients.append(int(dat[0].header['PA_V3']))
 
     g141_orients = []
     for i in range(len(flt_g141)):
         dat = fits.open(flt_g141[i])
-        g141_orients.append(np.round(dat[0].header['PA_V3']).astype(int))
+        g141_orients.append(int(dat[0].header['PA_V3']))
         
     xpos_g102,ypos_g102 = np.array(obj_g102).T
     xpos_g141,ypos_g141 = np.array(obj_g141).T
@@ -118,15 +118,21 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
 
     for i in obj_DB.index:
         if pa  == obj_DB.g102_orient[i]:
-            Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
-            pa  = obj_DB.g102_orient[i]
-            num += 1
+            if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(pa, num, gid)):
+                num +=1
+            else:
+                Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
+                pa  = obj_DB.g102_orient[i]
+                num += 1
 
         else:
             pa  = obj_DB.g102_orient[i]
-            num = 1
-            Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
-            num+=1
+            if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(pa, num, gid)):
+                num = 2
+            else:
+                num = 1
+                Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
+                num+=1
 
     pa = obj_DB.g141_orient[0]
     num = 1
@@ -134,15 +140,21 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
     for i in obj_DB.index:
         if obj_DB.g141_orient[i] > 0:
             if pa  == obj_DB.g141_orient[i]:
-                Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
-                pa  = obj_DB.g141_orient[i]
-                num += 1
+                if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(pa, num, gid)):
+                    num +=1
+                else:
+                    Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
+                    pa  = obj_DB.g141_orient[i]
+                    num += 1
 
             else:
                 pa  = obj_DB.g141_orient[i]
-                num = 1
-                Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
-                num+=1
+                if os.path.isfile('../beams/o{0}_{1}_{2}.g141exi.A.fits'.format(pa, num, gid)):
+                    num = 2
+                else:
+                    num = 1
+                    Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
+                    num+=1
 
     
 class Gen_spec(object):
