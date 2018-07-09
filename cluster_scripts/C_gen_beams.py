@@ -68,15 +68,15 @@ def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism
 
 def Gen_DB_and_beams(gid, loc, RA, DEC):
     if loc == 'south':
-        g102_list = glob('/fdata/scratch/vestrada78840/gs_flt_files/*flt.fits')
-        g141_list = glob('/fdata/scratch/vestrada78840/3ds_flt_files/*flt.fits')
+        g102_list = glob('/fdata/scratch/vestrada78840/Clear_flts/s_flt_files/*flt.fits')
+        g141_list = glob('/fdata/scratch/vestrada78840/3dhst_flts/s_flt_files/*flt.fits')
         ref = '/fdata/scratch/vestrada78840/goodss_mosaic/goodss_3dhst.v4.0.F125W_orig_sci.fits'
         seg = '/fdata/scratch/vestrada78840/goodss_mosaic/goodss_3dhst.v4.0.F160W_seg.fits'
         cat = '/fdata/scratch/vestrada78840/goodss_mosaic/goodss_3dhst.v4.3.cat'
 
     if loc == 'north':
-        g102_list = glob('/fdata/scratch/vestrada78840/gn_flt_files/*flt.fits')
-        g141_list = glob('/fdata/scratch/vestrada78840/3dn_flt_files/*flt.fits')    
+        g102_list = glob('/fdata/scratch/vestrada78840/Clear_flts/n_flt_files/*flt.fits')
+        g141_list = glob('/fdata/scratch/vestrada78840/3dhst_flts/n_flt_files/*flt.fits')    
         ref = '/fdata/scratch/vestrada78840/goodsn_mosaic/goodsn_3dhst.v4.0.F125W_orig_sci.fits'
         seg = '/fdata/scratch/vestrada78840/goodsn_mosaic/goodsn_3dhstP.seg.fits'
         cat = '/fdata/scratch/vestrada78840/goodsn_mosaic/goodsn_3dhstP.cat'      
