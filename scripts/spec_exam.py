@@ -37,7 +37,7 @@ def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism
     ## Reset
     flt.object_dispersers = collections.OrderedDict()
 
-    flt.compute_full_model(ids=seg_cat['id'], mags=-1)
+    flt.compute_full_model(ids=seg_cat['id'], mags=26)
 
     # check if galaxy is present
     if gal_id in flt.object_dispersers.keys():
@@ -45,16 +45,25 @@ def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism
         # reload(grizli.model)
         beam = flt.object_dispersers[gal_id][2]['A'] # can choose other orders if available
         beam.compute_model()
+        
+        # check if object in frame
+        org = [beam.sly_parent.start,beam.slx_parent.start]
+        nx = beam.slx_parent.stop - beam.slx_parent.start
+        ny = beam.sly_parent.stop - beam.sly_parent.start
+        
+        if (org[1]<0) | (org[1]+nx > 1014 +2*200) | (org[0]<0) | (org[0]+ny > 1014 +2*200):
+            print('object not found')
+        
+        else:
+            ### BeamCutout object
+            co = griz_model.BeamCutout(flt, beam, conf=flt.conf)
 
-        ### BeamCutout object
-        co = griz_model.BeamCutout(flt, beam, conf=flt.conf)
+            ### Write the BeamCutout object to a normal FITS file
+            orient = int(fits.open(grism_data)[0].header['PA_V3'])
 
-        ### Write the BeamCutout object to a normal FITS file
-        orient = int(fits.open(grism_data)[0].header['PA_V3'])
-
-        co.write_fits(root='../beams/o{0}_{1}'.format(orient,orient_id), clobber=True)
-        fits.setval('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism), 'EXPTIME', ext=0,
-                    value=fits.open('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism))[1].header['EXPTIME'])
+            co.write_fits(root='../beams/o{0}_{1}'.format(orient,orient_id), clobber=True)
+            fits.setval('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism), 'EXPTIME', ext=0,
+                        value=fits.open('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism))[1].header['EXPTIME'])
         
     else:
         print('object not found')
@@ -149,7 +158,7 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
 
             else:
                 pa  = obj_DB.g141_orient[i]
-                if os.path.isfile('../beams/o{0}_{1}_{2}.g141exi.A.fits'.format(pa, num, gid)):
+                if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(pa, num, gid)):
                     num = 2
                 else:
                     num = 1
