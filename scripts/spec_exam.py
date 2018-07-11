@@ -79,9 +79,9 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
     if loc == 'north':
         g102_list = glob(hpath + 'Clear_data/n_flt_files/*flt.fits')
         g141_list = glob(hpath + '3dhst/n_flt_files/*flt.fits')    
-        ref = hpath + '/Users/Vince.ec/Clear_data/goodsn_mosaic/goodsn_3dhst.v4.0.F125W_orig_sci.fits'
-        seg = hpath + '/Users/Vince.ec/Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
-        cat = hpath + '/Users/Vince.ec/Clear_data/goodsn_mosaic/goodsn_3dhstP.cat'      
+        ref = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.0.F125W_orig_sci.fits'
+        seg = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
+        cat = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.cat'      
         
     flt_g102 = []
     obj_g102 =[]
