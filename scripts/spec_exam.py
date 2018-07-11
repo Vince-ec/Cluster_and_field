@@ -60,7 +60,10 @@ def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism
 
             ### Write the BeamCutout object to a normal FITS file
             orient = int(fits.open(grism_data)[0].header['PA_V3'])
-
+            
+            if gal_id < 10000:
+                gal_id = '0' + '{0}'.format(gal_id)
+            
             co.write_fits(root='../beams/o{0}_{1}'.format(orient,orient_id), clobber=True)
             fits.setval('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism), 'EXPTIME', ext=0,
                         value=fits.open('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism))[1].header['EXPTIME'])
