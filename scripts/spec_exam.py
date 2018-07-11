@@ -28,7 +28,7 @@ def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism
     # initialize
     flt = griz_model.GrismFLT(grism_file = grism_data,
                           ref_file = mosiac, seg_file = seg_map,
-                            pad=200, ref_ext=0, shrink_segimage=False,force_grism = grism)
+                            pad=200, ref_ext=0, shrink_segimage=True,force_grism = grism)
     
     # catalog / semetation image
     ref_cat = Table.read( catalog ,format='ascii')

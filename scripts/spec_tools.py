@@ -65,7 +65,7 @@ def Source_present(fn,ra,dec):  ### finds source in flt file, returns if present
 
     [pos]=w.wcs_world2pix([[ra,dec]],1)
 
-    if -100 <pos[0]< xpixlim and 0 <pos[1]<ypixlim and flt[0].header['OBSTYPE'] == 'SPECTROSCOPIC':
+    if -100 <pos[0]< (xpixlim - 35) and 0 <pos[1]<ypixlim and flt[0].header['OBSTYPE'] == 'SPECTROSCOPIC':
         present=True
             
     return present,pos
