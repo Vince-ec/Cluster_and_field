@@ -128,10 +128,15 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
     pa = obj_DB.g102_orient[0]
     num = 1
 
+    if gid < 10000:
+        galid = '0' + '{0}'.format(gid)
+    else:
+        galid = gid
+    
     for i in obj_DB.index:
         if obj_DB.g102_orient[i] > 0:
             if pa  == obj_DB.g102_orient[i]:
-                if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(int(pa), num, gid)):
+                if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(int(pa), num, galid)):
                     num +=1
                 else:
                     Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
@@ -141,7 +146,7 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
             else:
                 pa  = obj_DB.g102_orient[i]
                 num = 1
-                if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(int(pa), num, gid)):
+                if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(int(pa), num, galid)):
                     num+=1
                 else:
                     Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
@@ -153,7 +158,7 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
     for i in obj_DB.index:
         if obj_DB.g141_orient[i] > 0:
             if pa  == obj_DB.g141_orient[i]:
-                if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(int(pa), num, gid)):
+                if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(int(pa), num, galid)):
                     num +=1
                 else:
                     Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
@@ -162,7 +167,7 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
             else:
                 pa  = obj_DB.g141_orient[i]
                 num = 1
-                if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(int(pa), num, gid)):
+                if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(int(pa), num, galid)):
                     num +=1
                 else:
                     Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
