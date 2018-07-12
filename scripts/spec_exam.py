@@ -84,7 +84,15 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
         g141_list = glob(hpath + '3dhst/n_flt_files/*flt.fits')    
         ref = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.0.F125W_orig_sci.fits'
         seg = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
-        cat = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.cat'      
+        cat = hpath + 'uds_3dhst.v4.2.cats/Catalog/uds_3dhst.v4.2.cat'      
+        
+    if loc == 'uds':
+        g102_list = glob(hpath + 'uds_flt_files/*flt.fits')
+        g141_list = glob(hpath + '3dhst/n_flt_files/*flt.fits')    
+        ref = hpath + ''
+        seg = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
+        cat = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.cat'    
+        
         
     flt_g102 = []
     obj_g102 =[]
