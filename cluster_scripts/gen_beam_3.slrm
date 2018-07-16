@@ -8,8 +8,8 @@
 
 chmod a+x C_beams_instruct.py
 
-python C_beams_instruct.py 29257 'south' 53.147471 -27.777637 &
-python C_beams_instruct.py 11814 'north' 189.217095 62.200346 &
+python C_beams_instruct.py 24418 'south' 53.139273 -27.795789 &
+python C_beams_instruct.py 7865 'north' 189.182132 62.18166 &
     
 wait
 

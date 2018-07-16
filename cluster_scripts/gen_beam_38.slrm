@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH -J g_beam-38
+#SBATCH -p background
+#SBATCH --time=10:00:00
+#SBATCH --mem-per-cpu=8000
+#SBATCH -o gbeam38-%j.out
+#SBATCH -e gbeam38-%j.err
+
+chmod a+x C_beams_instruct.py
+
+python C_beams_instruct.py 41043 'south' 53.152487 -27.718045 &
+python C_beams_instruct.py 21995 'north' 189.205315 62.250779 &
+    
+wait
+
+exit 0
