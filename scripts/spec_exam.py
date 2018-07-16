@@ -24,7 +24,14 @@ pandas2ri.activate()
 
 hpath = os.environ['HOME'] + '/'
 
-def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism = 'G102'):
+def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, loc, grism = 'G102'):
+    if loc == 'south':
+        pre = 'gs'
+    if loc == 'north':
+        pre = 'gn'
+    if loc == 'uds':
+        pre = 'uds'
+
     # initialize
     flt = griz_model.GrismFLT(grism_file = grism_data,
                           ref_file = mosiac, seg_file = seg_map,
@@ -37,7 +44,7 @@ def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism
     ## Reset
     flt.object_dispersers = collections.OrderedDict()
 
-    flt.compute_full_model(ids=seg_cat['id'], mags=26)
+    flt.compute_full_model(ids=seg_cat['id'], mags=Mag(seg_cat['f_F125W']), mag_limit=Mag(seg_cat['f_F125W'][seg_cat['id'] == gal_id]) + 0.2 )
 
     # check if galaxy is present
     if gal_id in flt.object_dispersers.keys():
@@ -64,9 +71,9 @@ def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, grism
             if gal_id < 10000:
                 gal_id = '0' + '{0}'.format(gal_id)
             
-            co.write_fits(root='../beams/o{0}_{1}'.format(orient,orient_id), clobber=True)
-            fits.setval('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism), 'EXPTIME', ext=0,
-                        value=fits.open('../beams/o{0}_{1}_{2}.{3}.A.fits'.format(orient, orient_id, gal_id,grism))[1].header['EXPTIME'])
+            co.write_fits(root='../beams/{0}_o{1}_{2}'.format(pre,orient,orient_id), clobber=True)
+            fits.setval('../beams/{0}_o{1}_{2}_{3}.{4}.A.fits'.format(pre,orient, orient_id, gal_id,grism), 'EXPTIME', ext=0,
+                        value=fits.open('../beams/{0}_o{1}_{2}_{3}.{4}.A.fits'.format(pre,orient, orient_id, gal_id,grism))[1].header['EXPTIME'])
         
     else:
         print('object not found')
@@ -78,6 +85,7 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
         ref = hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.0.F125W_orig_sci.fits'
         seg = hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.0.F160W_seg.fits'
         cat = hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.3.cat'
+        pre = 'gs'
 
     if loc == 'north':
         g102_list = glob(hpath + 'Clear_data/n_flt_files/*flt.fits')
@@ -85,14 +93,15 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
         ref = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.0.F125W_orig_sci.fits'
         seg = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
         cat = hpath + 'uds_3dhst.v4.2.cats/Catalog/uds_3dhst.v4.2.cat'      
-        
+        pre = 'gn'
+
     if loc == 'uds':
-        g102_list = glob(hpath + 'uds_flt_files/*flt.fits')
-        g141_list = glob(hpath + '3dhst/n_flt_files/*flt.fits')    
-        ref = hpath + ''
-        seg = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
-        cat = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.cat'    
-        
+        g102_list = glob(hpath + 'UDS_data/uds_g102_flts/*flt.fits')
+        g141_list = glob(hpath + 'UDS_data/uds_g141_flts/*flt.fits')    
+        ref = hpath + 'UDS_data/uds_mosaic/uds_3dhst.v4.0.F125W_orig_sci.fits'
+        seg = hpath + 'UDS_data/uds_mosaic/uds_3dhst.v4.0.F160W_seg.fits'
+        cat = hpath + 'UDS_data/uds_3dhst.v4.2.cats/Catalog/uds_3dhst.v4.2.cat'    
+        pre = 'uds'
         
     flt_g102 = []
     obj_g102 =[]
@@ -131,11 +140,19 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
 
         g141_DB = pd.DataFrame({'g141_file' : flt_g141, 'g141_orient' : g141_orients, 'g141_xpos' : xpos_g141, 'g141_ypos' : ypos_g141})
 
+        g102_DB = g102_DB.sort_values('g102_orient')
+
+        g141_DB = g141_DB.sort_values('g141_orient')
+        
+        g102_DB = g102_DB.reset_index().drop('index',axis=1)
+
+        g141_DB = g141_DB.reset_index().drop('index',axis=1)
+        
         obj_DB = pd.concat([g102_DB,g141_DB], ignore_index=True, axis=1)
 
         obj_DB.columns = ['g102_file','g102_orient','g102_xpos','g102_ypos','g141_file','g141_orient','g141_xpos','g141_ypos']
 
-        obj_DB.to_pickle('../dataframes/file_list/{0}.pkl'.format(gid))
+        obj_DB.to_pickle('../dataframes/file_list/{0}_{1}.pkl'.format(pre,gid))
 
         pa = obj_DB.g102_orient[0]
         num = 1
@@ -148,20 +165,20 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
         for i in obj_DB.index:
             if obj_DB.g102_orient[i] > 0:
                 if pa  == obj_DB.g102_orient[i]:
-                    if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(int(pa), num, galid)):
+                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g102.A.fits'.format(pre,int(pa), num, galid)):
                         num +=1
                     else:
-                        Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
+                        Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num,loc)
                         pa  = obj_DB.g102_orient[i]
                         num += 1
 
                 else:
                     pa  = obj_DB.g102_orient[i]
                     num = 1
-                    if os.path.isfile('../beams/o{0}_{1}_{2}.g102.A.fits'.format(int(pa), num, galid)):
+                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g102.A.fits'.format(pre,int(pa), num, galid)):
                         num+=1
                     else:
-                        Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num)
+                        Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num,loc)
                         num+=1
 
         pa = obj_DB.g141_orient[0]
@@ -170,19 +187,19 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
         for i in obj_DB.index:
             if obj_DB.g141_orient[i] > 0:
                 if pa  == obj_DB.g141_orient[i]:
-                    if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(int(pa), num, galid)):
+                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g141.A.fits'.format(pre,int(pa), num, galid)):
                         num +=1
                     else:
-                        Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
+                        Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num,loc, grism='G141')
                         pa  = obj_DB.g141_orient[i]
                         num += 1
                 else:
                     pa  = obj_DB.g141_orient[i]
                     num = 1
-                    if os.path.isfile('../beams/o{0}_{1}_{2}.g141.A.fits'.format(int(pa), num, galid)):
+                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g141.A.fits'.format(pre,int(pa), num, galid)):
                         num +=1
                     else:
-                        Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num, grism='G141')
+                        Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num,loc, grism='G141')
                         num+=1
     
     
