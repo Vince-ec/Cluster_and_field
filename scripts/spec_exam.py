@@ -2,11 +2,12 @@ __author__ = 'vestrada'
 
 import numpy as np
 from numpy.linalg import inv
-from spec_tools import Mag, Source_present
+from spec_tools import Mag, Source_present, Scale_model
 from scipy.interpolate import interp1d, interp2d
 from astropy.cosmology import Planck13 as cosmo
 import sympy as sp
 import grizli
+import pysynphot as S
 from astropy.io import fits
 from astropy.io import ascii
 from astropy.table import Table
@@ -15,6 +16,7 @@ from glob import glob
 from grizli import model as griz_model
 import collections
 import pandas as pd
+import re
 import rpy2
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
@@ -201,37 +203,9 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
                     else:
                         Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num,loc, grism='G141')
                         num+=1
-    
-    
-class Single_spec(object):
-    def __init__(self, beam, gal_id,min_wv = 8000, max_wv = 11500):
-        BEAM = griz_model.BeamCutout(fits_file= beam)
-
-        self.spec_2D = BEAM.grism.data['SCI']
-        self.contam_2D = BEAM.contam
-        self.clean_2D = BEAM.grism.data['SCI'] - BEAM.contam
-        self.cutout = BEAM.beam.direct*(BEAM.beam.seg == gal_id)
-
-        xspec, yspec, yerr = BEAM.beam.optimal_extract(BEAM.grism.data['SCI'], bin=0, ivar=BEAM.ivar) #data
-        
-        flat = BEAM.flat_flam.reshape(BEAM.beam.sh_beam)
-        fwave,fflux,ferr = BEAM.beam.optimal_extract(flat, bin=0, ivar=BEAM.ivar)
-                
-        yspec /= fflux
-        yerr /=fflux
-
-        IDX= [U for U in range(len(xspec)) if min_wv < xspec[U] < max_wv]
-        
-        self.wv = xspec[IDX]
-        self.fl = yspec[IDX]
-        self.er = yerr[IDX]
-
-        
-class Stack_spec(object):
-    def __init__(self, gal_id, g102_min = 8700, g102_max = 11300, g141_min = 11100, g141_max = 16450):
+class Gen_spec(object):
+    def __init__(self, gal_id, g102_min = 8700, g102_max = 11300, g141_min = 11100, g141_max = 16700, sim = True):
         self.gal_id = gal_id
-        p_file = glob('../dataframes/phot/*{0}*'.format(gal_id))[0]
-        self.phot_db = pd.read_pickle(p_file)
         
         self.g102_list = glob('../beams/*{0}*g102*'.format(gal_id))
         self.g141_list = glob('../beams/*{0}*g141*'.format(gal_id))
@@ -240,41 +214,73 @@ class Stack_spec(object):
         
         self.Stack_g102_g141()
         
-    def Stack_1d_beams(self, beam_list, min_wv, max_wv):
-        spec = Single_spec(beam_list[0], self.gal_id, min_wv = min_wv, max_wv=max_wv)
+        if sim == True:
+            self.Initialize_sim()
+            self.g102_sens = self.Set_sensitivity(self.g102_list[0],self.g102_wv)
+            self.g141_sens = self.Set_sensitivity(self.g141_list[0],self.g141_wv)
 
-        stack_wv = spec.wv[1:-1]
+    def Single_spec(self, beam, min_wv, max_wv):
+        BEAM = griz_model.BeamCutout(fits_file= beam)
+       
+        ivar = BEAM.ivar
+        weight = np.exp(-(1*np.abs(BEAM.contam)*np.sqrt(ivar)))
+            
+        w, f, e = BEAM.beam.optimal_extract(BEAM.grism.data['SCI'], bin=0, ivar=BEAM.ivar)
 
-        flgrid = np.zeros([len(beam_list), len(stack_wv)])
-        errgrid = np.zeros([len(beam_list), len(stack_wv)])
+        flat = BEAM.flat_flam.reshape(BEAM.beam.sh_beam)
+        fwave,fflux,ferr = BEAM.beam.optimal_extract(flat, bin=0, ivar=BEAM.ivar)
+               
+        f /= fflux
+        e /= fflux
 
-        # Get wv,fl,er for each spectra
-        for i in range(len(beam_list)):
-            spec = Single_spec(beam_list[i], self.gal_id, min_wv = min_wv, max_wv=max_wv)
-            flgrid[i] = interp1d(spec.wv, spec.fl)(stack_wv)
-            errgrid[i] = interp1d(spec.wv, spec.er)(stack_wv)
-        ################
+        IDX= [U for U in range(len(w)) if min_wv < w[U] < max_wv]
+        
+        return w[IDX], f[IDX], e[IDX]
+        
+    def Set_sensitivity(self,beam,master_wv):    
+        BEAM = griz_model.BeamCutout(fits_file= beam)
+        
+        flat = BEAM.flat_flam.reshape(BEAM.beam.sh_beam)
+        fwave,fflux,ferr = BEAM.beam.optimal_extract(flat, bin=0, ivar=BEAM.ivar)
 
+        return interp1d(fwave,fflux)(master_wv)
+        
+    def Stack_spec(self, stk_wv, flgrid, errgrid):
+        #### rearrange flux grid and generate weights
         flgrid = np.transpose(flgrid)
         errgrid = np.transpose(errgrid)
         weigrid = errgrid ** (-2)
-        infmask = np.isinf(weigrid)
+        infmask = np.isinf(weigrid) ## remove inif cause by nans in the error grid
         weigrid[infmask] = 0
-        ################
 
-        stack, err = np.zeros([2, len(stack_wv)])
-        for i in range(len(stack_wv)):
-            stack[i] = np.sum(flgrid[i] * weigrid[[i]]) / (np.sum(weigrid[i]))
-            err[i] = 1 / np.sqrt(np.sum(weigrid[i]))
-        ################
-
-        stack_fl = np.array(stack)
-        stack_er = np.array(err)
-
-        return stack_wv, stack_fl, stack_er
-    
-    def Stack_g102_g141(self):
+        #### Stack spectra
+        stack_fl, stack_er = np.zeros([2, len(stk_wv)])
+        for i in range(len(stk_wv)):
+            stack_fl[i] = np.sum(flgrid[i] * weigrid[[i]]) / (np.sum(weigrid[i]))
+            stack_er[i] = 1 / np.sqrt(np.sum(weigrid[i]))
         
+        return stk_wv, stack_fl, stack_er
+        
+    def Stack_1d_beams(self, beam_list, min_wv, max_wv):
+        #### set master wavelength array
+        wv,fl,er = self.Single_spec(beam_list[0], min_wv = min_wv, max_wv=max_wv)
+        master_wv = wv[1:-1]
+        
+        #### intialize flux and error grid
+        flgrid = np.zeros([len(beam_list), len(master_wv)])
+        errgrid = np.zeros([len(beam_list), len(master_wv)])
+
+        #### Get wv,fl,er for each spectra
+        for i in range(len(beam_list)):
+            wv,fl,er = self.Single_spec(beam_list[i], min_wv = min_wv, max_wv=max_wv)
+            flgrid[i] = interp1d(wv, fl)(master_wv)
+            errgrid[i] = interp1d(wv, er)(master_wv)
+        
+        return self.Stack_spec(master_wv, flgrid, errgrid)
+
+    
+    def Stack_g102_g141(self): #### good to display, but may not be good for science
+        #### make combined wavelength set
         bounds = [min(self.g141_wv),max(self.g102_wv)]
         del_g102 = self.g102_wv[1] - self.g102_wv[0]
         del_g141 = self.g141_wv[1] - self.g141_wv[0]
@@ -282,10 +288,11 @@ class Stack_spec(object):
         mix_wv = np.arange(bounds[0],bounds[1],del_mix)    
         stack_wv = np.append(np.append(self.g102_wv[self.g102_wv < bounds[0]],mix_wv),self.g141_wv[self.g141_wv > bounds[1]])
 
+        #### intialize flux and error grid
         flgrid = np.zeros([2, len(stack_wv)])
         errgrid = np.zeros([2, len(stack_wv)])
 
-        # Get wv,fl,er for each spectra
+        #### Get wv,fl,er for each spectra
         for i in range(len(stack_wv)):
             if min(self.g102_wv) <= stack_wv[i] <= max(self.g102_wv):
                 flgrid[0][i] = interp1d(self.g102_wv, self.g102_fl)(stack_wv[i])
@@ -294,21 +301,66 @@ class Stack_spec(object):
             if min(self.g141_wv) <= stack_wv[i] <= max(self.g141_wv):
                 flgrid[1][i] = interp1d(self.g141_wv, self.g141_fl)(stack_wv[i])
                 errgrid[1][i] = interp1d(self.g141_wv, self.g141_er)(stack_wv[i])
-        ################
 
-        flgrid = np.transpose(flgrid)
-        errgrid = np.transpose(errgrid)
-        weigrid = errgrid ** (-2)
-        infmask = np.isinf(weigrid)
-        weigrid[infmask] = 0
-        ################
+        self.stack_wv, self.stack_fl, self.stack_er = self.Stack_spec(stack_wv, flgrid, errgrid)
+        
+    def Initialize_sim(self):
+        #### pick out orients
+        g102_beams = glob('../beams/*{0}*g102*'.format(self.gal_id))
+        g102_beamid = [re.findall("o\w[0-9]+",U)[0] for U in g102_beams]
+        self.g102_beamid = list(set(g102_beamid))
 
-        stack, err = np.zeros([2, len(stack_wv)])
-        for i in range(len(stack_wv)):
-            stack[i] = np.sum(flgrid[i] * weigrid[[i]]) / (np.sum(weigrid[i]))
-            err[i] = 1 / np.sqrt(np.sum(weigrid[i]))
-        ################
+        g141_beams = glob('../beams/*{0}*g141*'.format(self.gal_id))
+        g141_beamid = [re.findall("o\w[0-9]+",U)[0] for U in g141_beams]
+        self.g141_beamid = list(set(g141_beamid))
+        
+        #### initialize dictionary of beams
+        self.g102_beam_dict = {}
+        self.g141_beam_dict = {}
 
-        self.stack_wv = stack_wv
-        self.stack_fl = np.array(stack)
-        self.stack_er = np.array(err)
+        #### set beams for each orient
+        for i in self.g102_beamid:
+            key = i
+            value = griz_model.BeamCutout(fits_file= glob('../beams/*{0}*{1}*g102*'.format(i,self.gal_id))[0])
+            self.g102_beam_dict[key] = value 
+            
+        for i in self.g141_beamid:
+            key = i
+            value = griz_model.BeamCutout(fits_file= glob('../beams/*{0}*{1}*g141*'.format(i,self.gal_id))[0])
+            self.g141_beam_dict[key] = value 
+        
+    def Sim_beam(self,BEAM, mwv, mfl, grism_wv, grism_fl, grism_er, grism_sens):
+        ## Compute the models
+        BEAM.beam.compute_model(spectrum_1d=[mwv, mfl], is_cgs = True)
+
+        ## Extractions the model (error array here is meaningless)
+        w, f, e = BEAM.beam.optimal_extract(BEAM.beam.model, bin=0)
+
+        ## interpolate and scale
+        f = interp1d(w,f)(grism_wv) / grism_sens
+        C = Scale_model(grism_fl, grism_er,f)
+
+        return C*f
+            
+    def Gen_sim(self, model_wv, model_fl, redshift): 
+        ### normalize and redshift model spectra
+        spec = S.ArraySpectrum(model_wv, model_fl, fluxunits='flam')
+        spec = spec.redshift(redshift).renorm(1., 'flam', S.ObsBandpass('wfc3,ir,f105w'))
+        spec.convert('flam')
+
+        ### initialize model flux grids
+        g102_mfl_grid = np.zeros([len(self.g102_beam_dict.keys()), len(self.g102_wv)])
+        g141_mfl_grid = np.zeros([len(self.g141_beam_dict.keys()), len(self.g141_wv)])
+
+        ### simulate each beam
+        for i in range(len(self.g102_beamid)):    
+            g102_mfl_grid[i] = self.Sim_beam(self.g102_beam_dict[self.g102_beamid[i]], spec.wave,spec.flux, 
+                                             self.g102_wv, self.g102_fl, self.g102_er, self.g102_sens)
+
+        for i in range(len(self.g141_beamid)):    
+            g141_mfl_grid[i] = self.Sim_beam(self.g141_beam_dict[self.g141_beamid[i]], spec.wave,spec.flux, 
+                                             self.g141_wv, self.g141_fl, self.g141_er, self.g141_sens)
+
+        ### stack all sims
+        self.g102_mfl = np.mean(g102_mfl_grid,axis=0)
+        self.g141_mfl = np.mean(g141_mfl_grid,axis=0)
