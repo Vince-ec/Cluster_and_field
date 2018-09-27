@@ -94,7 +94,7 @@ def Gen_DB_and_beams(gid, loc, RA, DEC):
         g141_list = glob(hpath + '3dhst/n_flt_files/*flt.fits')    
         ref = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.0.F125W_orig_sci.fits'
         seg = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
-        cat = hpath + 'uds_3dhst.v4.2.cats/Catalog/uds_3dhst.v4.2.cat'      
+        cat = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.3.cat'      
         pre = 'gn'
 
     if loc == 'uds':
@@ -273,8 +273,9 @@ class Gen_spec(object):
         #### Get wv,fl,er for each spectra
         for i in range(len(beam_list)):
             wv,fl,er = self.Single_spec(beam_list[i], min_wv = min_wv, max_wv=max_wv)
-            flgrid[i] = interp1d(wv, fl)(master_wv)
-            errgrid[i] = interp1d(wv, er)(master_wv)
+            if sum(fl)>0:
+                flgrid[i] = interp1d(wv, fl)(master_wv)
+                errgrid[i] = interp1d(wv, er)(master_wv)
         
         return self.Stack_spec(master_wv, flgrid, errgrid)
 
