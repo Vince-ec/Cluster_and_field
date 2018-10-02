@@ -132,7 +132,7 @@ class Photometry(object):
         if filter_num != 0:
             self.filter_number = filter_num
 
-        f = open('~/GitHub/Quiescent_analysis/scripts/vtl/FILTER.RES.latest', 'r')
+        f = open(hpath + 'GitHub/Quiescent_analysis/scripts/vtl/FILTER.RES.latest', 'r')
         data = f.readlines()
         rows = []
         for i in range(len(data)):
