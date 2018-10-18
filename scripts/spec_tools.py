@@ -14,6 +14,25 @@ c=3E10          # speed of light cm s^-1
 atocm=1E-8    # unit to convert angstrom to cm
 kb=1.38E-16	    # erg k-1
 
+"""
+FUNCTIONS:
+-Mag
+-Oldest_galaxy
+-Gauss_dist
+-Scale_model
+-Likelihood_contours
+-Source_present
+-Get_sensitivity
+-Sig_int
+
+CLASSES:
+-Photometry
+"""
+
+
+
+
+
 def Mag(band):
     magnitude=25-2.5*np.log10(band)
     return magnitude
