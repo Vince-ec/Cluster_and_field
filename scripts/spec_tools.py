@@ -24,12 +24,38 @@ FUNCTIONS:
 -Source_present
 -Get_sensitivity
 -Sig_int
+-Likelihood_contours
 
 CLASSES:
 -Photometry
 """
 
 
+def Likelihood_contours(age, metallicty, prob):
+    ####### Create fine resolution ages and metallicities
+    ####### to integrate over
+    m2 = np.linspace(min(metallicty), max(metallicty), 50)
+
+    ####### Interpolate prob
+    P2 = interp2d(metallicty, age, prob)(m2, age)
+
+    ####### Create array from highest value of P2 to 0
+    pbin = np.linspace(0, np.max(P2), 1000)
+    pbin = pbin[::-1]
+
+    ####### 2d integrate to find the 1 and 2 sigma values
+    prob_int = np.zeros(len(pbin))
+
+    for i in range(len(pbin)):
+        p = np.array(P2)
+        p[p <= pbin[i]] = 0
+        prob_int[i] = np.trapz(np.trapz(p, m2, axis=1), age)
+
+    ######## Identify 1 and 2 sigma values
+    onesig = np.abs(np.array(prob_int) - 0.68)
+    twosig = np.abs(np.array(prob_int) - 0.95)
+
+    return pbin[np.argmin(onesig)], pbin[np.argmin(twosig)]
 
 
 
