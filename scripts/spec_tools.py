@@ -16,6 +16,8 @@ kb=1.38E-16	    # erg k-1
 
 """
 FUNCTIONS:
+-Extract_BeamCutout
+-Likelihood_contours
 -Mag
 -Oldest_galaxy
 -Gauss_dist
@@ -24,11 +26,31 @@ FUNCTIONS:
 -Source_present
 -Get_sensitivity
 -Sig_int
--Likelihood_contours
 
 CLASSES:
 -Photometry
 """
+def Extract_BeamCutout(target_id, grism_file, mosaic, seg_map, instruement, catalog):
+    flt = model.GrismFLT(grism_file = grism_file ,
+                          ref_file = mosaic, seg_file = seg_map,
+                            pad=200, ref_ext=0, shrink_segimage=True, force_grism = instrument)
+    
+    # catalog / semetation image
+    ref_cat = Table.read(catalog ,format='ascii')
+    seg_cat = flt.blot_catalog(ref_cat,sextractor=False)
+    flt.compute_full_model(ids=seg_cat['id'])
+    beam = flt.object_dispersers[target_id][2]['A']
+    co = model.BeamCutout(flt, beam, conf=flt.conf)
+    
+    PA = np.round(fits.open(grism_file)[0].header['PA_V3'] , 1)
+    
+    co.write_fits(root='beams/o{0}'.format(PA), clobber=True)
+
+    ### add EXPTIME to extension 0
+    
+    
+    fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(PA, target_id, instrument), 'EXPTIME', ext=0,
+            value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(PA, target_id, instrument))[1].header['EXPTIME'])   
 
 
 def Likelihood_contours(age, metallicty, prob):
@@ -257,19 +279,12 @@ class Photometry(object):
         bottom = np.trapz(bottom1, filtnu)
         photonu = top / bottom
 
-        top1 = Ernu * energy * self.trans[IDX]
-        top = np.trapz(top1, filtnu)
-        bottom1 = self.trans[IDX] * energy
-        bottom = np.trapz(bottom1, filtnu)
-        erphotonu = top / bottom
-
         tp = np.trapz(((self.trans * np.log(self.sens_wv)) / self.sens_wv), self.sens_wv)
         bm = np.trapz(self.trans / self.sens_wv, self.sens_wv)
 
         wave_eff = np.exp(tp / bm)
 
         photo = photonu * (c / (wave_eff * atocm) ** 2)
-        photoer = erphotonu * (c / (wave_eff * atocm) ** 2)
 
         self.eff_wv = wave_eff
         self.photo = photo
