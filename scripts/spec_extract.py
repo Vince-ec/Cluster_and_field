@@ -30,7 +30,7 @@ FUNCTIONS:
 
 CLASSES:
 """
-def Extract_BeamCutout(target_id, grism_file, mosaic, seg_map, instruement, catalog):
+def Extract_BeamCutout(target_id, grism_file, mosaic, seg_map, instrument, catalog):
     flt = model.GrismFLT(grism_file = grism_file ,
                           ref_file = mosaic, seg_file = seg_map,
                             pad=200, ref_ext=0, shrink_segimage=True, force_grism = instrument)
@@ -44,7 +44,7 @@ def Extract_BeamCutout(target_id, grism_file, mosaic, seg_map, instruement, cata
     
     PA = np.round(fits.open(grism_file)[0].header['PA_V3'] , 1)
     
-    co.write_fits(root='beams/o{0}'.format(PA), clobber=True)
+    co.write_fits(root='../beams/o{0}'.format(PA), clobber=True)
 
     ### add EXPTIME to extension 0
     
