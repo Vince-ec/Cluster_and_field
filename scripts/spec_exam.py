@@ -13,355 +13,204 @@ from astropy.io import ascii
 from astropy.table import Table
 import os
 from glob import glob
-from grizli import model as griz_model
+from grizli import model
 import collections
 import pandas as pd
-import re
-import rpy2
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
-from rpy2.robjects import pandas2ri
-R = robjects.r
-pandas2ri.activate()
+from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
 
 hpath = os.environ['HOME'] + '/'
 
-def Gen_beam_fits(mosiac, seg_map, grism_data, catalog, gal_id, orient_id, loc, grism = 'G102'):
-    if loc == 'south':
-        pre = 'gs'
-    if loc == 'north':
-        pre = 'gn'
-    if loc == 'uds':
-        pre = 'uds'
+data_path = '../data/'
+model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
+chi_path = '../chidat/'
+spec_path = '../spec_files/'
+beam_path = '../beams/'
+template_path = '../templates/'
+out_path = '../data/posteriors/'
+phot_path = '../phot/'
 
-    # initialize
-    flt = griz_model.GrismFLT(grism_file = grism_data,
-                          ref_file = mosiac, seg_file = seg_map,
-                            pad=200, ref_ext=0, shrink_segimage=True,force_grism = grism)
+def Calzetti_low(Av,lam):
+    lam = lam * 1E-4
+    Rv=4.05
+    k = 2.659*(-2.156 +1.509/(lam) -0.198/(lam**2) +0.011/(lam**3)) + Rv
+    cal = 10**(-0.4*k*Av/Rv)
+    return cal
+
+def Calzetti_hi(Av,lam):
+    lam = lam * 1E-4
+    Rv=4.05
+    k = 2.659*(-1.857 +1.04/(lam)) + Rv
+    cal = 10**(-0.4*k*Av/Rv)    
     
-    # catalog / semetation image
-    ref_cat = Table.read( catalog ,format='ascii')
-    seg_cat = flt.blot_catalog(ref_cat,sextractor=False)
+    return cal
+
+def Calzetti(Av,lam):
+    dust = Calzetti_low(Av,lam)
+    dust2 = Calzetti_hi(Av,lam)
     
-    ## Reset
-    flt.object_dispersers = collections.OrderedDict()
-
-    flt.compute_full_model(ids=seg_cat['id'], mags=Mag(seg_cat['f_F125W']), mag_limit=Mag(seg_cat['f_F125W'][seg_cat['id'] == gal_id]) + 0.2 )
-
-    # check if galaxy is present
-    if gal_id in flt.object_dispersers.keys():
+    for ii in range(len(dust)):
+        if lam[ii] > 6300:
+            dust[ii]=dust2[ii] 
     
-        # reload(grizli.model)
-        beam = flt.object_dispersers[gal_id][2]['A'] # can choose other orders if available
-        beam.compute_model()
-        
-        # check if object in frame
-        org = [beam.sly_parent.start,beam.slx_parent.start]
-        nx = beam.slx_parent.stop - beam.slx_parent.start
-        ny = beam.sly_parent.stop - beam.sly_parent.start
-        
-        if (org[1]<0) | (org[1]+nx > 1014 +2*200) | (org[0]<0) | (org[0]+ny > 1014 +2*200):
-            print('object not found')
-        
-        else:
-            ### BeamCutout object
-            co = griz_model.BeamCutout(flt, beam, conf=flt.conf)
+    return dust
+  
 
-            ### Write the BeamCutout object to a normal FITS file
-            orient = int(fits.open(grism_data)[0].header['PA_V3'])
-            
-            if gal_id < 10000:
-                gal_id = '0' + '{0}'.format(gal_id)
-            
-            co.write_fits(root='../beams/{0}_o{1}_{2}'.format(pre,orient,orient_id), clobber=True)
-            fits.setval('../beams/{0}_o{1}_{2}_{3}.{4}.A.fits'.format(pre,orient, orient_id, gal_id,grism), 'EXPTIME', ext=0,
-                        value=fits.open('../beams/{0}_o{1}_{2}_{3}.{4}.A.fits'.format(pre,orient, orient_id, gal_id,grism))[1].header['EXPTIME'])
-        
-    else:
-        print('object not found')
-
-def Gen_DB_and_beams(gid, loc, RA, DEC):
-    if loc == 'south':
-        g102_list = glob(hpath + 'Clear_data/s_flt_files/*flt.fits')
-        g141_list = glob(hpath + '3dhst/s_flt_files/*flt.fits')
-        ref = hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.0.F125W_orig_sci.fits'
-        seg = hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.0.F160W_seg.fits'
-        cat = hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.3.cat'
-        pre = 'gs'
-
-    if loc == 'north':
-        g102_list = glob(hpath + 'Clear_data/n_flt_files/*flt.fits')
-        g141_list = glob(hpath + '3dhst/n_flt_files/*flt.fits')    
-        ref = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.0.F125W_orig_sci.fits'
-        seg = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
-        cat = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.3.cat'      
-        pre = 'gn'
-
-    if loc == 'uds':
-        g102_list = glob(hpath + 'UDS_data/uds_g102_flts/*flt.fits')
-        g141_list = glob(hpath + 'UDS_data/uds_g141_flts/*flt.fits')    
-        ref = hpath + 'UDS_data/uds_mosaic/uds_3dhst.v4.0.F125W_orig_sci.fits'
-        seg = hpath + 'UDS_data/uds_mosaic/uds_3dhst.v4.0.F160W_seg.fits'
-        cat = hpath + 'UDS_data/uds_3dhst.v4.2.cats/Catalog/uds_3dhst.v4.2.cat'    
-        pre = 'uds'
-        
-    flt_g102 = []
-    obj_g102 =[]
-    for i in range(len(g102_list)):
-        pres,pos=Source_present(g102_list[i],RA,DEC)
-        if pres==True:
-            obj_g102.append(pos)
-            flt_g102.append(g102_list[i])
-
-    flt_g141 = []
-    obj_g141 =[]
-    for i in range(len(g141_list)):
-        pres,pos=Source_present(g141_list[i],RA,DEC)
-        if pres==True:
-            obj_g141.append(pos)
-            flt_g141.append(g141_list[i])
-            
-    g102_orients = []
-    for i in range(len(flt_g102)):
-        dat = fits.open(flt_g102[i])
-        g102_orients.append(int(dat[0].header['PA_V3']))
-
-    g141_orients = []
-    for i in range(len(flt_g141)):
-        dat = fits.open(flt_g141[i])
-        g141_orients.append(int(dat[0].header['PA_V3']))
-      
-    if (len(obj_g102) < 1) | (len(obj_g141) < 1):
-        print('object not found')
-    else:
-    
-        xpos_g102,ypos_g102 = np.array(obj_g102).T
-        xpos_g141,ypos_g141 = np.array(obj_g141).T
-
-        g102_DB = pd.DataFrame({'g102_file' : flt_g102, 'g102_orient' : g102_orients, 'g102_xpos' : xpos_g102, 'g102_ypos' : ypos_g102})
-
-        g141_DB = pd.DataFrame({'g141_file' : flt_g141, 'g141_orient' : g141_orients, 'g141_xpos' : xpos_g141, 'g141_ypos' : ypos_g141})
-
-        g102_DB = g102_DB.sort_values('g102_orient')
-
-        g141_DB = g141_DB.sort_values('g141_orient')
-        
-        g102_DB = g102_DB.reset_index().drop('index',axis=1)
-
-        g141_DB = g141_DB.reset_index().drop('index',axis=1)
-        
-        obj_DB = pd.concat([g102_DB,g141_DB], ignore_index=True, axis=1)
-
-        obj_DB.columns = ['g102_file','g102_orient','g102_xpos','g102_ypos','g141_file','g141_orient','g141_xpos','g141_ypos']
-
-        obj_DB.to_pickle('../dataframes/file_list/{0}_{1}.pkl'.format(pre,gid))
-
-        pa = obj_DB.g102_orient[0]
-        num = 1
-
-        if gid < 10000:
-            galid = '0' + '{0}'.format(gid)
-        else:
-            galid = gid
-
-        for i in obj_DB.index:
-            if obj_DB.g102_orient[i] > 0:
-                if pa  == obj_DB.g102_orient[i]:
-                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g102.A.fits'.format(pre,int(pa), num, galid)):
-                        num +=1
-                    else:
-                        Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num,loc)
-                        pa  = obj_DB.g102_orient[i]
-                        num += 1
-
-                else:
-                    pa  = obj_DB.g102_orient[i]
-                    num = 1
-                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g102.A.fits'.format(pre,int(pa), num, galid)):
-                        num+=1
-                    else:
-                        Gen_beam_fits(ref,seg,obj_DB.g102_file[i],cat,gid,num,loc)
-                        num+=1
-
-        pa = obj_DB.g141_orient[0]
-        num = 1
-
-        for i in obj_DB.index:
-            if obj_DB.g141_orient[i] > 0:
-                if pa  == obj_DB.g141_orient[i]:
-                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g141.A.fits'.format(pre,int(pa), num, galid)):
-                        num +=1
-                    else:
-                        Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num,loc, grism='G141')
-                        pa  = obj_DB.g141_orient[i]
-                        num += 1
-                else:
-                    pa  = obj_DB.g141_orient[i]
-                    num = 1
-                    if os.path.isfile('../beams/{0}_o{1}_{2}_{3}.g141.A.fits'.format(pre,int(pa), num, galid)):
-                        num +=1
-                    else:
-                        Gen_beam_fits(ref, seg, obj_DB.g141_file[i], cat, gid, num,loc, grism='G141')
-                        num+=1
 class Gen_spec(object):
-    def __init__(self, gal_id, g102_min = 8700, g102_max = 11300, g141_min = 11100, g141_max = 16700, sim = True):
-        self.gal_id = gal_id
+    def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
+                 g102_lims = [7900, 11300], g141_lims = [11100, 16000],
+                 filter_102 = 201, filter_141 = 203, tmp_err = False, 
+                 phot_tmp_err = False, errterm = 0):
+        self.field = field
+        self.galaxy_id = galaxy_id
+        self.specz = specz
+        self.c = 3E18          # speed of light angstrom s^-1
+        self.g102_lims = g102_lims
+        self.g141_lims = g141_lims
         
-        self.g102_list = glob('../beams/*{0}*g102*'.format(gal_id))
-        self.g141_list = glob('../beams/*{0}*g141*'.format(gal_id))
-        self.g102_wv, self.g102_fl, self.g102_er = self.Stack_1d_beams(self.g102_list,g102_min,g102_max) 
-        self.g141_wv, self.g141_fl, self.g141_er = self.Stack_1d_beams(self.g141_list,g141_min,g141_max) 
+        """
+        B - prefix refers to g102
+        R - prefix refers to g141
+        P - prefix refers to photometry
         
-        self.Stack_g102_g141()
+        field - GND/GSD/UDS
+        galaxy_id - ID number from 3D-HST
+        specz - z_grism
+        g102_lims - window for g102
+        g141_lims - window for g141
+        tmp_err - (flag) whether or not we apply a template error function (not available)
+        """
+        self.Bwv, self.Bflx, self.Berr, self.Bflt = np.load('../spec_files/{0}_{1}_g102.npy'.format(field, galaxy_id))
+        self.Rwv, self.Rflx, self.Rerr, self.Rflt = np.load('../spec_files/{0}_{1}_g141.npy'.format(field, galaxy_id))
         
-        if sim == True:
-            self.Initialize_sim()
-            self.g102_sens = self.Set_sensitivity(self.g102_list[0],self.g102_wv)
-            self.g141_sens = self.Set_sensitivity(self.g141_list[0],self.g141_wv)
+        self.Pwv, self.Pflx, self.Perr, self.Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(field, galaxy_id))
+        self.Pwv_rf = self.Pwv / (1+self.specz)
+                
+        self.IDB = [U for U in range(len(self.Bwv)) if g102_lims[0] <= self.Bwv[U] <= g102_lims[-1]]
+        self.IDR = [U for U in range(len(self.Rwv)) if g141_lims[0] <= self.Rwv[U] <= g141_lims[-1]]
 
-    def Single_spec(self, beam, min_wv, max_wv):
-        BEAM = griz_model.BeamCutout(fits_file= beam)
-       
-        ivar = BEAM.ivar
-        weight = np.exp(-(1*np.abs(BEAM.contam)*np.sqrt(ivar)))
+        self.Bwv = self.Bwv[self.IDB]
+        self.Bwv_rf = self.Bwv / (1 + specz)
+        self.Bflt = self.Bflt[self.IDB]
+        self.Bflx = self.Bflx[self.IDB] #* Bscale
+        self.Berr = self.Berr[self.IDB] #* Bscale
+        
+        self.Rwv = self.Rwv[self.IDR]
+        self.Rwv_rf = self.Rwv / (1 + specz)
+        self.Rflt = self.Rflt[self.IDR]
+        self.Rflx = self.Rflx[self.IDR] #* Rscale
+        self.Rerr = self.Rerr[self.IDR] #* Rscale
+
+        self.model_photDF = pd.read_pickle('../phot/model_photometry_list.pkl')
+        
+        self.IDP = []
+        for i in range(len(self.Pnum)):
+            for ii in range(len(self.model_photDF)):
+                if self.Pnum[i] == self.model_photDF.tmp_num[self.model_photDF.index[ii]]:
+                    self.IDP.append(ii)
+        
+        if phot_tmp_err:
+            ewv, tmp= np.loadtxt(hpath + 'eazy-photoz/templates/TEMPLATE_ERROR.eazy_v1.0').T
+            iphterr = interp1d(ewv,tmp)(self.Pwv_rf)
+            self.Perr_o = self.Perr
+            self.Perr = np.sqrt(self.Perr**2 + (iphterr * self.Pflx)**2+ (errterm * self.Pflx)**2)
             
-        w, f, e = BEAM.beam.optimal_extract(BEAM.grism.data['SCI'], bin=0, ivar=BEAM.ivar)
+#         if tmp_err:
+#             WV,TEF = np.load(data_path + 'template_error_function.npy')
+#             iTEF = interp1d(WV,TEF)(self.gal_wv_rf)
+#             self.gal_er = np.sqrt(self.gal_er**2 + (iTEF*self.fl)**2)
 
-        flat = BEAM.flat_flam.reshape(BEAM.beam.sh_beam)
-        fwave,fflux,ferr = BEAM.beam.optimal_extract(flat, bin=0, ivar=BEAM.ivar)
-               
-        f /= fflux
-        e /= fflux
+        self.Bbeam = model.BeamCutout(fits_file = g102_beam)
+        self.Rbeam = model.BeamCutout(fits_file = g141_beam)
 
-        IDX= [U for U in range(len(w)) if min_wv < w[U] < max_wv]
+        self.Bpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g102.A.fits')
+        self.Rpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g141.A.fits')
         
-        return w[IDX], f[IDX], e[IDX]
-        
-    def Set_sensitivity(self,beam,master_wv):    
-        BEAM = griz_model.BeamCutout(fits_file= beam)
-        
-        flat = BEAM.flat_flam.reshape(BEAM.beam.sh_beam)
-        fwave,fflux,ferr = BEAM.beam.optimal_extract(flat, bin=0, ivar=BEAM.ivar)
-
-        return interp1d(fwave,fflux)(master_wv)
-        
-    def Stack_spec(self, stk_wv, flgrid, errgrid):
-        #### rearrange flux grid and generate weights
-        flgrid = np.transpose(flgrid)
-        errgrid = np.transpose(errgrid)
-        weigrid = errgrid ** (-2)
-        infmask = np.isinf(weigrid) ## remove inif cause by nans in the error grid
-        weigrid[infmask] = 0
-
-        #### Stack spectra
-        stack_fl, stack_er = np.zeros([2, len(stk_wv)])
-        for i in range(len(stk_wv)):
-            stack_fl[i] = np.sum(flgrid[i] * weigrid[[i]]) / (np.sum(weigrid[i]))
-            stack_er[i] = 1 / np.sqrt(np.sum(weigrid[i]))
-        
-        return stk_wv, stack_fl, stack_er
-        
-    def Stack_1d_beams(self, beam_list, min_wv, max_wv):
-        #### set master wavelength array
-        wv,fl,er = self.Single_spec(beam_list[0], min_wv = min_wv, max_wv=max_wv)
-        master_wv = wv[1:-1]
-        
-        #### intialize flux and error grid
-        flgrid = np.zeros([len(beam_list), len(master_wv)])
-        errgrid = np.zeros([len(beam_list), len(master_wv)])
-
-        #### Get wv,fl,er for each spectra
-        for i in range(len(beam_list)):
-            wv,fl,er = self.Single_spec(beam_list[i], min_wv = min_wv, max_wv=max_wv)
-            if sum(fl)>0:
-                flgrid[i] = interp1d(wv, fl)(master_wv)
-                errgrid[i] = interp1d(wv, er)(master_wv)
-        
-        return self.Stack_spec(master_wv, flgrid, errgrid)
-
+        ### Define precalculated terms for photometry
+        self.sens_wv, self.trans = np.load('../templates/master_tmp.npy')
+        self.b = np.load('../templates/bottom_precalc.npy')
+        self.dnu = np.load('../templates/dnu_precalc.npy')
+        self.adj = np.load('../templates/adj_precalc.npy')
+        self.mdleffwv = np.load('../templates/effwv_precalc.npy') 
     
-    def Stack_g102_g141(self): #### good to display, but may not be good for science
-        #### make combined wavelength set
-        bounds = [min(self.g141_wv),max(self.g102_wv)]
-        del_g102 = self.g102_wv[1] - self.g102_wv[0]
-        del_g141 = self.g141_wv[1] - self.g141_wv[0]
-        del_mix = (del_g102 + del_g141) / 2
-        mix_wv = np.arange(bounds[0],bounds[1],del_mix)    
-        stack_wv = np.append(np.append(self.g102_wv[self.g102_wv < bounds[0]],mix_wv),self.g141_wv[self.g141_wv > bounds[1]])
-
-        #### intialize flux and error grid
-        flgrid = np.zeros([2, len(stack_wv)])
-        errgrid = np.zeros([2, len(stack_wv)])
-
-        #### Get wv,fl,er for each spectra
-        for i in range(len(stack_wv)):
-            if min(self.g102_wv) <= stack_wv[i] <= max(self.g102_wv):
-                flgrid[0][i] = interp1d(self.g102_wv, self.g102_fl)(stack_wv[i])
-                errgrid[0][i] = interp1d(self.g102_wv, self.g102_er)(stack_wv[i])
-
-            if min(self.g141_wv) <= stack_wv[i] <= max(self.g141_wv):
-                flgrid[1][i] = interp1d(self.g141_wv, self.g141_fl)(stack_wv[i])
-                errgrid[1][i] = interp1d(self.g141_wv, self.g141_er)(stack_wv[i])
-
-        self.stack_wv, self.stack_fl, self.stack_er = self.Stack_spec(stack_wv, flgrid, errgrid)
-        
-    def Initialize_sim(self):
-        #### pick out orients
-        g102_beams = glob('../beams/*{0}*g102*'.format(self.gal_id))
-        g102_beamid = [re.findall("o\w[0-9]+",U)[0] for U in g102_beams]
-        self.g102_beamid = list(set(g102_beamid))
-
-        g141_beams = glob('../beams/*{0}*g141*'.format(self.gal_id))
-        g141_beamid = [re.findall("o\w[0-9]+",U)[0] for U in g141_beams]
-        self.g141_beamid = list(set(g141_beamid))
-        
-        #### initialize dictionary of beams
-        self.g102_beam_dict = {}
-        self.g141_beam_dict = {}
-
-        #### set beams for each orient
-        for i in self.g102_beamid:
-            key = i
-            value = griz_model.BeamCutout(fits_file= glob('../beams/*{0}*{1}*g102*'.format(i,self.gal_id))[0])
-            self.g102_beam_dict[key] = value 
-            
-        for i in self.g141_beamid:
-            key = i
-            value = griz_model.BeamCutout(fits_file= glob('../beams/*{0}*{1}*g141*'.format(i,self.gal_id))[0])
-            self.g141_beam_dict[key] = value 
-        
-    def Sim_beam(self,BEAM, mwv, mfl, grism_wv, grism_fl, grism_er, grism_sens):
-        ## Compute the models
-        BEAM.beam.compute_model(spectrum_1d=[mwv, mfl], is_cgs = True)
-
-        ## Extractions the model (error array here is meaningless)
+    def Sim_spec_indv(self, BEAM, model_wave, model_flux):
+        ### creates a model using an individual beam
+        BEAM.beam.compute_model(spectrum_1d=[model_wave, model_flux])
         w, f, e = BEAM.beam.optimal_extract(BEAM.beam.model, bin=0)
+        return w, f
+        
+    def Sim_spec_mult(self, model_wave, model_flux):
+        ### creates a model for g102 and g141 using individual beams
+        return self.Sim_spec_indv(self.Bbeam, model_wave, model_flux), \
+                self.Sim_spec_indv(self.Rbeam, model_wave, model_flux)
 
-        ## interpolate and scale
-        f = interp1d(w,f)(grism_wv) / grism_sens
-        C = Scale_model(grism_fl, grism_er,f)
+    def Sim_spec_mult_point(self, model_wave, model_flux):
+        ### creates a model for g102 and g141 using individual beams
+        return self.Sim_spec_indv(self.Bpoint_beam, model_wave, model_flux), \
+                self.Sim_spec_indv(self.Rpoint_beam, model_wave, model_flux)
+    
+    def Sim_spec(self, metal, age, tau, model_redshift = 0, Av = 0, multi_component = False,
+                point_scale=1):
+        if model_redshift ==0:
+            model_redshift = self.specz
 
-        return C*f
+        model_wave, model_flux = np.load(model_path + 'm{0}_a{1}_dt{2}_spec.npy'.format(
+            metal, age, tau))
+
+        [Bmw, Bmf], [Rmw, Rmf] = self.Sim_spec_mult(model_wave * (1 + model_redshift), 
+                                                                        model_flux * Calzetti(Av,model_wave))
+        iBmf = interp1d(Bmw,Bmf)(self.Bwv)       
+        iRmf = interp1d(Rmw,Rmf)(self.Rwv)     
+        
+        self.Bmfl = iBmf / self.Bflt
+        self.Rmfl = iRmf / self.Rflt
             
-    def Gen_sim(self, model_wv, model_fl, redshift): 
-        ### normalize and redshift model spectra
-        spec = S.ArraySpectrum(model_wv, model_fl, fluxunits='flam')
-        spec = spec.redshift(redshift).renorm(1., 'flam', S.ObsBandpass('wfc3,ir,f105w'))
-        spec.convert('flam')
+        self.Bmfl *= Scale_model(self.Bflx, self.Berr, self.Bmfl)
+        self.Rmfl *= Scale_model(self.Rflx, self.Rerr, self.Rmfl)
+        
+        if multi_component:
+            [Bpmw, Bpmf], [Rpmw, Rpmf] = self.Sim_spec_mult_point(model_wave * (1 + model_redshift), 
+                                                                            model_flux * Calzetti(Av,model_wave))
+            iBpmf = interp1d(Bpmw,Bpmf)(self.Bwv)       
+            iRpmf = interp1d(Rpmw,Rpmf)(self.Rwv)     
 
-        ### initialize model flux grids
-        g102_mfl_grid = np.zeros([len(self.g102_beam_dict.keys()), len(self.g102_wv)])
-        g141_mfl_grid = np.zeros([len(self.g141_beam_dict.keys()), len(self.g141_wv)])
+            self.Bpmfl = iBpmf / self.Bflt
+            self.Rpmfl = iRpmf / self.Rflt
 
-        ### simulate each beam
-        for i in range(len(self.g102_beamid)):    
-            g102_mfl_grid[i] = self.Sim_beam(self.g102_beam_dict[self.g102_beamid[i]], spec.wave,spec.flux, 
-                                             self.g102_wv, self.g102_fl, self.g102_er, self.g102_sens)
+            self.Bpmfl *= Scale_model(self.Bflx, self.Berr, self.Bpmfl)
+            self.Rpmfl *= Scale_model(self.Rflx, self.Rerr, self.Rpmfl)
+            
+            self.Bpmfl *= point_scale
+            self.Rpmfl *= point_scale
+            
+            self.BMCmfl = self.Bmfl + self.Bpmfl
+            self.RMCmfl = self.Rmfl + self.Rpmfl
+            
+            self.BMCmfl *= Scale_model(self.Bflx, self.Berr, self.BMCmfl)
+            self.RMCmfl *= Scale_model(self.Rflx, self.Rerr, self.RMCmfl)
+       
+    def Sim_phot_mult(self, model_wave, model_flux):
+        
+        imfl =interp1d(self.c / model_wave, (self.c/(self.c / model_wave)**2) * model_flux)
 
-        for i in range(len(self.g141_beamid)):    
-            g141_mfl_grid[i] = self.Sim_beam(self.g141_beam_dict[self.g141_beamid[i]], spec.wave,spec.flux, 
-                                             self.g141_wv, self.g141_fl, self.g141_er, self.g141_sens)
+        mphot = (np.trapz(imfl(self.c /(self.sens_wv[self.IDP])).reshape([len(self.IDP),len(self.sens_wv[0])]) \
+                          * self.b[self.IDP],self.dnu[self.IDP])/np.trapz(self.b[self.IDP],
+                                                                          self.dnu[self.IDP])) * self.adj[self.IDP]
+        
+        return np.array([self.mdleffwv[self.IDP],mphot])
 
-        ### stack all sims
-        self.g102_mfl = np.mean(g102_mfl_grid,axis=0)
-        self.g141_mfl = np.mean(g141_mfl_grid,axis=0)
+    def Sim_phot(self, metal, age, tau, model_redshift = 0, Av = 0):
+        if model_redshift ==0:
+            model_redshift = self.specz
+
+        model_wave, model_flux = np.load(model_path + 'm{0}_a{1}_dt{2}_spec.npy'.format(
+            metal, age, tau))
+        
+        self.Pmwv, self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), 
+                                                  model_flux * Calzetti(Av,model_wave))
+        self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
+        self.Pmfl *= self.PC
+        
+    def Sim_all(self, metal, age, tau, model_redshift = 0, Av = 0):
+        self.Sim_spec(metal, age, tau, model_redshift, Av)
+        self.Sim_phot(metal, age, tau, model_redshift, Av)
+    

@@ -16,6 +16,7 @@ kb=1.38E-16	    # erg k-1
 
 """
 FUNCTIONS:
+-Smooth
 -Extract_BeamCutout
 -Likelihood_contours
 -Mag
@@ -30,6 +31,17 @@ FUNCTIONS:
 CLASSES:
 -Photometry
 """
+
+def Smooth(f,x):
+    ksmooth = importr('KernSmooth')
+
+    ### select bandwidth
+    H = ksmooth.dpik(x)
+    fx = ksmooth.locpoly(x,f,bandwidth = H)
+    X = np.array(fx[0])
+    iFX = np.array(fx[1])
+    return interp1d(X,iFX)(x)
+
 def Extract_BeamCutout(target_id, grism_file, mosaic, seg_map, instruement, catalog):
     flt = model.GrismFLT(grism_file = grism_file ,
                           ref_file = mosaic, seg_file = seg_map,
