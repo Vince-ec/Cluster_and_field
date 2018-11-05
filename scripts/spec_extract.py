@@ -39,17 +39,27 @@ class Extract_all(object):
     
     
         if self.field == 'GSD':
-            self.mosaic = hpath + 'Data/CLEAR/CATALOGS/goodss_v4.4/goodss-F105W-astrodrizzle-v4.4_drz_sci.fits'
+            if hpath.strip('/Users/') == 'Vince.ec':
+                self.mosaic = '/Volumes/Vince_research/Data/CLEAR/CATALOGS/goodss_v4.4/goodss-F105W-astrodrizzle-v4.4_drz_sci.fits'
+                self.catalog = '/Volumes/Vince_research/Data/CLEAR/CATALOGS/goodss_v4.4/goodss-F105W-astrodrizzle-v4.4_drz_sub.cat'
+            if hpath.strip('/Users/') == 'vestrada':
+                self.mosaic = hpath + 'Data/CLEAR/CATALOGS/goodss_v4.4/goodss-F105W-astrodrizzle-v4.4_drz_sci.fits'
+                self.catalog = hpath + 'Data/CLEAR/CATALOGS/goodss_v4.4/goodss-F105W-astrodrizzle-v4.4_drz_sub.cat'
+
             self.seg_map = hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.0.F160W_seg.fits'
-            self.catalog = hpath + 'Data/CLEAR/CATALOGS/goodss_v4.4/goodss-F105W-astrodrizzle-v4.4_drz_sub.cat'
             self.flt_path_g102 = hpath + 'Clear_data/s_flt_files/'
             self.flt_path_g141 = hpath + '3dhst/s_flt_files/'
             self.ref_cat_loc = Table.read(hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.3.cat',format='ascii').to_pandas()
 
         if self.field == 'GND':
-            self.mosaic = hpath + 'Data/CLEAR/CATALOGS/goodsn_v4.4/goodsn-F105W-astrodrizzle-v4.4_drz_sci.fits'
+            if hpath.strip('/Users/') == 'Vince.ec':
+                self.mosaic = '/Volumes/Vince_research/Data/CLEAR/CATALOGS/goodsn_v4.4/goodsn-F105W-astrodrizzle-v4.4_drz_sci.fits'
+                self.catalog = '/Volumes/Vince_research/Data/CLEAR/CATALOGS/goodsn_v4.4/goodsn-F105W-astrodrizzle-v4.4_drz_sub.cat'
+            if hpath.strip('/Users/') == 'vestrada':
+                self.mosaic = hpath + 'Data/CLEAR/CATALOGS/goodsn_v4.4/goodsn-F105W-astrodrizzle-v4.4_drz_sci.fits'
+                self.catalog = hpath + 'Data/CLEAR/CATALOGS/goodsn_v4.4/goodsn-F105W-astrodrizzle-v4.4_drz_sub.cat'
+
             self.seg_map = hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.seg.fits'
-            self.catalog = hpath + 'Data/CLEAR/CATALOGS/goodsn_v4.4/goodsn-F105W-astrodrizzle-v4.4_drz_sub.cat'
             self.flt_path_g102 = hpath + 'Clear_data/n_flt_files/'
             self.flt_path_g141 = hpath + '3dhst/n_flt_files/'
             self.ref_cat_loc = Table.read(hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.cat',format='ascii').to_pandas()
@@ -90,7 +100,7 @@ class Extract_all(object):
             ref_cat = Table.read(hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.3.cat',format='ascii') 
         
         seg_cat = flt.blot_catalog(ref_cat,sextractor=False)
-        flt.compute_full_model(ids=seg_cat['id'])
+        flt.compute_full_model(ids=seg_cat['id'],mags=-2.5*np.log10(seg_cat['f_F105W'])-25)
         beam = flt.object_dispersers[self.galaxy_id][2]['A']
         co = model.BeamCutout(flt, beam, conf=flt.conf)
 
@@ -160,6 +170,8 @@ class Extract_all(object):
 
         g102_filt_list = [201,240,202]
         g141_filt_list = [204,203,205]
+
+        Pwv, Pflx, Perr, Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(self.field, self.galaxy_id))
         
         try:
             for i in g102_filt_list:
@@ -172,7 +184,7 @@ class Extract_all(object):
                     filter_141 = i
                     break
         except:
-            'No photometry for listed filters'
+            print('No photometry for listed filters')
 
         pht1 = Photometry(Bwv[Bflx**2 > 0],Bflx[Bflx**2 > 0],Bflx[Bflx**2 > 0],filter_102)
         pht1.Get_Sensitivity()
@@ -181,8 +193,6 @@ class Extract_all(object):
         pht2 = Photometry(Rwv[Rflx**2 > 0],Rflx[Rflx**2 > 0],Rflx[Rflx**2 > 0],filter_141)
         pht2.Get_Sensitivity()
         pht2.Photo_clipped()
-
-        Pwv, Pflx, Perr, Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(self.field, self.galaxy_id))
 
         Bscale = Pflx[Pnum == filter_102] / pht1.photo
         Rscale = Pflx[Pnum == filter_141] / pht2.photo
