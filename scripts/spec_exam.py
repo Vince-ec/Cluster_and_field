@@ -83,7 +83,7 @@ class Gen_spec(object):
         self.Rwv, self.Rflx, self.Rerr, self.Rflt = np.load('../spec_files/{0}_{1}_g141.npy'.format(field, galaxy_id))
         
         self.Pwv, self.Pflx, self.Perr, self.Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(field, galaxy_id))
-        self.Pwv_rf = self.Pwv / (1+self.specz)
+        self.Pwv_rf = self.Pwv / (1 + self.specz)
                 
         self.IDB = [U for U in range(len(self.Bwv)) if g102_lims[0] <= self.Bwv[U] <= g102_lims[-1]]
         self.IDR = [U for U in range(len(self.Rwv)) if g141_lims[0] <= self.Rwv[U] <= g141_lims[-1]]
@@ -208,7 +208,7 @@ class Gen_spec(object):
         self.Pmwv, self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), 
                                                   model_flux * Calzetti(Av,model_wave))
         self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
-        self.Pmfl *= self.PC
+        self.Pmfl = self.Pmfl * self.PC
         
     def Sim_all(self, metal, age, tau, model_redshift = 0, Av = 0):
         self.Sim_spec(metal, age, tau, model_redshift, Av)

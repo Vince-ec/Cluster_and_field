@@ -171,6 +171,28 @@ class Extract_all(object):
         g102_filt_list = [201,240,202]
         g141_filt_list = [204,203,205]
 
+        Bsps= []
+        Bers = []
+        Rsps= []
+        Rers = []
+
+        for i in beams:
+            s,e,flg = self.Get_spec(i,Bwv,Rwv,Bflt,Rflt)
+            if flg:
+                Bsps.append(s)
+                Bers.append(e)
+            else:
+                Rsps.append(s)
+                Rers.append(e)
+        
+        Bsps = np.array(Bsps)
+        Bers = np.array(Bers)
+        Rsps = np.array(Rsps)
+        Rers = np.array(Rers)
+   
+        Bflx, Berr = self.Stack(Bwv,Bsps,Bers)
+        Rflx, Rerr = self.Stack(Rwv,Rsps,Rers)
+
         Pwv, Pflx, Perr, Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(self.field, self.galaxy_id))
         
         try:
@@ -204,3 +226,65 @@ class Extract_all(object):
 
         np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[Bwv, Bflx, Berr, Bflt])
         np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[Rwv, Rflx, Rerr, Rflt])
+        
+    def Get_spec(self,beam,Bwv,Rwv,Bflt,Rflt):
+        xspec, yspec, yerr = beam.beam.optimal_extract(beam.grism.data['SCI'], bin=0, ivar=beam.ivar) #data
+        xspecc, yspecc, yerrc = beam.beam.optimal_extract(beam.contam, bin=0, ivar=beam.ivar)
+        is_g102 = 'none'
+
+        IDB = [U for U in range(len(Bwv)) if 8000 < Bwv[U] < 11300]
+        IDR = [U for U in range(len(Rwv)) if 11000 < Rwv[U] < 16000]
+        if max(xspec) < 16000:
+            ispec = interp1d(xspec,yspec-yspecc)(Bwv)
+            ierr = interp1d(xspec,yerr)(Bwv)
+            is_g102 = True
+
+            flux = ispec / Bflt
+            error = ierr / Bflt
+
+            error[flux**2 > 1] = 1E-16
+            error[~(flux**2 > 0)] = 1E-16
+
+            flux[flux**2 > 1] = 0
+            flux[~(flux**2 > 0)] = 0
+
+            mod = np.trapz(flux[IDB],Bwv[IDB])
+
+            flux /= mod
+            error /= mod
+
+        else:
+            ispec = interp1d(xspec,yspec - yspecc)(Rwv)
+            ierr = interp1d(xspec,yerr)(Rwv)
+            is_g102 = False
+
+            flux = ispec / Rflt
+            error = ierr / Rflt
+
+            error[flux**2 > 1] = 1E-16
+            error[~(flux**2 > 0)] = 1E-16
+
+            flux[flux**2 > 1] = 0
+            flux[~(flux**2 > 0)] = 0
+
+            mod = np.trapz(flux[IDR],Bwv[IDR])
+
+            flux /= mod
+            error /= mod
+
+        return flux, error, is_g102
+        
+    def Stack(self,wv,flgrid,errgrid):
+        flgrid = np.transpose(flgrid)
+        errgrid = np.transpose(errgrid)
+        weigrid = errgrid ** (-2)
+        infmask = np.isinf(weigrid)
+        weigrid[infmask] = 0
+        ################
+
+        stack, err = np.zeros([2, len(wv)])
+        for i in range(len(wv)):
+            stack[i] = np.sum(flgrid[i] * weigrid[[i]]) / (np.sum(weigrid[i]))
+            err[i] = 1 / np.sqrt(np.sum(weigrid[i]))
+
+        return stack, err
