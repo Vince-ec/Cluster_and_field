@@ -105,38 +105,38 @@ class Extract_Grism_flts(object):
             flt_dir = 's_flt_files'
 
         
-        if not os.path.isdir('/Users/vestrada/Grism_fields/{0}'.format(self.subfield)):
-            os.mkdir('/Users/vestrada/Grism_fields/{0}'.format(self.subfield))
+        if not os.path.isdir('/Volumes/Vince_research/Data/Grism_fields/{0}'.format(self.subfield)):
+            os.mkdir('/Volumes/Vince_research/Data/Grism_fields/{0}'.format(self.subfield))
         
-        grismflts = glob('/Users/vestrada/Clear_data/{0}/*GrismFLT*'.format(flt_dir))
-        grismwcs = glob('/Users/vestrada/Clear_data/{0}/*wcs.fits'.format(flt_dir))
+        grismflts = glob('/Users/Vince.ec/Clear_data/{0}/*GrismFLT*'.format(flt_dir))
+        grismwcs = glob('/Users/Vince.ec/Clear_data/{0}/*wcs.fits'.format(flt_dir))
 
         for i in grismflts:
-            move(i,'/Users/vestrada/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
+            move(i,'/Volumes/Vince_research/Data/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
 
         for i in grismwcs:
-            move(i,'/Users/vestrada/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
+            move(i,'/Volumes/Vince_research/Data/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
 
 
 
-        grismflts = glob('/Users/vestrada/3dhst/{0}/*GrismFLT*'.format(flt_dir))
-        grismwcs = glob('/Users/vestrada/3dhst/{0}/*wcs.fits'.format(flt_dir))
+        grismflts = glob('/Users/Vince.ec/3dhst/{0}/*GrismFLT*'.format(flt_dir))
+        grismwcs = glob('/Users/Vince.ec/3dhst/{0}/*wcs.fits'.format(flt_dir))
 
         for i in grismflts:
-            move(i,'/Users/vestrada/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
+            move(i,'/Volumes/Vince_research/Data/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
 
         for i in grismwcs:
-            move(i,'/Users/vestrada/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
+            move(i,'/Volumes/Vince_research/Data/Grism_fields/{0}/{1}'.format(self.subfield,os.path.basename(i)))
             
             
 ###########################################################
 #Beginning of script
 ###########################################################
 
-Bflts = glob('/Users/vestrada/Clear_data/s_flt_files/*')
-Rflts = glob('/Users/vestrada/3dhst/s_flt_files/*flt.fits')
+Bflts = glob('/Users/Vince.ec/Clear_data/n_flt_files/*')
+Rflts = glob('/Users/Vince.ec/3dhst/n_flt_files/*flt.fits')
 
-subfield = 'GS2'
+subfield = 'GN1'
 files = Field_select(subfield,Bflts,Rflts)
 
-ex = Extract_Grism_flts(files,'GSD',subfield)
+ex = Extract_Grism_flts(files,'GND',subfield)
