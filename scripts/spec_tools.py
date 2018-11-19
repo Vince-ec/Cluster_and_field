@@ -6,6 +6,14 @@ from astropy.cosmology import Planck13 as cosmo
 from astropy.io import fits
 from astropy import wcs
 import os
+
+import rpy2
+import rpy2.robjects as robjects
+from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+R = robjects.r
+pandas2ri.activate()
+
 ### set home for files
 hpath = os.environ['HOME'] + '/'
 

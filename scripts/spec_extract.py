@@ -11,8 +11,7 @@ from astropy import wcs
 import os
 import pandas as pd
 from glob import glob
-from spec_tools import Source_present
-from spec_tools import Photometry
+from spec_tools import Source_present, Photometry, Sig_int, Smooth, Scale_model
 
 ### set home for files
 hpath = os.environ['HOME'] + '/'
@@ -24,6 +23,8 @@ kb=1.38E-16	    # erg k-1
 
 """
 FUNCTIONS:
+-Box_phot
+-Scale_spectra
 
 CLASSES:
 -Extract_all
@@ -32,11 +33,69 @@ CLASSES:
 --Extract_spec
 """
 
+def Box_phot(wv,fl,er,input_phot, phot_width = 150):
+    
+    h=6.6260755E-27 # planck constant erg s
+    c=3E10          # speed of light cm s^-1
+    atocm=1E-8  
+    
+    sens_wv = np.array([U for U in wv if (input_phot - phot_width) < U < (input_phot + phot_width)])
+       
+    wave = wv * atocm
+    filtnu = c /(sens_wv * atocm)
+    nu = c / wave
+    fnu = (c / nu**2) * fl
+    Fnu = interp1d(nu, fnu)(filtnu)
+    ernu = (c/nu**2) * er
+    Ernu = interp1d(nu, ernu)(filtnu)
+
+    energy = 1 / (h *filtnu)
+
+    top1 = Fnu * energy
+    top = np.trapz(top1, filtnu)
+    bottom1 = energy
+    bottom = np.trapz(bottom1, filtnu)
+    photonu = top / bottom
+
+    tp = np.trapz(((np.log(sens_wv)) / sens_wv), sens_wv)
+    bm = np.trapz(1 / sens_wv, sens_wv)
+
+    wave_eff = np.exp(tp / bm)
+
+    photo = photonu * (c / (wave_eff * atocm) ** 2)
+
+    eff_wv = wave_eff
+    photo = photo
+    photo_er = Sig_int(filtnu, Ernu, np.ones(len(Ernu)), energy) * (c / (wave_eff * atocm) ** 2)
+    
+    return eff_wv, photo, photo_er
+
+def Scale_spectra(bwv,bfl,ber,rwv,rfl,rer,pwv,pfl):
+    Bp = []; Bs = []; Bsig = []
+    Rp = [] ; Rs = []; Rsig = []
+
+    IDb = [U for U in range(len(bwv)) if bfl[U]**2 > 0] 
+    IDr = [U for U in range(len(rwv)) if rfl[U]**2 > 0] 
+    
+    for i in range(len(pwv)):
+        if (min(bwv[IDb]) < pwv[i] - 150) and (max(bwv[IDb]) > pwv[i] + 150):
+            eff_wv, phot, phot_er = Box_phot(bwv[IDb],Smooth(bfl[IDb],bwv[IDb]),ber[IDb], pwv[i])
+            Bp.append(pfl[i]); Bs.append(phot); Bsig.append(phot_er)
+
+        if (min(rwv[IDr]) < pwv[i] - 150) and (max(rwv[IDr]) > pwv[i] + 150):
+            eff_wv, phot, phot_er = Box_phot(rwv[IDr],Smooth(rfl[IDr],rwv[IDr]),rer[IDr], pwv[i])
+            Rp.append(pfl[i]); Rs.append(phot); Rsig.append(phot_er)
+
+    bscale = Scale_model(np.array(Bs), np.array(Bsig), np.array(Bp))
+    rscale = Scale_model(np.array(Rs), np.array(Rsig), np.array(Rp))    
+    
+    return bfl / bscale, ber / bscale, rfl / rscale, rer / rscale
+
 class Extract_all(object):
-    def __init__(self, galaxy_id, field):
+    def __init__(self, galaxy_id, field, grp, cutout_size = 20):
         self.galaxy_id = galaxy_id
         self.field = field
-    
+        self.grp = grp
     
         if self.field == 'GSD':
             if hpath.strip('/Users/') == 'Vince.ec':
@@ -63,11 +122,11 @@ class Extract_all(object):
             self.flt_path_g102 = hpath + 'Clear_data/n_flt_files/'
             self.flt_path_g141 = hpath + '3dhst/n_flt_files/'
             self.ref_cat_loc = Table.read(hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhstP.cat',format='ascii').to_pandas()
+        '''
 
         self.galaxy_ra = float(self.ref_cat_loc['ra'][self.ref_cat_loc['id'] == self.galaxy_id])
         self.galaxy_dec = float(self.ref_cat_loc['dec'][self.ref_cat_loc['id'] == self.galaxy_id])
         self.ref_cat = Table.read(self.catalog,format='ascii')
-
 
         flt_files = glob(self.flt_path_g102 + '*')
 
@@ -87,32 +146,28 @@ class Extract_all(object):
             if in_flt:
                 self.grism_flts.append(i)
                 self.Rflts.append(i)
-
-    def Extract_BeamCutout(self, grism_file, instrument):
-        flt = model.GrismFLT(grism_file = grism_file ,
-                              ref_file = self.mosaic, seg_file = self.seg_map,
-                                pad=200, ref_ext=0, shrink_segimage=True, force_grism = instrument)
-
-        # catalog / semetation image
-        if self.field == 'GSD':
-            ref_cat = Table.read(hpath + 'Clear_data/goodss_mosaic/goodss_3dhst.v4.3.cat',format='ascii')        
-        if self.field == 'GND':
-            ref_cat = Table.read(hpath + 'Clear_data/goodsn_mosaic/goodsn_3dhst.v4.3.cat',format='ascii') 
+        '''
+        self.beams = self.grp.get_beams(self.galaxy_id, size = cutout_size)
+                
+    def Extract_BeamCutout(self, cutout_size = 20):
+      
+        pa = -1
+        for i in self.beams:
+            if i.grism.filter == 'G102':
+                if pa != i.get_dispersion_PA():
+                    pa = i.get_dispersion_PA()
+                    i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
+                    fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
+                            value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
         
-        seg_cat = flt.blot_catalog(ref_cat,sextractor=False)
-        flt.compute_full_model(ids=seg_cat['id'],mags=-2.5*np.log10(seg_cat['f_F105W'])-25)
-        beam = flt.object_dispersers[self.galaxy_id][2]['A']
-        co = model.BeamCutout(flt, beam, conf=flt.conf)
-
-        PA = np.round(fits.open(grism_file)[0].header['PA_V3'] , 1)
-
-        co.write_fits(root='../beams/o{0}'.format(PA), clobber=True)
-
-        ### add EXPTIME to extension 0
-
-
-        fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(PA, self.galaxy_id, instrument), 'EXPTIME', ext=0,
-                value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(PA, self.galaxy_id, instrument))[1].header['EXPTIME'])   
+        pa = -1            
+        for i in self.beams:
+            if i.grism.filter == 'G141':
+                if pa != i.get_dispersion_PA():
+                    pa = i.get_dispersion_PA()
+                    i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
+                    fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
+                            value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
 
     def Phot_save(self, masterlist = '../phot/master_template_list.pkl'):
         galdf = self.ref_cat_loc[self.ref_cat_loc.id == self.galaxy_id]
@@ -143,17 +198,7 @@ class Extract_all(object):
         np.save('../phot/{0}_{1}_phot'.format(self.field, self.galaxy_id), [eff_wv,phot_fl,phot_er,phot_num])
 
     def Extract_spec(self):
-        self.grp = multifit.GroupFLT(grism_files = self.grism_flts, direct_files = [], 
-                      ref_file = self.mosaic,
-                      seg_file = self.seg_map,
-                      catalog = self.ref_cat,
-                      cpu_count = 2,verbose = False)
-
-        self.grp.compute_full_model(mag_limit=25)
-        self.grp.refine_list(poly_order=2, mag_limits=[16, 24], verbose=False)
-
-        beams = self.grp.get_beams(self.galaxy_id, size=80)
-        self.mb = multifit.MultiBeam(beams, fcontam=0.0, group_name='../beams/{0}'.format(self.field))
+        self.mb = multifit.MultiBeam(self.beams, fcontam=1.0)
 
         g102 = self.mb.oned_spectrum()['G102']
         g141 = self.mb.oned_spectrum()['G141']
@@ -171,120 +216,12 @@ class Extract_all(object):
         g102_filt_list = [201,240,202]
         g141_filt_list = [204,203,205]
 
-        Bsps= []
-        Bers = []
-        Rsps= []
-        Rers = []
-
-        for i in beams:
-            s,e,flg = self.Get_spec(i,Bwv,Rwv,Bflt,Rflt)
-            if flg:
-                Bsps.append(s)
-                Bers.append(e)
-            else:
-                Rsps.append(s)
-                Rers.append(e)
-        
-        Bsps = np.array(Bsps)
-        Bers = np.array(Bers)
-        Rsps = np.array(Rsps)
-        Rers = np.array(Rers)
-   
-        Bflx, Berr = self.Stack(Bwv,Bsps,Bers)
-        Rflx, Rerr = self.Stack(Rwv,Rsps,Rers)
-
         Pwv, Pflx, Perr, Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(self.field, self.galaxy_id))
         
-        try:
-            for i in g102_filt_list:
-                if i in Pnum:
-                    filter_102 = i
-                    break
+        Bflx2,Berr2,Rflx2,Rerr2 = Scale_spectra(Bwv, Bflx, Berr, Rwv, Rflx, Rerr, Pwv, Pflx)
 
-            for i in g141_filt_list:
-                if i in Pnum:
-                    filter_141 = i
-                    break
-        except:
-            print('No photometry for listed filters')
-
-        pht1 = Photometry(Bwv[Bflx**2 > 0],Bflx[Bflx**2 > 0],Bflx[Bflx**2 > 0],filter_102)
-        pht1.Get_Sensitivity()
-        pht1.Photo_clipped()
-
-        pht2 = Photometry(Rwv[Rflx**2 > 0],Rflx[Rflx**2 > 0],Rflx[Rflx**2 > 0],filter_141)
-        pht2.Get_Sensitivity()
-        pht2.Photo_clipped()
-
-        Bscale = Pflx[Pnum == filter_102] / pht1.photo
-        Rscale = Pflx[Pnum == filter_141] / pht2.photo
-
-        Bflx *= Bscale
-        Berr *= Bscale
-        Rflx *= Rscale
-        Rerr *= Rscale
-
-        np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[Bwv, Bflx, Berr, Bflt])
-        np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[Rwv, Rflx, Rerr, Rflt])
+        np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[Bwv, Bflx2, Berr2, Bflt])
+        np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[Rwv, Rflx2, Rerr2, Rflt])
         
-    def Get_spec(self,beam,Bwv,Rwv,Bflt,Rflt):
-        xspec, yspec, yerr = beam.beam.optimal_extract(beam.grism.data['SCI'], bin=0, ivar=beam.ivar) #data
-        xspecc, yspecc, yerrc = beam.beam.optimal_extract(beam.contam, bin=0, ivar=beam.ivar)
-        is_g102 = 'none'
 
-        IDB = [U for U in range(len(Bwv)) if 8000 < Bwv[U] < 11300]
-        IDR = [U for U in range(len(Rwv)) if 11000 < Rwv[U] < 16000]
-        if max(xspec) < 16000:
-            ispec = interp1d(xspec,yspec-yspecc)(Bwv)
-            ierr = interp1d(xspec,yerr)(Bwv)
-            is_g102 = True
-
-            flux = ispec / Bflt
-            error = ierr / Bflt
-
-            error[flux**2 > 1] = 1E-16
-            error[~(flux**2 > 0)] = 1E-16
-
-            flux[flux**2 > 1] = 0
-            flux[~(flux**2 > 0)] = 0
-
-            mod = np.trapz(flux[IDB],Bwv[IDB])
-
-            flux /= mod
-            error /= mod
-
-        else:
-            ispec = interp1d(xspec,yspec - yspecc)(Rwv)
-            ierr = interp1d(xspec,yerr)(Rwv)
-            is_g102 = False
-
-            flux = ispec / Rflt
-            error = ierr / Rflt
-
-            error[flux**2 > 1] = 1E-16
-            error[~(flux**2 > 0)] = 1E-16
-
-            flux[flux**2 > 1] = 0
-            flux[~(flux**2 > 0)] = 0
-
-            mod = np.trapz(flux[IDR],Bwv[IDR])
-
-            flux /= mod
-            error /= mod
-
-        return flux, error, is_g102
         
-    def Stack(self,wv,flgrid,errgrid):
-        flgrid = np.transpose(flgrid)
-        errgrid = np.transpose(errgrid)
-        weigrid = errgrid ** (-2)
-        infmask = np.isinf(weigrid)
-        weigrid[infmask] = 0
-        ################
-
-        stack, err = np.zeros([2, len(wv)])
-        for i in range(len(wv)):
-            stack[i] = np.sum(flgrid[i] * weigrid[[i]]) / (np.sum(weigrid[i]))
-            err[i] = 1 / np.sqrt(np.sum(weigrid[i]))
-
-        return stack, err
