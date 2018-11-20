@@ -92,10 +92,11 @@ def Scale_spectra(bwv,bfl,ber,rwv,rfl,rer,pwv,pfl):
     return bfl / bscale, ber / bscale, rfl / rscale, rer / rscale
 
 class Extract_all(object):
-    def __init__(self, galaxy_id, field, grp, cutout_size = 20):
+    def __init__(self, galaxy_id, field, grp, cutout_size = 20, spec_name_mod = 'none'):
         self.galaxy_id = galaxy_id
         self.field = field
         self.grp = grp
+        self.spec_name_mod = spec_name_mod
     
         if self.field == 'GSD':
             if hpath.strip('/Users/') == 'Vince.ec':
@@ -220,8 +221,10 @@ class Extract_all(object):
         
         Bflx2,Berr2,Rflx2,Rerr2 = Scale_spectra(Bwv, Bflx, Berr, Rwv, Rflx, Rerr, Pwv, Pflx)
 
-        np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[Bwv, Bflx2, Berr2, Bflt])
-        np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[Rwv, Rflx2, Rerr2, Rflt])
+        if self.spec_name_mod == 'none':
+            np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[Bwv, Bflx2, Berr2, Bflt])
+            np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[Rwv, Rflx2, Rerr2, Rflt])
         
-
-        
+        else:
+            np.save('../spec_files/{0}_{1}_{2}_g102'.format(self.field, self.galaxy_id,self.spec_name_mod),[Bwv, Bflx2, Berr2, Bflt])
+            np.save('../spec_files/{0}_{1}_{2}_g141'.format(self.field, self.galaxy_id,self.spec_name_mod),[Rwv, Rflx2, Rerr2, Rflt])
