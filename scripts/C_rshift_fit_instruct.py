@@ -9,7 +9,7 @@ from glob import glob
 hpath = os.environ['HOME'] + '/'
 
 if hpath == '/home/vestrada78840/':
-    beam_path = '/fdata/scratch/vestrada78840/clear_q_beams/'
+    beam_path = '/fdata/scratch/vestrada78840/beams/'
 
 else:
     beam_path = '../beams/'
@@ -17,8 +17,9 @@ else:
 if __name__ == '__main__':
     field = sys.argv[1] 
     galaxy = int(sys.argv[2])
+    rshift = float(sys.argv[3])
 
-z = np.arange(1.3,3.5,0.01)
+z = np.arange(rshift - 0.2, rshift + 0.2, 0.001)
 ttest=[0, 8.95, 9.26, 9.43]
 metal=np.round(np.arange(0.002,0.031,0.001),3)
 age=np.round(np.arange(.5,4.6,.1),1)
