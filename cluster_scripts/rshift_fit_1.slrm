@@ -8,7 +8,7 @@
 
 chmod a+x C_rshift_fit_instruct.py
 
-python C_rshift_fit_instruct.py 'GND' 15976 &
+python C_rshift_fit_instruct.py 'GND' 15976 2.4 &
 
 wait
 

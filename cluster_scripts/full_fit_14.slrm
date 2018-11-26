@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH -J zfit-14
+#SBATCH -p background
+#SBATCH --time=20:00:00
+#SBATCH --mem-per-cpu=64000
+#SBATCH -o zfit14-%j.out
+#SBATCH -e zfit14-%j.err
+
+chmod a+x C_full_fit_instruct.py
+
+python C_full_fit_instruct.py 'GSD' 28319 1.985 &
+
+wait
+
+exit 0
