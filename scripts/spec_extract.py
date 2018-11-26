@@ -214,17 +214,14 @@ class Extract_all(object):
         Rerr = g141['err'] / g141['flat']
         Rflt = g141['flat']
 
-        g102_filt_list = [201,240,202]
-        g141_filt_list = [204,203,205]
-
-        Pwv, Pflx, Perr, Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(self.field, self.galaxy_id))
+        #Pwv, Pflx, Perr, Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(self.field, self.galaxy_id))
         
-        Bflx2,Berr2,Rflx2,Rerr2 = Scale_spectra(Bwv, Bflx, Berr, Rwv, Rflx, Rerr, Pwv, Pflx)
+        #Bflx2,Berr2,Rflx2,Rerr2 = Scale_spectra(Bwv, Bflx, Berr, Rwv, Rflx, Rerr, Pwv, Pflx)
 
         if self.spec_name_mod == 'none':
-            np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[Bwv, Bflx2, Berr2, Bflt])
-            np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[Rwv, Rflx2, Rerr2, Rflt])
+            np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[Bwv, Bflx, Berr, Bflt])
+            np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[Rwv, Rflx, Rerr, Rflt])
         
         else:
-            np.save('../spec_files/{0}_{1}_{2}_g102'.format(self.field, self.galaxy_id,self.spec_name_mod),[Bwv, Bflx2, Berr2, Bflt])
-            np.save('../spec_files/{0}_{1}_{2}_g141'.format(self.field, self.galaxy_id,self.spec_name_mod),[Rwv, Rflx2, Rerr2, Rflt])
+            np.save('../spec_files/{0}_{1}_{2}_g102'.format(self.field, self.galaxy_id,self.spec_name_mod),[Bwv, Bflx, Berr, Bflt])
+            np.save('../spec_files/{0}_{1}_{2}_g141'.format(self.field, self.galaxy_id,self.spec_name_mod),[Rwv, Rflx, Rerr, Rflt])

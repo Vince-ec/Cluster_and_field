@@ -5,7 +5,6 @@ from astropy import wcs
 from astropy.table import Table
 from scipy.interpolate import interp1d, interp2d
 from glob import glob
-import seaborn as sea
 import os
 from grizli import multifit
 from grizli import model
@@ -29,6 +28,8 @@ Stitch_resize_redden_fit
 Stich_grids
 Analyze_full_fit
 Fit_all
+Fit_rshift
+Analyze_indv_chi
 """
 
 if hpath == '/home/vestrada78840/':
@@ -108,12 +109,24 @@ class Gen_spec(object):
         """
         self.Bwv, self.Bflx, self.Berr, self.Bflt = np.load(spec_path + '{0}_{1}_g102.npy'.format(field, galaxy_id))
         self.Rwv, self.Rflx, self.Rerr, self.Rflt = np.load(spec_path + '{0}_{1}_g141.npy'.format(field, galaxy_id))
+        self.Bmask = np.load(spec_path + 'spec_mask/{0}_{1}_g102_mask.npy'.format(field, galaxy_id))
+        self.Rmask = np.load(spec_path + 'spec_mask/{0}_{1}_g141_mask.npy'.format(field, galaxy_id))
+        
+        self.Bwv = self.Bwv[self.Bmask]
+        self.Bflt = self.Bflt[self.Bmask]
+        self.Bflx = self.Bflx[self.Bmask]
+        self.Berr = self.Berr[self.Bmask] 
+        
+        self.Rwv = self.Rwv[self.Rmask]
+        self.Rflt = self.Rflt[self.Rmask]
+        self.Rflx = self.Rflx[self.Rmask]
+        self.Rerr = self.Rerr[self.Rmask] 
         
         self.Pwv, self.Pflx, self.Perr, self.Pnum = np.load(phot_path + '{0}_{1}_phot.npy'.format(field, galaxy_id))
-        self.Pwv_rf = self.Pwv / (1+self.specz)
+        self.Pwv_rf = self.Pwv / (1 + self.specz)
                 
-        self.IDB = [U for U in range(len(self.Bwv)) if g102_lims[0] <= self.Bwv[U] <= g102_lims[-1]]
-        self.IDR = [U for U in range(len(self.Rwv)) if g141_lims[0] <= self.Rwv[U] <= g141_lims[-1]]
+        self.IDB = [U for U in range(len(self.Bwv)) if g102_lims[0] <= self.Bwv[U] <= g102_lims[-1] and self.Bflx[U]**2 > 0]
+        self.IDR = [U for U in range(len(self.Rwv)) if g141_lims[0] <= self.Rwv[U] <= g141_lims[-1] and self.Rflx[U]**2 > 0]
 
         self.Bwv = self.Bwv[self.IDB]
         self.Bwv_rf = self.Bwv / (1 + specz)
@@ -146,9 +159,12 @@ class Gen_spec(object):
 #             iTEF = interp1d(WV,TEF)(self.gal_wv_rf)
 #             self.gal_er = np.sqrt(self.gal_er**2 + (iTEF*self.fl)**2)
 
-        self.Bbeam = model.BeamCutout(fits_file= g102_beam)
-        self.Rbeam = model.BeamCutout(fits_file= g141_beam)
+        self.Bbeam = model.BeamCutout(fits_file = g102_beam)
+        self.Rbeam = model.BeamCutout(fits_file = g141_beam)
 
+        #self.Bpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g102.A.fits')
+        #self.Rpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g141.A.fits')
+        
         ### Define precalculated terms for photometry
         self.sens_wv, self.trans = np.load(template_path + 'master_tmp.npy')
         self.b = np.load(template_path + 'bottom_precalc.npy')
@@ -167,7 +183,13 @@ class Gen_spec(object):
         return self.Sim_spec_indv(self.Bbeam, model_wave, model_flux), \
                 self.Sim_spec_indv(self.Rbeam, model_wave, model_flux)
 
-    def Sim_spec(self, metal, age, tau, model_redshift = 0, Av = 0):
+    def Sim_spec_mult_point(self, model_wave, model_flux):
+        ### creates a model for g102 and g141 using individual beams
+        return self.Sim_spec_indv(self.Bpoint_beam, model_wave, model_flux), \
+                self.Sim_spec_indv(self.Rpoint_beam, model_wave, model_flux)
+    
+    def Sim_spec(self, metal, age, tau, model_redshift = 0, Av = 0, multi_component = False,
+                point_scale=1):
         if model_redshift ==0:
             model_redshift = self.specz
 
@@ -184,7 +206,28 @@ class Gen_spec(object):
             
         self.Bmfl *= Scale_model(self.Bflx, self.Berr, self.Bmfl)
         self.Rmfl *= Scale_model(self.Rflx, self.Rerr, self.Rmfl)
+        
+        if multi_component:
+            [Bpmw, Bpmf], [Rpmw, Rpmf] = self.Sim_spec_mult_point(model_wave * (1 + model_redshift), 
+                                                                            model_flux * Calzetti(Av,model_wave))
+            iBpmf = interp1d(Bpmw,Bpmf)(self.Bwv)       
+            iRpmf = interp1d(Rpmw,Rpmf)(self.Rwv)     
 
+            self.Bpmfl = iBpmf / self.Bflt
+            self.Rpmfl = iRpmf / self.Rflt
+
+            self.Bpmfl *= Scale_model(self.Bflx, self.Berr, self.Bpmfl)
+            self.Rpmfl *= Scale_model(self.Rflx, self.Rerr, self.Rpmfl)
+            
+            self.Bpmfl *= point_scale
+            self.Rpmfl *= point_scale
+            
+            self.BMCmfl = self.Bmfl + self.Bpmfl
+            self.RMCmfl = self.Rmfl + self.Rpmfl
+            
+            self.BMCmfl *= Scale_model(self.Bflx, self.Berr, self.BMCmfl)
+            self.RMCmfl *= Scale_model(self.Rflx, self.Rerr, self.RMCmfl)
+       
     def Sim_phot_mult(self, model_wave, model_flux):
         
         imfl =interp1d(self.c / model_wave, (self.c/(self.c / model_wave)**2) * model_flux)
@@ -205,11 +248,12 @@ class Gen_spec(object):
         self.Pmwv, self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), 
                                                   model_flux * Calzetti(Av,model_wave))
         self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
-        self.Pmfl *= self.PC
+        self.Pmfl = self.Pmfl * self.PC
         
     def Sim_all(self, metal, age, tau, model_redshift = 0, Av = 0):
         self.Sim_spec(metal, age, tau, model_redshift, Av)
         self.Sim_phot(metal, age, tau, model_redshift, Av)
+    
     
     
 def Scale_model_mult(D, sig, M):
@@ -399,7 +443,7 @@ def Fit_all(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift,
     np.save(out_path + '{0}_tau_pos'.format(outname),[np.append(0, np.power(10, np.array(tau)[1:] - 9)),Ptau])
     np.save(out_path + '{0}_rs_pos'.format(outname),[rshift,Pz])
     np.save(out_path + '{0}_d_pos'.format(outname),[dust,Pd])
-    
+
 def Analyze_indv_chi(outname, metal, age, tau, rshift, dust = np.arange(0,1.1,0.1),
                      age_conv=data_path + 'light_weight_scaling_3.npy', instr = 'none'):
     ####### Get maximum age
@@ -467,3 +511,66 @@ def Analyze_indv_chi(outname, metal, age, tau, rshift, dust = np.arange(0,1.1,0.
     np.save(out_path + '{0}_tau_{1}_pos'.format(outname, instr),[np.append(0, np.power(10, np.array(tau)[1:] - 9)),Ptau])
     np.save(out_path + '{0}_rs_{1}_pos'.format(outname, instr),[rshift,Pz])
     np.save(out_path + '{0}_d_{1}_pos'.format(outname, instr),[dust,Pd])
+      
+def Resize_and_fit(fit_wv, fit_fl, fit_er, fit_flat, mwv, mfl, metal, age, tau, rshift):
+    mfl = np.ma.masked_invalid(mfl)
+    mfl.data[mfl.mask] = 0
+    mfl = interp2d(mwv,range(len(mfl.data)),mfl.data)(fit_wv,range(len(mfl.data)))
+    mfl = mfl / fit_flat
+    SCL = Scale_model_mult(fit_fl,fit_er,mfl)
+    return np.sum(((fit_fl - np.array([SCL]).T*mfl) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(rshift)])
+
+def Analyze_rshift(chi, metal, age, tau, rshift):
+    ####### Get scaling factor for tau reshaping
+    ultau = np.append(0, np.power(10, np.array(tau)[1:] - 9))
+
+    ######## get Pd and Pz 
+    P_full = np.exp(- chi / 2).astype(np.float128)
+
+    Pz = np.trapz(np.trapz(np.trapz(P_full.T, metal, axis=3), age, axis=2), ultau, axis=1) / \
+         np.trapz(np.trapz(np.trapz(np.trapz(P_full.T, metal, axis=3), age, axis=2), ultau, axis=1),rshift)
+
+    return Pz
+
+def Fit_rshift(field, galaxy, g102_beam, g141_beam, metal, age, tau, rshift, errterm = 0):
+    ######## initialize spec
+    sp = Gen_spec(field, galaxy, 1, g102_beam, g141_beam, g102_lims=[8500,11300], phot_tmp_err = True, errterm = errterm)
+    
+    wv,fl = np.load(model_path + 'm0.019_a2.8_dt0_spec.npy')
+    [Bmwv,Bmf_len], [Rmwv,Rmf_len] = sp.Sim_spec_mult(wv,fl)
+    
+    ##### set model wave
+    Bmfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(Bmf_len)])
+    Rmfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(Rmf_len)])
+    Pmfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(sp.IDP)])
+    
+    for i in range(len(metal)):
+        for ii in range(len(age)):
+            for iii in range(len(tau)):
+                wv,fl = np.load(model_path + 'm{0}_a{1}_dt{2}_spec.npy'.format(metal[i], age[ii], tau[iii]))
+                for iv in range(len(rshift)):
+                    [Bmwv,Bmflx], [Rmwv,Rmflx] = sp.Sim_spec_mult(wv * (1 + rshift[iv]),fl)
+                    Pmwv, Pmflx = sp.Sim_phot_mult(wv * (1 + rshift[iv]),fl)
+                                      
+                    Bmfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = Bmflx
+                    Rmfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = Rmflx
+                    Pmfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = Pmflx
+
+    ## set some variables
+    wv,fl = np.load(model_path + 'm0.019_a2.0_dt8.0_spec.npy')
+    [Bmwv,Bmflx], [Rmwv,Rmflx] = sp.Sim_spec_mult(wv,fl)
+    
+    Bchi = Resize_and_fit(sp.Bwv, sp.Bflx, sp.Berr, sp.Bflt, Bmwv, Bmfl, metal, age, tau, rshift)
+    Rchi = Resize_and_fit(sp.Rwv, sp.Rflx, sp.Rerr, sp.Rflt, Rmwv, Rmfl, metal, age, tau, rshift)
+        
+    SCL = Scale_model_mult(sp.Pflx, sp.Perr, Pmfl)
+    Pchi = np.sum(((sp.Pflx - np.array([SCL]).T*Pmfl) / sp.Perr) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(rshift)])
+    
+    Achi = Bchi + Rchi + Pchi
+    
+    Pz = Analyze_rshift(Achi, metal, age, tau, rshift)
+    Pzb = Analyze_rshift(Bchi, metal, age, tau, rshift)
+    Pzr = Analyze_rshift(Rchi, metal, age, tau, rshift)
+    Pzp = Analyze_rshift(Pchi, metal, age, tau, rshift)
+    
+    np.save(out_path + '{0}_{1}_rs_lres_pos'.format(field, galaxy),[rshift, Pz, Pzb, Pzr, Pzp])

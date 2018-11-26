@@ -36,6 +36,10 @@ def Field_select(field_name,g102_flts,g141_flts):  ### finds source in flt file,
     threed_dec = []
     threed_flts = []
     
+    barro_ra = []
+    barro_dec = []
+    barro_flts = []
+    
     for i in g102_flts:
         flt=fits.open(i)
         if flt[0].header['TARGNAME'] == field_name and flt[0].header['OBSTYPE'] == 'SPECTROSCOPIC':
@@ -53,8 +57,26 @@ def Field_select(field_name,g102_flts,g141_flts):  ### finds source in flt file,
     
     in_out = Match_field(RA,DEC,threed_ra,threed_dec)
     threed_flts = np.array(g141_flts)[in_out]
-       
+    
+    for i in g102_flts:
+        flt=fits.open(i)
+        barro_ra.append(flt[0].header['RA_TARG'])
+        barro_dec.append(flt[0].header['DEC_TARG'])
+    
+    in_out = Match_field(RA,DEC,barro_ra,barro_dec)
+    barro_flts = np.array(g102_flts)[in_out]
+    
+    in_out = np.repeat(True,len(barro_flts))
+    
+    for i in range(len(barro_flts)):
+        if barro_flts[i] in clear_flts:
+            in_out[i] = False
+            
+    barro_flts = barro_flts[in_out]
+
+    clear_flts = np.append(clear_flts,barro_flts)
     return np.append(clear_flts,threed_flts)
+
 
 class Extract_Grism_flts(object):
     def __init__(self, grism_flts, field,subfield):

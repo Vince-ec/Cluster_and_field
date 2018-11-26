@@ -24,6 +24,7 @@ kb=1.38E-16	    # erg k-1
 
 """
 FUNCTIONS:
+-Median_w_Error_cont
 -Smooth
 -Extract_BeamCutout
 -Likelihood_contours
@@ -39,6 +40,35 @@ FUNCTIONS:
 CLASSES:
 -Photometry
 """
+
+def Median_w_Error_cont(Pofx, x):
+    ix = np.linspace(x[0], x[-1], 1000)
+    iP = interp1d(x, Pofx)(ix)
+
+    C = np.trapz(iP,ix)
+
+    iP/=C
+
+
+    lerr = 0
+    herr = 0
+    med = 0
+
+    for i in range(len(ix)):
+        e = np.trapz(iP[0:i + 1], ix[0:i + 1])
+        if lerr == 0:
+            if e >= .16:
+                lerr = ix[i]
+        if med == 0:
+            if e >= .50:
+                med = ix[i]
+        if herr == 0:
+            if e >= .84:
+                herr = ix[i]
+                break
+
+    return med, med - lerr, herr - np.abs(med)
+
 
 def Smooth(f,x):
     ksmooth = importr('KernSmooth')

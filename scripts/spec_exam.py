@@ -81,12 +81,24 @@ class Gen_spec(object):
         """
         self.Bwv, self.Bflx, self.Berr, self.Bflt = np.load('../spec_files/{0}_{1}_g102.npy'.format(field, galaxy_id))
         self.Rwv, self.Rflx, self.Rerr, self.Rflt = np.load('../spec_files/{0}_{1}_g141.npy'.format(field, galaxy_id))
+        self.Bmask = np.load('../spec_files/spec_mask/{0}_{1}_g102_mask.npy'.format(field, galaxy_id))
+        self.Rmask = np.load('../spec_files/spec_mask/{0}_{1}_g141_mask.npy'.format(field, galaxy_id))
+        
+        self.Bwv = self.Bwv[self.Bmask]
+        self.Bflt = self.Bflt[self.Bmask]
+        self.Bflx = self.Bflx[self.Bmask]
+        self.Berr = self.Berr[self.Bmask] 
+        
+        self.Rwv = self.Rwv[self.Rmask]
+        self.Rflt = self.Rflt[self.Rmask]
+        self.Rflx = self.Rflx[self.Rmask]
+        self.Rerr = self.Rerr[self.Rmask] 
         
         self.Pwv, self.Pflx, self.Perr, self.Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(field, galaxy_id))
         self.Pwv_rf = self.Pwv / (1 + self.specz)
                 
-        self.IDB = [U for U in range(len(self.Bwv)) if g102_lims[0] <= self.Bwv[U] <= g102_lims[-1]]
-        self.IDR = [U for U in range(len(self.Rwv)) if g141_lims[0] <= self.Rwv[U] <= g141_lims[-1]]
+        self.IDB = [U for U in range(len(self.Bwv)) if g102_lims[0] <= self.Bwv[U] <= g102_lims[-1] and self.Bflx[U]**2 > 0]
+        self.IDR = [U for U in range(len(self.Rwv)) if g141_lims[0] <= self.Rwv[U] <= g141_lims[-1] and self.Rflx[U]**2 > 0]
 
         self.Bwv = self.Bwv[self.IDB]
         self.Bwv_rf = self.Bwv / (1 + specz)
@@ -122,8 +134,8 @@ class Gen_spec(object):
         self.Bbeam = model.BeamCutout(fits_file = g102_beam)
         self.Rbeam = model.BeamCutout(fits_file = g141_beam)
 
-        self.Bpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g102.A.fits')
-        self.Rpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g141.A.fits')
+        #self.Bpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g102.A.fits')
+        #self.Rpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g141.A.fits')
         
         ### Define precalculated terms for photometry
         self.sens_wv, self.trans = np.load('../templates/master_tmp.npy')
