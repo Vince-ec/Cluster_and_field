@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH -J zfit-32
+#SBATCH -p background
+#SBATCH --time=20:00:00
+#SBATCH --mem-per-cpu=64000
+#SBATCH -o zfit32-%j.out
+#SBATCH -e zfit32-%j.err
+
+chmod a+x C_rshift_fit_instruct.py
+
+python C_rshift_fit_instruct.py 'GSD' 46072 &
+
+wait
+
+exit 0
