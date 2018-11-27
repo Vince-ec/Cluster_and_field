@@ -25,6 +25,7 @@ kb=1.38E-16	    # erg k-1
 """
 FUNCTIONS:
 -Median_w_Error_cont
+-Median_w_Error
 -Smooth
 -Extract_BeamCutout
 -Likelihood_contours
@@ -40,6 +41,30 @@ FUNCTIONS:
 CLASSES:
 -Photometry
 """
+
+def Median_w_Error(Pofx, x):
+    #power = int(np.abs(min(np.log10(x)[np.abs(np.log10(x)) != np.inf])))+1
+    
+    lerr = 0
+    herr = 0
+    med = 0
+
+    for i in range(len(x)):
+        e = np.trapz(Pofx[0:i + 1], x[0:i + 1])
+        if lerr == 0:
+            if e >= .16:
+                lerr = x[i]
+        if med == 0:
+            if e >= .50:
+                med = x[i]
+        if herr == 0:
+            if e >= .84:
+                herr = x[i]
+                break
+                
+#    return np.round(med,power), med - lerr, herr - med
+    return med, med - lerr, herr - med
+
 
 def Median_w_Error_cont(Pofx, x):
     ix = np.linspace(x[0], x[-1], 1000)
