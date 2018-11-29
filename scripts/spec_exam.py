@@ -29,6 +29,24 @@ template_path = '../templates/'
 out_path = '../data/posteriors/'
 phot_path = '../phot/'
 
+"""
+FUNCTIONS:
+-Calzetti_low
+-Calzetti_hi
+-Calzetti
+
+CLASSES:
+-Gen_spec
+--Sim_spec_indv
+--Sim_spec_mult
+--Sim_spec_mult_point
+--Sim_spec
+--Sim_phot_mult
+--Sim_phot
+--Sim_all
+"""
+
+
 def Calzetti_low(Av,lam):
     lam = lam * 1E-4
     Rv=4.05
