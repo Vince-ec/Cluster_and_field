@@ -1,6 +1,6 @@
 #!/home/vestrada78840/miniconda3/envs/astroconda/bin/python
 import numpy as np
-from C_full_fit import Fit_all
+from C_full_fit import Fit_all3
 import os
 import sys
 from glob import glob
@@ -18,6 +18,14 @@ if __name__ == '__main__':
     field = sys.argv[1] 
     galaxy = int(sys.argv[2])
     rshift = float(sys.argv[3])
+    bfZ = float(sys.argv[4])
+    bft = float(sys.argv[5])
+    bftau = float(sys.argv[6])
+    bfz = float(sys.argv[7])
+    bfd = float(sys.argv[8])
+
+if bftau == 0.0:
+    bftau = int(0)
 
 #z = np.arange(rshift - 0.04, rshift + 0.041, 0.001)
 age=np.round(np.arange(.5,6.1,.1),1)
@@ -29,7 +37,7 @@ dust = np.arange(0, 1.1, 0.1)
 metal =np.round(np.arange(0.002,0.031,0.008),3)
 z = [1.6,1.606,1.61]
 
-
-Fit_all(field, galaxy, glob(beam_path + '*{0}*.g102.A.fits'.format(galaxy))[0],
+Fit_all3(field, galaxy, glob(beam_path + '*{0}*.g102.A.fits'.format(galaxy))[0],
               glob(beam_path + '*{0}*.g141.A.fits'.format(galaxy))[0], rshift, 
-        metal, age, tau, z, dust, 'fit_test_{0}_{1}'.format(field, galaxy), gen_models = False)
+        metal, age, tau, z, dust, 'fit_test_{0}_{1}'.format(field, galaxy), bfZ, bft, bftau, bfz, bfd,
+         outname = 'fit_test3_{0}_{1}'.format(field, galaxy) , gen_models = False)

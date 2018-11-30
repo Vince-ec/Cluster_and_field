@@ -1,6 +1,6 @@
 #!/home/vestrada78840/miniconda3/envs/astroconda/bin/python
 import numpy as np
-from C_full_fit import Fit_all
+from C_full_fit import Fit_all2
 import os
 import sys
 from glob import glob
@@ -29,7 +29,7 @@ dust = np.arange(0, 1.1, 0.1)
 metal =np.round(np.arange(0.002,0.031,0.008),3)
 z = [1.6,1.606,1.61]
 
-
-Fit_all(field, galaxy, glob(beam_path + '*{0}*.g102.A.fits'.format(galaxy))[0],
+Fit_all2(field, galaxy, glob(beam_path + '*{0}*.g102.A.fits'.format(galaxy))[0],
               glob(beam_path + '*{0}*.g141.A.fits'.format(galaxy))[0], rshift, 
-        metal, age, tau, z, dust, 'fit_test_{0}_{1}'.format(field, galaxy), gen_models = False)
+        metal, age, tau, z, dust, 'fit_test_{0}_{1}'.format(field, galaxy),
+         outname = 'fit_test2_{0}_{1}'.format(field, galaxy) , gen_models = False)

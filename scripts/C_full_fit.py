@@ -734,8 +734,11 @@ class Gen_spec2(object):
         self.Bmfl *= self.PC
         self.Rmfl *= self.PC
         
-        self.Bflx = self.Bflx / Scale_model(self.Bflx, self.Berr, self.Bmfl)
-        self.Rflx = self.Rflx / Scale_model(self.Rflx, self.Rerr, self.Rmfl)
+        Bscale = Scale_model(self.Bflx, self.Berr, self.Bmfl)
+        Rscale = Scale_model(self.Rflx, self.Rerr, self.Rmfl)
+        
+        self.Bflx = self.Bflx / Bscale ; self.Berr = self.Berr / Bscale 
+        self.Rflx = self.Rflx / Rscale ; self.Rerr = self.Rerr / Rscale 
         
         if multi_component:
             [Bpmw, Bpmf], [Rpmw, Rpmf] = self.Sim_spec_mult_point(model_wave * (1 + model_redshift), 
@@ -813,14 +816,14 @@ class Gen_spec2(object):
         self.Bflx = self.Bflx / self.Bscale ; self.Berr = self.Berr / self.Bscale 
         self.Rflx = self.Rflx / self.Rscale ; self.Rerr = self.Rerr / self.Rscale 
 
-def Fit_all(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift, dust, name, 
+def Fit_all2(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift, dust, name, 
         gen_models = True, age_conv= data_path + 'light_weight_scaling_3.npy', errterm = 0,
            outname = 'none'):
    
     if outname == 'none':
         outname = name
     ######## initialize spec
-    sp = Gen_spec(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = True, errterm = errterm)
+    sp = Gen_spec2(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = True, errterm = errterm)
     
     if gen_models:
         Gen_mflgrid(sp, name, metal, age, tau, rshift)
@@ -829,12 +832,14 @@ def Fit_all(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift,
     wv,fl = np.load(model_path + 'm0.019_a2.0_dt8.0_spec.npy')
     [Bmwv,Bmflx], [Rmwv,Rmflx] = sp.Sim_spec_mult(wv,fl)
     
-    Stitch_resize_redden_fit2(sp.Bwv, sp.Bflx, sp.Berr, sp.Bflt, 'g102', name, Bmwv, 
+    Stitch_resize_redden_fit2(sp.Pwv, sp.Pflx, sp.Perr, 'none', 'phot', name, sp.Pwv, 
+                     metal, age, tau, rshift, outname, phot = True) 
+    
+    Stitch_resize_redden_fit2(sp.Bwv, sp.Bflx, sp.Berr, sp.Btrans, 'g102', name, Bmwv, 
                      metal, age, tau, rshift, outname)
-    Stitch_resize_redden_fit2(sp.Rwv, sp.Rflx, sp.Rerr, sp.Rflt, 'g141', name, Rmwv, 
+    Stitch_resize_redden_fit2(sp.Rwv, sp.Rflx, sp.Rerr, sp.Rtrans, 'g141', name, Rmwv, 
                      metal, age, tau, rshift, outname)
-    Stitch_resize_redden_fit(sp.Pwv, sp.Pflx, sp.Perr, 'none', 'phot', name, sp.Pwv, 
-                     metal, age, tau, rshift, outname, resize = False) 
+
     
     P, PZ, Pt, Ptau, Pz, Pd = Analyze_full_fit(outname, metal, age, tau, rshift, 
                                                dust=dust,age_conv = age_conv)
@@ -848,20 +853,19 @@ def Fit_all(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift,
 
 
 def Stitch_resize_redden_fit2(fit_wv, fit_fl, fit_er, fit_flat, instrument, name, mwv, 
-                     metal, age, tau, redshift, outname,resize=True, phot=False):
+                     metal, age, tau, redshift, outname, phot=False):
     #############Read in spectra and stich spectra grid together#################
     files = [chi_path + 'spec_files/{0}_m{1}_{2}.npy'.format(name, U, instrument) for U in metal]
     mfl = Stitch_spec(files)
     
     if phot:
-        Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname)  
-        return SCL
+        Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname,phot = True)  
     
     else:
         mfl = Resize(fit_wv, fit_flat, mwv, mfl)
         Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname)  
 
-def Redden_and_fit_phot(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname):    
+def Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname, phot = False):    
     minidust = Gen_dust_minigrid(fit_wv,redshift)
 
     Av = np.round(np.arange(0, 1.1, 0.1),1)
@@ -869,24 +873,19 @@ def Redden_and_fit_phot(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, 
         dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
             [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
         redflgrid = mfl * dustgrid
-        SCL = Scale_model_mult(fit_fl,fit_er,redflgrid)
-        redflgrid = np.array([SCL]).T*redflgrid
-        chigrid = np.sum(((fit_fl - np.array([SCL]).T*redflgrid) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
-        np.save(chi_path + '{0}_d{1}_{2}_chidata'.format(outname, i, instrument),chigrid)
-        np.save(chi_path + '{0}_d{1}_{2}_SCL'.format(outname, i, instrument), np.array([SCL]).T)
         
-def Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname):    
-    minidust = Gen_dust_minigrid(fit_wv,redshift)
-
-    Av = np.round(np.arange(0, 1.1, 0.1),1)
-    for i in range(len(Av)):
-        dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
-            [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
-        redflgrid = mfl * dustgrid
-
-        #redflgrid = np.array([SCL]).T*redflgrid
-        chigrid = np.sum(((np.array([SCL]).T*fit_fl - redflgrid) / np.array([SCL]).T*fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+        if phot:
+            SCL = Scale_model_mult(fit_fl,fit_er,redflgrid)
+            redflgrid = np.array([SCL]).T*redflgrid
+            chigrid = np.sum(((fit_fl - redflgrid) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+            np.save(chi_path + '{0}_d{1}_{2}_SCL'.format(outname, i, instrument), np.array([SCL]).T)
+        
+        else:
+            SCL = np.load(chi_path + '{0}_d{1}_phot_SCL.npy'.format(outname, i))
+            chigrid = np.sum(((fit_fl / SCL - redflgrid) / (fit_er / SCL)) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+        
         np.save(chi_path + '{0}_d{1}_{2}_chidata'.format(outname, i, instrument),chigrid)
+
 ####################################################################
 ####################################################################
 
@@ -1097,3 +1096,76 @@ class Gen_spec3(object):
         
         self.Bflx = self.Bflx / self.Bscale ; self.Berr = self.Berr / self.Bscale 
         self.Rflx = self.Rflx / self.Rscale ; self.Rerr = self.Rerr / self.Rscale 
+        
+        
+def Fit_all3(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift, dust, name, bfZ, bft, bftau, bfz, bfd,
+        gen_models = True, age_conv= data_path + 'light_weight_scaling_3.npy', errterm = 0,
+           outname = 'none'):
+   
+    if outname == 'none':
+        outname = name
+    ######## initialize spec
+    sp = Gen_spec3(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = True, errterm = errterm)
+    
+    sp.Scale_flux(bfZ, bft, bftau, bfz, bfd)
+    
+    if gen_models:
+        Gen_mflgrid(sp, name, metal, age, tau, rshift)
+
+    ## set some variables
+    wv,fl = np.load(model_path + 'm0.019_a2.0_dt8.0_spec.npy')
+    [Bmwv,Bmflx], [Rmwv,Rmflx] = sp.Sim_spec_mult(wv,fl)
+    
+    Stitch_resize_redden_fit3(sp.Pwv, sp.Pflx, sp.Perr, 'none', 'phot', name, sp.Pwv, 
+                     metal, age, tau, rshift, outname, phot = True) 
+    
+    Stitch_resize_redden_fit3(sp.Bwv, sp.Bflx, sp.Berr, sp.Btrans, 'g102', name, Bmwv, 
+                     metal, age, tau, rshift, outname)
+    Stitch_resize_redden_fit3(sp.Rwv, sp.Rflx, sp.Rerr, sp.Rtrans, 'g141', name, Rmwv, 
+                     metal, age, tau, rshift, outname)
+
+    
+    P, PZ, Pt, Ptau, Pz, Pd = Analyze_full_fit(outname, metal, age, tau, rshift, 
+                                               dust=dust,age_conv = age_conv)
+
+    np.save(out_path + '{0}_tZ_pos'.format(outname),P)
+    np.save(out_path + '{0}_Z_pos'.format(outname),[metal,PZ])
+    np.save(out_path + '{0}_t_pos'.format(outname),[age,Pt])
+    np.save(out_path + '{0}_tau_pos'.format(outname),[np.append(0, np.power(10, np.array(tau)[1:] - 9)),Ptau])
+    np.save(out_path + '{0}_rs_pos'.format(outname),[rshift,Pz])
+    np.save(out_path + '{0}_d_pos'.format(outname),[dust,Pd])
+
+
+def Stitch_resize_redden_fit3(fit_wv, fit_fl, fit_er, fit_flat, instrument, name, mwv, 
+                     metal, age, tau, redshift, outname, phot=False):
+    #############Read in spectra and stich spectra grid together#################
+    files = [chi_path + 'spec_files/{0}_m{1}_{2}.npy'.format(name, U, instrument) for U in metal]
+    mfl = Stitch_spec(files)
+    
+    if phot:
+        Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname,phot = True)  
+    
+    else:
+        mfl = Resize(fit_wv, fit_flat, mwv, mfl)
+        Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname)  
+
+def Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, instrument, name, outname, phot = False):    
+    minidust = Gen_dust_minigrid(fit_wv,redshift)
+
+    Av = np.round(np.arange(0, 1.1, 0.1),1)
+    for i in range(len(Av)):
+        dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
+            [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
+        redflgrid = mfl * dustgrid
+        
+        if phot:
+            SCL = Scale_model_mult(fit_fl,fit_er,redflgrid)
+            redflgrid = np.array([SCL]).T*redflgrid
+            chigrid = np.sum(((fit_fl - redflgrid) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+            np.save(chi_path + '{0}_d{1}_{2}_SCL'.format(outname, i, instrument), np.array([SCL]).T)
+        
+        else:
+            SCL = np.load(chi_path + '{0}_d{1}_phot_SCL.npy'.format(outname, i))
+            chigrid = np.sum(((fit_fl - redflgrid * SCL) / (fit_er)) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+        
+        np.save(chi_path + '{0}_d{1}_{2}_chidata'.format(outname, i, instrument),chigrid)
