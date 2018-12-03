@@ -823,7 +823,7 @@ def Fit_all2(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift
     if outname == 'none':
         outname = name
     ######## initialize spec
-    sp = Gen_spec2(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = True, errterm = errterm)
+    sp = Gen_spec2(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = False, errterm = errterm)
     
     if gen_models:
         Gen_mflgrid(sp, name, metal, age, tau, rshift)
@@ -1107,7 +1107,7 @@ def Fit_all3(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift
     if outname == 'none':
         outname = name
     ######## initialize spec
-    sp = Gen_spec3(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = True, errterm = errterm)
+    sp = Gen_spec3(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = False, errterm = errterm)
     
     sp.Scale_flux(bfZ, bft, bftau, bfz, bfd)
     
