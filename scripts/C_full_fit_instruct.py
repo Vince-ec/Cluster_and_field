@@ -32,4 +32,4 @@ z = [1.6,1.606,1.61]
 
 Fit_all(field, galaxy, glob(beam_path + '*{0}*.g102.A.fits'.format(galaxy))[0],
               glob(beam_path + '*{0}*.g141.A.fits'.format(galaxy))[0], rshift, 
-        metal, age, tau, z, dust, 'fit_test_{0}_{1}'.format(field, galaxy), gen_models = False)
+        metal, age, tau, z, dust, 'fit_test_{0}_{1}'.format(field, galaxy), gen_models = True)

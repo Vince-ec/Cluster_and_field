@@ -882,7 +882,9 @@ def Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, inst
         
         else:
             SCL = np.load(chi_path + '{0}_d{1}_phot_SCL.npy'.format(outname, i))
-            chigrid = np.sum(((fit_fl / SCL - redflgrid) / (fit_er / SCL)) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+            redflgrid = SCL*redflgrid
+            SCL2 = Scale_model_mult(fit_fl,fit_er,redflgrid)
+            chigrid = np.sum(((fit_fl / np.array([SCL2]).T - redflgrid) / (fit_er / np.array([SCL2]).T)) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
         
         np.save(chi_path + '{0}_d{1}_{2}_chidata'.format(outname, i, instrument),chigrid)
 
