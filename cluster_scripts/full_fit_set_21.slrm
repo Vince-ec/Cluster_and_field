@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH -J ffit-21
+#SBATCH -p background
+#SBATCH --time=20:00:00
+#SBATCH --mem-per-cpu=64000
+#SBATCH -o ffit21-%j.out
+#SBATCH -e ffit21-%j.err
+
+chmod a+x C_full_fit_instruct3.py
+
+python C_full_fit_instruct3.py 'GSD' 40623 1.418 0.02 5.8 8.7 1.418 0.0 &
+
+wait
+
+exit 0

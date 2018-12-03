@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH -J ffit-10
+#SBATCH -p background
+#SBATCH --time=20:00:00
+#SBATCH --mem-per-cpu=64000
+#SBATCH -o ffit10-%j.out
+#SBATCH -e ffit10-%j.err
+
+chmod a+x C_full_fit_instruct3.py
+
+python C_full_fit_instruct3.py 'GND' 37189 1.449 0.004 1.4 0.0 1.449 0.0 &
+
+wait
+
+exit 0
