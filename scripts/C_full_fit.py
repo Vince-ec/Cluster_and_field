@@ -607,7 +607,7 @@ class Gen_spec2(object):
     def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
                  filter_102 = 201, filter_141 = 203, tmp_err = False, 
-                 phot_tmp_err = False, errterm = 0):
+                 phot_errterm = 0):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -651,14 +651,14 @@ class Gen_spec2(object):
         self.Bwv = self.Bwv[self.IDB]
         self.Bwv_rf = self.Bwv / (1 + specz)
         self.Bflt = self.Bflt[self.IDB]
-        self.Bflx = self.Bflx[self.IDB] #* Bscale
-        self.Berr = self.Berr[self.IDB] #* Bscale
+        self.Bflx = self.Bflx[self.IDB] 
+        self.Berr = self.Berr[self.IDB] 
         
         self.Rwv = self.Rwv[self.IDR]
         self.Rwv_rf = self.Rwv / (1 + specz)
         self.Rflt = self.Rflt[self.IDR]
-        self.Rflx = self.Rflx[self.IDR] #* Rscale
-        self.Rerr = self.Rerr[self.IDR] #* Rscale
+        self.Rflx = self.Rflx[self.IDR]
+        self.Rerr = self.Rerr[self.IDR] 
 
         self.model_photDF = pd.read_pickle(phot_path + 'model_photometry_list.pkl')
         
@@ -667,18 +667,21 @@ class Gen_spec2(object):
             for ii in range(len(self.model_photDF)):
                 if self.Pnum[i] == self.model_photDF.tmp_num[self.model_photDF.index[ii]]:
                     self.IDP.append(ii)
-        
-        if phot_tmp_err:
-            ewv, tmp= np.loadtxt(template_path + 'TEMPLATE_ERROR.eazy_v1.0').T
-            iphterr = interp1d(ewv,tmp)(self.Pwv_rf)
-            self.Perr_o = self.Perr
-            self.Perr = np.sqrt(self.Perr**2 + (iphterr * self.Pflx)**2+ (errterm * self.Pflx)**2)
-            
-#         if tmp_err:
-#             WV,TEF = np.load(data_path + 'template_error_function.npy')
-#             iTEF = interp1d(WV,TEF)(self.gal_wv_rf)
-#             self.gal_er = np.sqrt(self.gal_er**2 + (iTEF*self.fl)**2)
+               
+        if tmp_err:
+            WV,TEF = np.load(template_path + 'template_error_g102.npy')
+            iTEF = interp1d(WV,TEF)(self.Bwv_rf)
+            self.Berr = np.sqrt(self.Berr**2 + (iTEF*self.Bflx)**2)
 
+            WV,TEF = np.load(template_path + 'template_error_g141.npy')
+            iTEF = interp1d(WV,TEF)(self.Rwv_rf)
+            self.Rerr = np.sqrt(self.Rerr**2 + (iTEF*self.Rflx)**2)
+            
+            WV,TEF = np.load(template_path + 'template_error_phot.npy')
+            iTEF = interp1d(WV,TEF)(self.Pwv_rf)
+            self.Perr = np.sqrt(self.Perr**2 + (iTEF * self.Pflx)**2+ (phot_errterm * self.Pflx)**2)
+                
+                
         self.Bbeam = model.BeamCutout(fits_file = g102_beam)
         self.Rbeam = model.BeamCutout(fits_file = g141_beam)
 
