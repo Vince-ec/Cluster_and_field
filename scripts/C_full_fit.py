@@ -512,7 +512,79 @@ def Analyze_indv_chi(outname, metal, age, tau, rshift, dust = np.arange(0,1.1,0.
     np.save(out_path + '{0}_tau_{1}_pos'.format(outname, instr),[np.append(0, np.power(10, np.array(tau)[1:] - 9)),Ptau])
     np.save(out_path + '{0}_rs_{1}_pos'.format(outname, instr),[rshift,Pz])
     np.save(out_path + '{0}_d_{1}_pos'.format(outname, instr),[dust,Pd])
-      
+
+def Analyze_grism_fit(outname, metal, age, tau, rshift, dust = np.arange(0,1.1,0.1), age_conv=data_path + 'light_weight_scaling_3.npy'):
+    ####### Get maximum age
+    max_age = Oldest_galaxy(max(rshift))
+    
+    ####### Read in file   
+    chi = np.zeros([len(dust),len(metal),len(age),len(tau),len(rshift)])
+    instr = ['g102','g141']
+    
+    for i in instr:
+        chifiles = [chi_path + '{0}_d{1}_{2}_chidata.npy'.format(outname, U, i) for U in range(len(dust))]
+        chi += Stich_grids(chifiles)
+    
+    chi[ : , : , len(age[age <= max_age]):] = 1E5
+
+    ####### Get scaling factor for tau reshaping
+    ultau = np.append(0, np.power(10, np.array(tau)[1:] - 9))
+    
+    convtable = np.load(age_conv)
+
+    overhead = np.zeros([len(tau),metal.size]).astype(int)
+    for i in range(len(tau)):
+        for ii in range(metal.size):
+            amt=[]
+            for iii in range(age.size):
+                if age[iii] > convtable.T[i].T[ii][-1]:
+                    amt.append(1)
+            overhead[i][ii] = sum(amt)
+
+    ######## get Pd and Pz 
+    P_full = np.exp(- chi / 2).astype(np.float128)
+
+    Pd = np.trapz(np.trapz(np.trapz(np.trapz(P_full, rshift, axis=4), ultau, axis=3), age, axis=2), metal, axis=1) /\
+        np.trapz(np.trapz(np.trapz(np.trapz(np.trapz(P_full, rshift, axis=4), ultau, axis=3), age, axis=2), metal, axis=1),dust)
+
+    Pz = np.trapz(np.trapz(np.trapz(np.trapz(P_full.T, dust, axis=4), metal, axis=3), age, axis=2), ultau, axis=1) /\
+        np.trapz(np.trapz(np.trapz(np.trapz(np.trapz(P_full.T, dust, axis=4), metal, axis=3), age, axis=2), ultau, axis=1),rshift)
+
+    P = np.trapz(P_full, rshift, axis=4)
+    P = np.trapz(P.T, dust, axis=3).T
+    new_P = np.zeros(P.T.shape)
+
+    ######## Reshape likelihood to get light weighted age instead of age when marginalized
+    for i in range(len(tau)):
+        frame = np.zeros([metal.size,age.size])
+        for ii in range(metal.size):
+            dist = interp1d(convtable.T[i].T[ii],P.T[i].T[ii])(age[:-overhead[i][ii]])
+            frame[ii] = np.append(dist,np.repeat(0, overhead[i][ii]))
+        new_P[i] = frame.T
+
+    ####### Create normalize probablity marginalized over tau
+    P = new_P.T
+
+    # test_prob = np.trapz(test_P, ultau, axis=2)
+    C = np.trapz(np.trapz(np.trapz(P, ultau, axis=2), age, axis=1), metal)
+
+    P /= C
+
+    prob = np.trapz(P, ultau, axis=2)
+    
+    # #### Get Z, t, tau, and z posteriors
+    PZ = np.trapz(np.trapz(P, ultau, axis=2), age, axis=1)
+    Pt = np.trapz(np.trapz(P, ultau, axis=2).T, metal, axis=1)
+    Ptau = np.trapz(np.trapz(P.T, metal, axis=2), age, axis=1)
+
+    np.save(out_path + '{0}_tZ_grism_pos'.format(outname),prob.T)
+    np.save(out_path + '{0}_Z_grism_pos'.format(outname),[metal,PZ])
+    np.save(out_path + '{0}_t_grism_pos'.format(outname),[age,Pt])
+    np.save(out_path + '{0}_tau_grism_pos'.format(outname),[np.append(0, np.power(10, np.array(tau)[1:] - 9)),Ptau])
+    np.save(out_path + '{0}_rs_grism_pos'.format(outname),[rshift,Pz])
+    np.save(out_path + '{0}_d_grism_pos'.format(outname),[dust,Pd])
+    
+    
 def Resize_and_fit(fit_wv, fit_fl, fit_er, fit_flat, mwv, mfl, metal, age, tau, rshift):
     mfl = np.ma.masked_invalid(mfl)
     mfl.data[mfl.mask] = 0
@@ -669,18 +741,17 @@ class Gen_spec2(object):
                     self.IDP.append(ii)
                
         if tmp_err:
-            WV,TEF = np.load(template_path + 'template_error_g102.npy')
+            WV,TEF = np.load(template_path + 'template_error_test.npy')
             iTEF = interp1d(WV,TEF)(self.Bwv_rf)
             self.Berr = np.sqrt(self.Berr**2 + (iTEF*self.Bflx)**2)
 
-            WV,TEF = np.load(template_path + 'template_error_g141.npy')
             iTEF = interp1d(WV,TEF)(self.Rwv_rf)
             self.Rerr = np.sqrt(self.Rerr**2 + (iTEF*self.Rflx)**2)
             
-            WV,TEF = np.load(template_path + 'template_error_phot.npy')
             iTEF = interp1d(WV,TEF)(self.Pwv_rf)
             self.Perr = np.sqrt(self.Perr**2 + (iTEF * self.Pflx)**2+ (phot_errterm * self.Pflx)**2)
-                
+        else:
+            self.Perr = np.sqrt(self.Perr**2 + (phot_errterm * self.Pflx)**2)  
                 
         self.Bbeam = model.BeamCutout(fits_file = g102_beam)
         self.Rbeam = model.BeamCutout(fits_file = g141_beam)
@@ -826,7 +897,7 @@ def Fit_all2(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift
     if outname == 'none':
         outname = name
     ######## initialize spec
-    sp = Gen_spec2(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = False, errterm = errterm)
+    sp = Gen_spec2(field, galaxy, specz, g102_beam, g141_beam, tmp_err = True, phot_errterm = errterm)
     
     if gen_models:
         Gen_mflgrid(sp, name, metal, age, tau, rshift)
