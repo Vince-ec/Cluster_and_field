@@ -969,8 +969,7 @@ def Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, inst
 class Gen_spec3(object):
     def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                 filter_102 = 201, filter_141 = 203, tmp_err = False, 
-                 phot_tmp_err = False, errterm = 0):
+                 tmp_err = False, phot_errterm = 0):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -1031,11 +1030,18 @@ class Gen_spec3(object):
                 if self.Pnum[i] == self.model_photDF.tmp_num[self.model_photDF.index[ii]]:
                     self.IDP.append(ii)
         
-        if phot_tmp_err:
-            ewv, tmp= np.loadtxt(template_path + 'TEMPLATE_ERROR.eazy_v1.0').T
-            iphterr = interp1d(ewv,tmp)(self.Pwv_rf)
-            self.Perr_o = self.Perr
-            self.Perr = np.sqrt(self.Perr**2 + (iphterr * self.Pflx)**2+ (errterm * self.Pflx)**2)
+        if tmp_err:
+            WV,TEF = np.load(template_path + 'template_error_test.npy')
+            iTEF = interp1d(WV,TEF)(self.Bwv_rf)
+            self.Berr = np.sqrt(self.Berr**2 + (iTEF*self.Bflx)**2)
+
+            iTEF = interp1d(WV,TEF)(self.Rwv_rf)
+            self.Rerr = np.sqrt(self.Rerr**2 + (iTEF*self.Rflx)**2)
+            
+            iTEF = interp1d(WV,TEF)(self.Pwv_rf)
+            self.Perr = np.sqrt(self.Perr**2 + (iTEF * self.Pflx)**2+ (phot_errterm * self.Pflx)**2)
+        else:
+            self.Perr = np.sqrt(self.Perr**2 + (phot_errterm * self.Pflx)**2)
             
 #         if tmp_err:
 #             WV,TEF = np.load(data_path + 'template_error_function.npy')
@@ -1181,7 +1187,7 @@ def Fit_all3(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, rshift
     if outname == 'none':
         outname = name
     ######## initialize spec
-    sp = Gen_spec3(field, galaxy, specz, g102_beam, g141_beam, phot_tmp_err = False, errterm = errterm)
+    sp = Gen_spec3(field, galaxy, specz, g102_beam, g141_beam, tmp_err = True , errterm = errterm)
     
     sp.Scale_flux(bfZ, bft, bftau, bfz, bfd)
     
