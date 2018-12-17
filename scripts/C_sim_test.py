@@ -47,9 +47,9 @@ else:
 
 class Gen_sim(object):
     def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
-                 model_wv, model_fl, mass, stellar_mass,
+                 model_wv, model_fl,stellar_mass,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                tmp_err = True, phot_errterm = 0,offset_limit = 0.1):
+                tmp_err = True, phot_errterm = 0):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -88,10 +88,10 @@ class Gen_sim(object):
         self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, g141_beam)
         
         ### set sim and transmission curve
-        self.SBflx, self.SBer, self.SRflx, self.SRer, self.SPflx, self.SPer =  init_sim(model_wv, model_fl, 
-            specz, mass, stellar_mass, self.Bwv, self.Rwv, self.Bflx, self.Rflx, self.Pflx, self.Berr, 
+        self.SBflx, self.SBer, self.SRflx, self.SRer, self.SPflx, self.SPer, self.mass, self.lmass =  init_sim(model_wv, model_fl, 
+            specz, stellar_mass, self.Bwv, self.Rwv, self.Bflx, self.Rflx, self.Pflx, self.Berr, 
             self.Rerr, self.Perr, phot_errterm, self.Btrans, self.Rtrans, self.Bbeam, self.Rbeam, 
-            self.IDP, self.sens_wv, self.b, self.dnu, self.adj, offset_limit)
+            self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
             
         self.SBer = apply_tmp_err(self.Bwv_rf,self.SBer,self.SBflx, tmp_err = tmp_err)
         self.SRer = apply_tmp_err(self.Rwv_rf,self.SRer,self.SRflx, tmp_err = tmp_err)
@@ -147,9 +147,7 @@ class Gen_sim(object):
         self.Sim_phot(metal, age, tau, model_redshift, Av)
         self.Sim_spec(metal, age, tau, model_redshift, Av)
         
-    def Scale_flux(self, bfZ, bft, bftau, bfz, bfd):
-        model_wave, model_flux = np.load(model_path + 'm{0}_a{1}_dt{2}_spec.npy'.format(bfZ, bft, bftau))
-        
+    def Scale_flux(self, model_wave, model_flux, bfz, bfd):      
         US_model_flux = F_lam_per_M(model_flux * Salmon(bfd,model_wave), model_wave * (1 + bfz), bfz, 0, 1)
 
         US_pfl = self.Sim_phot_mult(model_wave * (1 + bfz), US_model_flux)
@@ -188,61 +186,70 @@ def Fit_all_sim(field, galaxy, g102_beam, g141_beam, specz, metal, age, tau, dus
         outname = name
     ######## initialize spec
     
-    fsps_spec = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(simZ/0.019), sfh = 4, tau = simtau)
-    wave, flux = fsps_spec.get_spectrum(tage = simt, peraa = True)
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(simZ/0.019), sfh = 4, tau = simtau)
+    wave, flux = sp.get_spectrum(tage = simt, peraa = True)
     
     sal = Salmon(simd, wave)
     
-    sp = Gen_sim(field, galaxy, specz, g102_beam, g141_beam,
-                   wave, flux * sal, 11, fsps_spec.stellar_mass, g102_lims=[8500,11300], 
-                   tmp_err=True, phot_errterm = errterm, offset_limit=0.5 )    
+    Gs = Gen_sim(field, galaxy, specz, g102_beam, g141_beam,
+                   wave, flux * sal, sp.stellar_mass, g102_lims=[9000,11300], 
+                   tmp_err=False, phot_errterm = errterm,)    
     if gen_models:
-        Gen_mflgrid(sp, name, metal, age, tau, specz)
-
+        Gen_mflgrid(Gs, sp, name, metal, age, tau, specz)
+        print('models made')
+        Gen_lwagrid(sp, name, metal, age, tau)
+        
     ## set some variables
-    wv,fl = np.load(model_path + 'm0.019_a2.0_dt8.0_spec.npy')
-    [Bmwv,Bmflx], [Rmwv,Rmflx] = sp.Sim_spec_mult(wv,fl)
+    [Bmwv,Bmflx], [Rmwv,Rmflx] = Gs.Sim_spec_mult(wave, flux)
     
-    Stitch_resize_redden_fit2(sp.Pwv, sp.SPflx, sp.SPer, 'none', 'phot', name, sp.Pwv, 
-                     metal, age, tau, specz, outname, phot = True) 
-    Stitch_resize_redden_fit2(sp.Bwv, sp.SBflx, sp.SBer, sp.Btrans, 'g102', name, Bmwv, 
-                     metal, age, tau, specz, outname)
-    Stitch_resize_redden_fit2(sp.Rwv, sp.SRflx, sp.SRer, sp.Rtrans, 'g141', name, Rmwv, 
-                     metal, age, tau, specz, outname)
+    Stitch_resize_redden_fit2(Gs.Pwv, Gs.SPflx, Gs.SPer, 'none', 'phot', name, Gs.Pwv, 
+                     metal, age, tau, dust, specz, outname, phot = True) 
+    Stitch_resize_redden_fit2(Gs.Bwv, Gs.SBflx, Gs.SBer, Gs.Btrans, 'g102', name, Bmwv, 
+                     metal, age, tau, dust, specz, outname)
+    Stitch_resize_redden_fit2(Gs.Rwv, Gs.SRflx, Gs.SRer, Gs.Rtrans, 'g141', name, Rmwv, 
+                     metal, age, tau, dust, specz, outname)
 
     P, PZ, Pt, Ptau, Pd = Analyze_full_fit(outname, metal, age, tau, specz,
-                                              dust=dust,age_conv = age_conv)
+                                              dust,age_conv = data_path + '{0}_lwa_scale.npy'.format(name))
 
     np.save(out_path + '{0}_tZ_sim_pos_fs'.format(outname),P)
     np.save(out_path + '{0}_Z_sim_pos_fs'.format(outname),[metal,PZ])
     np.save(out_path + '{0}_t_sim_pos_fs'.format(outname),[age,Pt])
-    np.save(out_path + '{0}_tau_sim_pos_fs'.format(outname),[np.append(0, np.power(10, np.array(tau)[1:] - 9)),Ptau])
+    np.save(out_path + '{0}_tau_sim_pos_fs'.format(outname),[tau,Ptau])
     np.save(out_path + '{0}_d_sim_pos_fs'.format(outname),[dust,Pd])
     
-    
-    bfd, bfZ, bft, bftau = Get_best_fit(outname, metal, age, tau, specz)
+    bfd, bfZ, bft, bftau = Get_best_fit(outname, metal, age, tau, specz, dust)
     
     print(bfZ, bft, bftau, specz, bfd)
     
-    sp.Scale_flux(bfZ, bft, bftau, specz, bfd)
+    sp.params['compute_light_ages'] = False
+    wave, flux = sp.get_spectrum(tage = simt, peraa = True)
+    
+    Gs.Scale_flux(wave, flux, specz, bfd)
 
-    Stitch_resize_redden_fit3(sp.Pwv, sp.SPflx, sp.SPer, 'none', 'phot', name, sp.Pwv, 
-                     metal, age, tau, specz, outname, phot = True)     
-    Stitch_resize_redden_fit3(sp.Bwv, sp.SBflx, sp.SBer, sp.Btrans, 'g102', name, Bmwv, 
-                     metal, age, tau, specz, outname)
-    Stitch_resize_redden_fit3(sp.Rwv, sp.SRflx, sp.SRer, sp.Rtrans, 'g141', name, Rmwv, 
-                     metal, age, tau, specz, outname)   
+    Stitch_resize_redden_fit3(Gs.Pwv, Gs.SPflx, Gs.SPer, 'none', 'phot', name, Gs.Pwv, 
+                     metal, age, tau, dust, specz, outname, phot = True)     
+    Stitch_resize_redden_fit3(Gs.Bwv, Gs.SBflx, Gs.SBer, Gs.Btrans, 'g102', name, Bmwv, 
+                     metal, age, tau, dust, specz, outname)
+    Stitch_resize_redden_fit3(Gs.Rwv, Gs.SRflx, Gs.SRer, Gs.Rtrans, 'g141', name, Rmwv, 
+                     metal, age, tau, dust, specz, outname)   
     
     P, PZ, Pt, Ptau, Pd = Analyze_full_fit(outname, metal, age, tau, specz,
-                                              dust=dust,age_conv = age_conv)
+                                              dust,age_conv = data_path + '{0}_lwa_scale.npy'.format(name))
 
     np.save(out_path + '{0}_tZ_sim_pos'.format(outname),P)
     np.save(out_path + '{0}_Z_sim_pos'.format(outname),[metal,PZ])
     np.save(out_path + '{0}_t_sim_pos'.format(outname),[age,Pt])
-    np.save(out_path + '{0}_tau_sim_pos'.format(outname),[np.append(0, np.power(10, np.array(tau)[1:] - 9)),Ptau])
+    np.save(out_path + '{0}_tau_sim_pos'.format(outname),[tau,Ptau])
     np.save(out_path + '{0}_d_sim_pos'.format(outname),[dust,Pd])
     
-def Get_best_fit(outname, metal, age, tau, specz, dust = np.arange(0,1.1,0.1)):
+    bfd, bfZ, bft, bftau = Get_best_fit(outname, metal, age, tau, specz, dust)
+    
+    print(bfZ, bft, bftau, specz, bfd)
+    
+    
+    
+def Get_best_fit(outname, metal, age, tau, specz, dust):
     ####### Get maximum age
     max_age = Oldest_galaxy(specz)
     
@@ -256,14 +263,14 @@ def Get_best_fit(outname, metal, age, tau, specz, dust = np.arange(0,1.1,0.1)):
     
     chi[ : , : , len(age[age <= max_age]):] = 1E5
 
-    return Best_fit_model(chi,metal,age,tau)
+    return Best_fit_model(chi,metal,age,tau,dust)
     
 
-def Best_fit_model(chi, metal, age, tau, dust = np.arange(0,1.1,.1)):
+def Best_fit_model(chi, metal, age, tau, dust):
     x = np.argwhere(chi == np.min(chi))[0]
     return dust[x[0]],metal[x[1]], age[x[2]], tau[x[3]]
 
-def Analyze_full_fit(outname, metal, age, tau, specz, dust = np.arange(0,1.1,0.1), age_conv=data_path + 'light_weight_scaling_3.npy'):
+def Analyze_full_fit(outname, metal, age, tau, specz, dust, age_conv=data_path + 'light_weight_scaling_3.npy'):
     ####### Get maximum age
     max_age = Oldest_galaxy(specz)
     
@@ -275,11 +282,9 @@ def Analyze_full_fit(outname, metal, age, tau, specz, dust = np.arange(0,1.1,0.1
         chifiles = [chi_path + '{0}_d{1}_{2}_chidata.npy'.format(outname, U, i) for U in range(len(dust))]
         chi += Stich_grids(chifiles)
     
-    chi[ : , : , len(age[age <= max_age]):] = 1E5
+    chi[ : , : , len(age[age <= max_age]):] = 1E15
 
-    ####### Get scaling factor for tau reshaping
-    ultau = np.append(0, np.power(10, np.array(tau)[1:] - 9))
-    
+    ####### Get scaling factor for tau reshaping   
     convtable = np.load(age_conv)
 
     overhead = np.zeros([len(tau),metal.size]).astype(int)
@@ -294,8 +299,8 @@ def Analyze_full_fit(outname, metal, age, tau, specz, dust = np.arange(0,1.1,0.1
     ######## get Pd and Pz 
     P_full = np.exp(-chi/2).astype(np.float128)
 
-    Pd = np.trapz(np.trapz(np.trapz(P_full, ultau, axis=3), age, axis=2), metal, axis=1) /\
-        np.trapz(np.trapz(np.trapz(np.trapz(P_full, ultau, axis=3), age, axis=2), metal, axis=1),dust)
+    Pd = np.trapz(np.trapz(np.trapz(P_full, tau, axis=3), age, axis=2), metal, axis=1) /\
+        np.trapz(np.trapz(np.trapz(np.trapz(P_full, tau, axis=3), age, axis=2), metal, axis=1),dust)
 
     P = np.trapz(P_full.T, dust, axis=3).T
     new_P = np.zeros(P.T.shape)
@@ -312,34 +317,33 @@ def Analyze_full_fit(outname, metal, age, tau, specz, dust = np.arange(0,1.1,0.1
     P = new_P.T
 
     # test_prob = np.trapz(test_P, ultau, axis=2)
-    C = np.trapz(np.trapz(np.trapz(P, ultau, axis=2), age, axis=1), metal)
+    C = np.trapz(np.trapz(np.trapz(P, tau, axis=2), age, axis=1), metal)
 
     P /= C
 
-    prob = np.trapz(P, ultau, axis=2)
+    prob = np.trapz(P, tau, axis=2)
     
     # #### Get Z, t, tau, and z posteriors
-    PZ = np.trapz(np.trapz(P, ultau, axis=2), age, axis=1)
-    Pt = np.trapz(np.trapz(P, ultau, axis=2).T, metal, axis=1)
+    PZ = np.trapz(np.trapz(P, tau, axis=2), age, axis=1)
+    Pt = np.trapz(np.trapz(P, tau, axis=2).T, metal, axis=1)
     Ptau = np.trapz(np.trapz(P.T, metal, axis=2), age, axis=1)
 
     return prob.T, PZ, Pt, Ptau, Pd
 
 def Stitch_resize_redden_fit2(fit_wv, fit_fl, fit_er, fit_flat, instrument, name, mwv, 
-                     metal, age, tau, specz, outname, phot=False):
+                     metal, age, tau, dust,specz, outname, phot=False):
     #############Read in spectra and stich spectra grid together#################
     files = [chi_path + 'spec_files/{0}_m{1}_{2}.npy'.format(name, U, instrument) for U in metal]
     mfl = Stitch_spec(files)
     
     if phot:
-        Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrument, name, outname,phot = True)  
+        Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, dust, specz, instrument, name, outname,phot = True)  
     
     else:
         mfl = Resize(fit_wv, fit_flat, mwv, mfl)
-        Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrument, name, outname)  
+        Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, dust, specz, instrument, name, outname)  
 
-def Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrument, name, outname, phot = False):    
-    Av = np.round(np.arange(0, 1.1, 0.1),1)
+def Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, Av, specz, instrument, name, outname, phot = False):    
     for i in range(len(Av)):
         sal = Salmon(Av[i], fit_wv/(1+specz))
         redflgrid = mfl * sal
@@ -358,21 +362,21 @@ def Redden_and_fit2(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrum
         
         np.save(chi_path + '{0}_d{1}_{2}_chidata'.format(outname, i, instrument),chigrid)
 
-def Gen_mflgrid(spec, name, metal, age, tau, specz):
-    wv,fl = np.load(model_path + 'm0.019_a2.8_dt0_spec.npy')
-
+def Gen_mflgrid(spec, models, name, metal, age, tau, specz):
+    wv,fl = models.get_spectrum(tage = 2.0, peraa = True)
     [Bmwv,Bmf_len], [Rmwv,Rmf_len] = spec.Sim_spec_mult(wv,fl)
     
     ##### set model wave
     for i in range(len(metal)):
-        
+        models.params['logzsol'] = np.log10(metal[i] / 0.019)
         Bmfl = np.zeros([len(age)*len(tau),len(Bmf_len)])
         Rmfl = np.zeros([len(age)*len(tau),len(Rmf_len)])
         Pmfl = np.zeros([len(age)*len(tau),len(spec.IDP)])
 
         for ii in range(len(age)):
             for iii in range(len(tau)):
-                wv,fl = np.load(model_path + 'm{0}_a{1}_dt{2}_spec.npy'.format(metal[i], age[ii], tau[iii]))
+                models.params['tau'] = tau[iii]
+                wv,fl = models.get_spectrum(tage = age[ii], peraa = True)
                 [Bmwv,Bmflx], [Rmwv,Rmflx] = spec.Sim_spec_mult(wv * (1 + specz),fl)
                 Pmflx = spec.Sim_phot_mult(wv * (1 + specz),fl)
 
@@ -385,20 +389,19 @@ def Gen_mflgrid(spec, name, metal, age, tau, specz):
         np.save(chi_path + 'spec_files/{0}_m{1}_phot'.format(name, metal[i]),Pmfl)
         
 def Stitch_resize_redden_fit3(fit_wv, fit_fl, fit_er, fit_flat, instrument, name, mwv, 
-                     metal, age, tau, specz, outname, phot=False):
+                     metal, age, tau, dust, specz, outname, phot=False):
     #############Read in spectra and stich spectra grid together#################
     files = [chi_path + 'spec_files/{0}_m{1}_{2}.npy'.format(name, U, instrument) for U in metal]
     mfl = Stitch_spec(files)
     
     if phot:
-        Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrument, name, outname,phot = True)  
+        Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, dust, specz, instrument, name, outname,phot = True)  
     
     else:
         mfl = Resize(fit_wv, fit_flat, mwv, mfl)
-        Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrument, name, outname)  
+        Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, dust, specz, instrument, name, outname)  
 
-def Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrument, name, outname, phot = False):    
-    Av = np.round(np.arange(0, 1.1, 0.1),1)
+def Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, Av, specz, instrument, name, outname, phot = False):    
     for i in range(len(Av)):
         sal = Salmon(Av[i], fit_wv/(1+specz))
         redflgrid = mfl * sal
@@ -414,3 +417,146 @@ def Redden_and_fit3(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, specz, instrum
             chigrid = np.sum(((fit_fl - redflgrid * SCL) / (fit_er)) ** 2, axis=1).reshape([len(metal), len(age), len(tau)])
         
         np.save(chi_path + '{0}_d{1}_{2}_chidata'.format(outname, i, instrument),chigrid)
+
+def Gen_lwagrid(models, name, metal, age, tau):
+    models.params['compute_light_ages'] = True  
+    
+    lwa_grid = np.zeros([metal.size,age.size,tau.size])
+    
+    for i in range(len(metal)):
+        models.params['logzsol'] = np.log10(metal[i]/0.019)
+        for ii in range(len(age)):
+            for iii in range(len(tau)):
+                models.params['tau'] = tau[iii]
+                wv_lwa, lwa_spec=np.array(models.get_spectrum(tage=age[ii]))
+                lwa_grid[i][ii][iii] = interp1d(wv_lwa,lwa_spec)(4750)
+        
+    np.save(data_path + '{0}_lwa_scale'.format(name),lwa_grid)
+    
+    
+def Analyze_grism_fit(outname, metal, age, tau, specz, dust, age_conv=data_path + 'light_weight_scaling_3.npy'):
+    ####### Get maximum age
+    max_age = Oldest_galaxy(specz)
+    
+    ####### Read in file   
+    chi = np.zeros([len(dust),len(metal),len(age),len(tau)])
+    instr = ['g102','g141']
+    
+    for i in instr:
+        chifiles = [chi_path + '{0}_d{1}_{2}_chidata.npy'.format(outname, U, i) for U in range(len(dust))]
+        chi += Stich_grids(chifiles)
+    
+    chi[ : , : , len(age[age <= max_age]):] = 1E15
+
+    ####### Get scaling factor for tau reshaping
+    ultau = np.append(0, np.power(10, np.array(tau)[1:] - 9))
+    
+    convtable = np.load(age_conv)
+
+    overhead = np.zeros([len(tau),metal.size]).astype(int)
+    for i in range(len(tau)):
+        for ii in range(metal.size):
+            amt=[]
+            for iii in range(age.size):
+                if age[iii] > convtable.T[i].T[ii][-1]:
+                    amt.append(1)
+            overhead[i][ii] = sum(amt)
+
+    ######## get Pd and Pz 
+    P_full = np.exp(-chi/2).astype(np.float128)
+
+    Pd = np.trapz(np.trapz(np.trapz(P_full, tau, axis=3), age, axis=2), metal, axis=1) /\
+        np.trapz(np.trapz(np.trapz(np.trapz(P_full, tau, axis=3), age, axis=2), metal, axis=1),dust)
+
+    P = np.trapz(P_full.T, dust, axis=3).T
+    new_P = np.zeros(P.T.shape)
+
+    ######## Reshape likelihood to get light weighted age instead of age when marginalized
+    for i in range(len(tau)):
+        frame = np.zeros([metal.size,age.size])
+        for ii in range(metal.size):
+            dist = interp1d(convtable.T[i].T[ii],P.T[i].T[ii])(age[:-overhead[i][ii]])
+            frame[ii] = np.append(dist,np.repeat(0, overhead[i][ii]))
+        new_P[i] = frame.T
+
+    ####### Create normalize probablity marginalized over tau
+    P = new_P.T
+
+    # test_prob = np.trapz(test_P, ultau, axis=2)
+    C = np.trapz(np.trapz(np.trapz(P, tau, axis=2), age, axis=1), metal)
+
+    P /= C
+
+    prob = np.trapz(P, tau, axis=2)
+    
+    # #### Get Z, t, tau, and z posteriors
+    PZ = np.trapz(np.trapz(P, tau, axis=2), age, axis=1)
+    Pt = np.trapz(np.trapz(P, tau, axis=2).T, metal, axis=1)
+    Ptau = np.trapz(np.trapz(P.T, metal, axis=2), age, axis=1)
+
+    np.save(out_path + '{0}_tZ_grism_pos'.format(outname),prob.T)
+    np.save(out_path + '{0}_Z_grism_pos'.format(outname),[metal,PZ])
+    np.save(out_path + '{0}_t_grism_pos'.format(outname),[age,Pt])
+    np.save(out_path + '{0}_tau_grism_pos'.format(outname),[tau,Ptau])
+    np.save(out_path + '{0}_d_grism_pos'.format(outname),[dust,Pd])
+    
+def Analyze_indv_chi(outname, metal, age, tau, specz, dust,
+                     age_conv=data_path + 'light_weight_scaling_3.npy', instr = 'none'):
+    ####### Get maximum age
+    max_age = Oldest_galaxy(specz)
+    
+    ####### Read in file       
+    chifiles = [chi_path + '{0}_d{1}_{2}_chidata.npy'.format(outname, U, instr) for U in range(len(dust))]
+    chi = Stich_grids(chifiles)
+    
+    chi[ : , : , len(age[age <= max_age]):] = 1E15
+
+    ####### Get scaling factor for tau reshaping   
+    convtable = np.load(age_conv)
+
+    overhead = np.zeros([len(tau),metal.size]).astype(int)
+    for i in range(len(tau)):
+        for ii in range(metal.size):
+            amt=[]
+            for iii in range(age.size):
+                if age[iii] > convtable.T[i].T[ii][-1]:
+                    amt.append(1)
+            overhead[i][ii] = sum(amt)
+
+    ######## get Pd and Pz 
+    P_full = np.exp(-chi/2).astype(np.float128)
+
+    Pd = np.trapz(np.trapz(np.trapz(P_full, tau, axis=3), age, axis=2), metal, axis=1) /\
+        np.trapz(np.trapz(np.trapz(np.trapz(P_full, tau, axis=3), age, axis=2), metal, axis=1),dust)
+
+    P = np.trapz(P_full.T, dust, axis=3).T
+    new_P = np.zeros(P.T.shape)
+
+    ######## Reshape likelihood to get light weighted age instead of age when marginalized
+    for i in range(len(tau)):
+        frame = np.zeros([metal.size,age.size])
+        for ii in range(metal.size):
+            dist = interp1d(convtable.T[i].T[ii],P.T[i].T[ii])(age[:-overhead[i][ii]])
+            frame[ii] = np.append(dist,np.repeat(0, overhead[i][ii]))
+        new_P[i] = frame.T
+
+    ####### Create normalize probablity marginalized over tau
+    P = new_P.T
+
+    # test_prob = np.trapz(test_P, ultau, axis=2)
+    C = np.trapz(np.trapz(np.trapz(P, tau, axis=2), age, axis=1), metal)
+
+    P /= C
+
+    prob = np.trapz(P, tau, axis=2)
+    
+    # #### Get Z, t, tau, and z posteriors
+    PZ = np.trapz(np.trapz(P, tau, axis=2), age, axis=1)
+    Pt = np.trapz(np.trapz(P, tau, axis=2).T, metal, axis=1)
+    Ptau = np.trapz(np.trapz(P.T, metal, axis=2), age, axis=1)
+    
+    np.save(out_path + '{0}_tZ_{1}_pos'.format(outname, instr),prob.T)
+    np.save(out_path + '{0}_Z_{1}_pos'.format(outname, instr),[metal,PZ])
+    np.save(out_path + '{0}_t_{1}_pos'.format(outname, instr),[age,Pt])
+    np.save(out_path + '{0}_tau_{1}_pos'.format(outname, instr),[tau,Ptau])
+    np.save(out_path + '{0}_d_{1}_pos'.format(outname, instr),[dust,Pd])

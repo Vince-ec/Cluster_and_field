@@ -11,6 +11,7 @@ import os
 from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
+from spec_tools import Scale_model
 
 hpath = os.environ['HOME'] + '/'
 
@@ -36,12 +37,35 @@ else:
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
     
-    
+"""
+def:
+-load_spec
+-load_phot_precalc
+-load_beams_and_trns
+-apply_tmp_err
+-init_sim
+-forward_model_grism
+-forward_model_phot
+-Calzetti_low
+-Calzetti_hi
+-Calzetti
+-Salmon_low
+-Salmon_hi
+-Salmon
+-Chi_Squared
+-L_nu_per_M
+-F_nu_per_M
+-F_lam_per_M
+-Get_mass
+"""  
+
+
+
 def load_spec(field, galaxy_id, instr, lims, specz, grism = True):
     # if loading photometry FLT stands in for num
         
     if grism:
-        W, F, E, FLT = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
 
         M = np.load(spec_path + 'spec_mask/{0}_{1}_{2}_mask.npy'.format(field, galaxy_id, instr))
         
@@ -105,42 +129,39 @@ def apply_tmp_err(wv_rf, er,flx, tmp_err = True, pht_err = 0):
         
     return np.sqrt(er**2 + (iTEF*flx)**2 + (pht_err*flx)**2)
 
-def init_sim(model_wave, model_fl, specz, mass, stellar_mass, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
-            btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj, offset_limit):
+def init_sim(model_wave, model_fl, specz, stellar_mass, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
+            btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj):
+   #remove mass?
+    
+    # convert model to f_lam / sol_mass
     fl_sol = F_lam_per_M(model_fl * (1 + specz), model_wave, specz, 0, stellar_mass)
 
-    f_lam = fl_sol * 10**(mass)
-
-    Bsnr = np.abs(bflx / berr)
-    Rsnr = np.abs(rflx / rerr)
-    Psnr = np.abs(pflx / np.sqrt(perr**2 + (phot_err * pflx)**2))
-
-    SPfl = forward_model_phot(model_wave*(1 + specz), f_lam, IDP, sens_wv, b, dnu, adj)
-    SPer = SPfl / Psnr
-
-    Bmw, Bmf = forward_model_grism(bbeam, model_wave, f_lam)
-    Rmw, Rmf = forward_model_grism(rbeam, model_wave, f_lam)
-    iBmf = interp1d(Bmw,Bmf)(bwv)       
-    iRmf = interp1d(Rmw,Rmf)(rwv)     
-
-    SBfl = iBmf / btrans
-    SRfl = iRmf / rtrans
-
-    SBer = SBfl / Bsnr
-    SRer = SRfl / Rsnr
-
-    SPflx = SPfl + np.random.normal(0, np.abs(SPer))
-    SBflx = SBfl + np.random.normal(0, np.abs(SBer))
-    SRflx = SRfl + np.random.normal(0, np.abs(SRer))
-
-    offset_range = np.arange(- offset_limit,offset_limit + 0.001,0.001)
-    offset_B = np.random.choice(offset_range,1) + 1
-    offset_R = np.random.choice(offset_range,1) + 1  
-
-    SBflx *= offset_B ; SBer *= offset_B
-    SRflx *= offset_R ; SRer *= offset_R
+    # make models
+    SPfl = forward_model_phot(model_wave*(1 + specz), fl_sol, IDP, sens_wv, b, dnu, adj)
     
-    return SBflx, SBer, SRflx, SRer, SPflx, SPer
+    Bmw, Bmf = forward_model_grism(bbeam, model_wave*(1 + specz), fl_sol)
+    Rmw, Rmf = forward_model_grism(rbeam, model_wave*(1 + specz), fl_sol)
+    
+    iBmf = interp1d(Bmw,Bmf)(bwv)       
+    iRmf = interp1d(Rmw,Rmf)(rwv)  
+    
+    SPer = perr
+    SBer = berr
+    SRer = rerr
+    
+    # scale by mass
+    mass = Scale_model(pflx,perr,SPfl)
+    logmass = np.log10(mass)
+    
+    SPfl *= mass
+    SBfl = mass * iBmf / btrans
+    SRfl = mass * iRmf / rtrans
+    
+    SPflx = SPfl# + np.random.normal(0, np.abs(SPer))
+    SBflx = SBfl# + np.random.normal(0, np.abs(SBer))
+    SRflx = SRfl# + np.random.normal(0, np.abs(SRer))
+  
+    return SBflx, SBer, SRflx, SRer, SPflx, SPer, mass, logmass
 
 def forward_model_grism(BEAM, model_wave, model_flux):
     ### creates a model using an individual beam
