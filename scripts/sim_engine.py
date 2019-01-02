@@ -12,6 +12,7 @@ from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 from spec_tools import Scale_model
+import fsps
 
 hpath = os.environ['HOME'] + '/'
 
@@ -67,12 +68,12 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True):
     if grism:
         W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
 
-        M = np.load(spec_path + 'spec_mask/{0}_{1}_{2}_mask.npy'.format(field, galaxy_id, instr))
+        #M = np.load(spec_path + 'spec_mask/{0}_{1}_{2}_mask.npy'.format(field, galaxy_id, instr))
         
-        W = W[M]
-        FLT = FLT[M]
-        F = F[M]
-        E = E[M] 
+        #W = W[M]
+        #FLT = FLT[M]
+        #F = F[M]
+        #E = E[M] 
     
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
@@ -114,7 +115,10 @@ def load_beams_and_trns(wv, beam):
     Beam = model.BeamCutout(fits_file = beam)
 
     ### Set transmission curve
-    model_wave, model_flux = np.load(model_path + 'm0.019_a2.0_dt0_spec.npy')
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), sfh = 4, tau = 0.6)
+
+    model_wave, model_flux = sp.get_spectrum(tage = 3.6, peraa = True)
+
     W, F = forward_model_grism(Beam, model_wave, np.ones(len(model_wave)))
     trans = interp1d(W,F)(wv)       
 

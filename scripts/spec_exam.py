@@ -1,90 +1,67 @@
 __author__ = 'vestrada'
 
 import numpy as np
-from numpy.linalg import inv
-from spec_tools import Mag, Source_present, Scale_model
-from scipy.interpolate import interp1d, interp2d
-from astropy.cosmology import Planck13 as cosmo
-import sympy as sp
-import grizli
-import pysynphot as S
-from astropy.io import fits
-from astropy.io import ascii
-from astropy.table import Table
-import os
-from glob import glob
-from grizli import model
-import collections
 import pandas as pd
-from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
+from astropy.io import fits
+from astropy import wcs
+from astropy.table import Table
+from scipy.interpolate import interp1d, interp2d
+from glob import glob
+import os
+from grizli import multifit
+from grizli import model
+from astropy.cosmology import Planck13 as cosmo
+import fsps
+from C_full_fit import Gen_mflgrid, Analyze_full_fit, Stich_grids,\
+    Stitch_spec, Scale_model_mult, Resize
+from time import time
+from sim_engine import *
 
 hpath = os.environ['HOME'] + '/'
 
-data_path = '../data/'
-model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
-chi_path = '../chidat/'
-spec_path = '../spec_files/'
-beam_path = '../beams/'
-template_path = '../templates/'
-out_path = '../data/posteriors/'
-phot_path = '../phot/'
-
 """
-FUNCTIONS:
--Calzetti_low
--Calzetti_hi
--Calzetti
+class:
+Gen_spec
 
-CLASSES:
--Gen_spec
---Sim_spec_indv
---Sim_spec_mult
---Sim_spec_mult_point
---Sim_spec
---Sim_phot_mult
---Sim_phot
---Sim_all
+def:
 """
 
+if hpath == '/home/vestrada78840/':
+    from C_spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
+    data_path = '/fdata/scratch/vestrada78840/data/'
+    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
+    chi_path = '/fdata/scratch/vestrada78840/chidat/'
+    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
+    beam_path = '/fdata/scratch/vestrada78840/clear_q_beams/'
+    template_path = '/fdata/scratch/vestrada78840/data/'
+    out_path = '/home/vestrada78840/chidat/'
+    phot_path = '/fdata/scratch/vestrada78840/phot/'
 
-def Calzetti_low(Av,lam):
-    lam = lam * 1E-4
-    Rv=4.05
-    k = 2.659*(-2.156 +1.509/(lam) -0.198/(lam**2) +0.011/(lam**3)) + Rv
-    cal = 10**(-0.4*k*Av/Rv)
-    return cal
-
-def Calzetti_hi(Av,lam):
-    lam = lam * 1E-4
-    Rv=4.05
-    k = 2.659*(-1.857 +1.04/(lam)) + Rv
-    cal = 10**(-0.4*k*Av/Rv)    
-    
-    return cal
-
-def Calzetti(Av,lam):
-    dust = Calzetti_low(Av,lam)
-    dust2 = Calzetti_hi(Av,lam)
-    
-    for ii in range(len(dust)):
-        if lam[ii] > 6300:
-            dust[ii]=dust2[ii] 
-    
-    return dust
-  
+else:
+    from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
+    data_path = '../data/'
+    model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
+    chi_path = '../chidat/'
+    spec_path = '../spec_files/'
+    beam_path = '../beams/'
+    template_path = '../templates/'
+    out_path = '../data/posteriors/'
+    phot_path = '../phot/'
 
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                 filter_102 = 201, filter_141 = 203, tmp_err = False, 
-                 phot_tmp_err = False, errterm = 0):
+                tmp_err = True, phot_errterm = 0):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
         self.c = 3E18          # speed of light angstrom s^-1
         self.g102_lims = g102_lims
         self.g141_lims = g141_lims
-        
+        self.set_scale = False
+        self.sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, 
+                                         zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
+
         """
         B - prefix refers to g102
         R - prefix refers to g141
@@ -95,152 +72,300 @@ class Gen_spec(object):
         specz - z_grism
         g102_lims - window for g102
         g141_lims - window for g141
-        tmp_err - (flag) whether or not we apply a template error function (not available)
+        tmp_err - (flag) whether or not we apply a template error function
         """
-        self.Bwv, self.Bflx, self.Berr, self.Bflt = np.load('../spec_files/{0}_{1}_g102.npy'.format(field, galaxy_id))
-        self.Rwv, self.Rflx, self.Rerr, self.Rflt = np.load('../spec_files/{0}_{1}_g141.npy'.format(field, galaxy_id))
-        self.Bmask = np.load('../spec_files/spec_mask/{0}_{1}_g102_mask.npy'.format(field, galaxy_id))
-        self.Rmask = np.load('../spec_files/spec_mask/{0}_{1}_g141_mask.npy'.format(field, galaxy_id))
         
-        self.Bwv = self.Bwv[self.Bmask]
-        self.Bflt = self.Bflt[self.Bmask]
-        self.Bflx = self.Bflx[self.Bmask]
-        self.Berr = self.Berr[self.Bmask] 
+        # load spec and phot
+        self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB = load_spec(self.field,
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz)
         
-        self.Rwv = self.Rwv[self.Rmask]
-        self.Rflt = self.Rflt[self.Rmask]
-        self.Rflx = self.Rflx[self.Rmask]
-        self.Rerr = self.Rerr[self.Rmask] 
+        self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR = load_spec(self.field,
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz)
         
-        self.Pwv, self.Pflx, self.Perr, self.Pnum = np.load('../phot/{0}_{1}_phot.npy'.format(field, galaxy_id))
-        self.Pwv_rf = self.Pwv / (1 + self.specz)
-                
-        self.IDB = [U for U in range(len(self.Bwv)) if g102_lims[0] <= self.Bwv[U] <= g102_lims[-1] and self.Bflx[U]**2 > 0]
-        self.IDR = [U for U in range(len(self.Rwv)) if g141_lims[0] <= self.Rwv[U] <= g141_lims[-1] and self.Rflx[U]**2 > 0]
-
-        self.Bwv = self.Bwv[self.IDB]
-        self.Bwv_rf = self.Bwv / (1 + specz)
-        self.Bflt = self.Bflt[self.IDB]
-        self.Bflx = self.Bflx[self.IDB] #* Bscale
-        self.Berr = self.Berr[self.IDB] #* Bscale
+        self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec(self.field,
+                                self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False)
+         
+        self.Bfl = self.Bflx / self.Bflt 
+        self.Rfl = self.Rflx / self.Rflt 
         
-        self.Rwv = self.Rwv[self.IDR]
-        self.Rwv_rf = self.Rwv / (1 + specz)
-        self.Rflt = self.Rflt[self.IDR]
-        self.Rflx = self.Rflx[self.IDR] #* Rscale
-        self.Rerr = self.Rerr[self.IDR] #* Rscale
-
-        self.model_photDF = pd.read_pickle('../phot/model_photometry_list.pkl')
+        # load photmetry precalculated values
+        self.model_photDF, self.IDP, self.sens_wv, self.trans, self.b, self.dnu, self.adj, self.mdleffwv = load_phot_precalc(self.Pnum)
         
-        self.IDP = []
-        for i in range(len(self.Pnum)):
-            for ii in range(len(self.model_photDF)):
-                if self.Pnum[i] == self.model_photDF.tmp_num[self.model_photDF.index[ii]]:
-                    self.IDP.append(ii)
+        ### set beams
+        self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, g102_beam)
+        self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, g141_beam)
         
-        if phot_tmp_err:
-            ewv, tmp= np.loadtxt(hpath + 'eazy-photoz/templates/TEMPLATE_ERROR.eazy_v1.0').T
-            iphterr = interp1d(ewv,tmp)(self.Pwv_rf)
-            self.Perr_o = self.Perr
-            self.Perr = np.sqrt(self.Perr**2 + (iphterr * self.Pflx)**2+ (errterm * self.Pflx)**2)
-            
-#         if tmp_err:
-#             WV,TEF = np.load(data_path + 'template_error_function.npy')
-#             iTEF = interp1d(WV,TEF)(self.gal_wv_rf)
-#             self.gal_er = np.sqrt(self.gal_er**2 + (iTEF*self.fl)**2)
-
-        self.Bbeam = model.BeamCutout(fits_file = g102_beam)
-        self.Rbeam = model.BeamCutout(fits_file = g141_beam)
-
-        #self.Bpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g102.A.fits')
-        #self.Rpoint_beam = model.BeamCutout(fits_file = '../beams/point_41086.g141.A.fits')
+        ### apply tmp_err         
+        self.Berr = apply_tmp_err(self.Bwv_rf,self.Berr,self.Bflx, tmp_err = tmp_err)
+        self.Rerr = apply_tmp_err(self.Rwv_rf,self.Rerr,self.Rflx, tmp_err = tmp_err)
+        self.Perr = apply_tmp_err(self.Pwv_rf,self.Perr,self.Pflx, tmp_err = tmp_err, pht_err = phot_errterm)
         
-        ### Define precalculated terms for photometry
-        self.sens_wv, self.trans = np.load('../templates/master_tmp.npy')
-        self.b = np.load('../templates/bottom_precalc.npy')
-        self.dnu = np.load('../templates/dnu_precalc.npy')
-        self.adj = np.load('../templates/adj_precalc.npy')
-        self.mdleffwv = np.load('../templates/effwv_precalc.npy') 
-    
-    def Sim_spec_indv(self, BEAM, model_wave, model_flux):
-        ### creates a model using an individual beam
-        BEAM.beam.compute_model(spectrum_1d=[model_wave, model_flux])
-        w, f, e = BEAM.beam.optimal_extract(BEAM.beam.model, bin=0)
-        return w, f
+        self.Ber = self.Berr / self.Bflt
+        self.Rer = self.Rerr / self.Rflt
         
     def Sim_spec_mult(self, model_wave, model_flux):
         ### creates a model for g102 and g141 using individual beams
-        return self.Sim_spec_indv(self.Bbeam, model_wave, model_flux), \
-                self.Sim_spec_indv(self.Rbeam, model_wave, model_flux)
+        return forward_model_grism(self.Bbeam, model_wave, model_flux), \
+                forward_model_grism(self.Rbeam, model_wave, model_flux)
 
-    def Sim_spec_mult_point(self, model_wave, model_flux):
-        ### creates a model for g102 and g141 using individual beams
-        return self.Sim_spec_indv(self.Bpoint_beam, model_wave, model_flux), \
-                self.Sim_spec_indv(self.Rpoint_beam, model_wave, model_flux)
-    
     def Sim_spec(self, metal, age, tau, model_redshift = 0, Av = 0, multi_component = False,
                 point_scale=1):
         if model_redshift ==0:
             model_redshift = self.specz
 
-        model_wave, model_flux = np.load(model_path + 'm{0}_a{1}_dt{2}_spec.npy'.format(
-            metal, age, tau))
+        self.sp.params['logzsol'] = np.log10(metal / 0.019)
+        self.sp.params['tau'] = tau
+        model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
 
         [Bmw, Bmf], [Rmw, Rmf] = self.Sim_spec_mult(model_wave * (1 + model_redshift), 
-                                                                        model_flux * Calzetti(Av,model_wave))
+                                                    model_flux * Salmon(Av,model_wave))
         iBmf = interp1d(Bmw,Bmf)(self.Bwv)       
         iRmf = interp1d(Rmw,Rmf)(self.Rwv)     
         
-        self.Bmfl = iBmf / self.Bflt
-        self.Rmfl = iRmf / self.Rflt
+        self.Bmfl = iBmf / self.Btrans
+        self.Rmfl = iRmf / self.Rtrans
             
-        self.Bmfl *= Scale_model(self.Bflx, self.Berr, self.Bmfl)
-        self.Rmfl *= Scale_model(self.Rflx, self.Rerr, self.Rmfl)
+        self.Bmfl *= self.PC
+        self.Rmfl *= self.PC
         
-        if multi_component:
-            [Bpmw, Bpmf], [Rpmw, Rpmf] = self.Sim_spec_mult_point(model_wave * (1 + model_redshift), 
-                                                                            model_flux * Calzetti(Av,model_wave))
-            iBpmf = interp1d(Bpmw,Bpmf)(self.Bwv)       
-            iRpmf = interp1d(Rpmw,Rpmf)(self.Rwv)     
+        if not self.set_scale:
+            Bscale = Scale_model(self.Bfl, self.Ber, self.Bmfl)
+            Rscale = Scale_model(self.Rfl, self.Rer, self.Rmfl)
 
-            self.Bpmfl = iBpmf / self.Bflt
-            self.Rpmfl = iRpmf / self.Rflt
-
-            self.Bpmfl *= Scale_model(self.Bflx, self.Berr, self.Bpmfl)
-            self.Rpmfl *= Scale_model(self.Rflx, self.Rerr, self.Rpmfl)
-            
-            self.Bpmfl *= point_scale
-            self.Rpmfl *= point_scale
-            
-            self.BMCmfl = self.Bmfl + self.Bpmfl
-            self.RMCmfl = self.Rmfl + self.Rpmfl
-            
-            self.BMCmfl *= Scale_model(self.Bflx, self.Berr, self.BMCmfl)
-            self.RMCmfl *= Scale_model(self.Rflx, self.Rerr, self.RMCmfl)
+            self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
+            self.Rfl = self.Rfl / Rscale ; self.Rer = self.Rer / Rscale 
        
     def Sim_phot_mult(self, model_wave, model_flux):
-        
-        imfl =interp1d(self.c / model_wave, (self.c/(self.c / model_wave)**2) * model_flux)
-
-        mphot = (np.trapz(imfl(self.c /(self.sens_wv[self.IDP])).reshape([len(self.IDP),len(self.sens_wv[0])]) \
-                          * self.b[self.IDP],self.dnu[self.IDP])/np.trapz(self.b[self.IDP],
-                                                                          self.dnu[self.IDP])) * self.adj[self.IDP]
-        
-        return np.array([self.mdleffwv[self.IDP],mphot])
+        return forward_model_phot(model_wave, model_flux, self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
 
     def Sim_phot(self, metal, age, tau, model_redshift = 0, Av = 0):
         if model_redshift ==0:
             model_redshift = self.specz
 
-        model_wave, model_flux = np.load(model_path + 'm{0}_a{1}_dt{2}_spec.npy'.format(
-            metal, age, tau))
+        self.sp.params['logzsol'] = np.log10(metal / 0.019)
+        self.sp.params['tau'] = tau
+        model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
         
-        self.Pmwv, self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), 
-                                                  model_flux * Calzetti(Av,model_wave))
+        self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), 
+                                                  model_flux * Salmon(Av,model_wave))
         self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
         self.Pmfl = self.Pmfl * self.PC
         
     def Sim_all(self, metal, age, tau, model_redshift = 0, Av = 0):
-        self.Sim_spec(metal, age, tau, model_redshift, Av)
         self.Sim_phot(metal, age, tau, model_redshift, Av)
+        self.Sim_spec(metal, age, tau, model_redshift, Av)
+        
+    def Scale_flux(self, model_wave, model_flux, bfz, bfd):      
+        US_model_flux = F_lam_per_M(model_flux * Salmon(bfd,model_wave), model_wave * (1 + bfz), bfz, 0, 1)
+
+        US_pfl = self.Sim_phot_mult(model_wave * (1 + bfz), US_model_flux)
+        
+        self.mass = Scale_model(self.Pflx, self.Perr, US_pfl)
+        
+        self.lmass = np.log10(self.mass)
+        
+        self.model_wave = model_wave
+        self.S_model_flux = US_model_flux * self.mass
+          
+        Bw,Bf = forward_model_grism(self.Bbeam, self.model_wave * (1 + bfz), self.S_model_flux)
+        Rw,Rf = forward_model_grism(self.Rbeam, self.model_wave * (1 + bfz), self.S_model_flux)
+        
+        iBmf = interp1d(Bw,Bf)(self.Bwv)       
+        iRmf = interp1d(Rw,Rf)(self.Rwv)  
+  
+        Bmfl = iBmf / self.Btrans
+        Rmfl = iRmf / self.Rtrans
+
+        self.Bscale = Scale_model(self.Bfl, self.Ber, Bmfl)
+        self.Rscale = Scale_model(self.Rfl, self.Rer, Rmfl)
+        
+        self.Bfl = self.Bfl / self.Bscale ; self.Ber = self.SBer / self.Bscale 
+        self.Rfl = self.Rfl / self.Rscale ; self.Rer = self.SRer / self.Rscale 
+        
+        self.set_scale = True
+        
+        
+def Best_fitter(field, galaxy, g102_beam, g141_beam, specz,
+                errterm = 0):
+    ######## initialize spec
     
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
+    wave, flux = sp.get_spectrum(tage = 2.0, peraa = True)
+   
+    Gs = Gen_spec(field, galaxy, specz, g102_beam, g141_beam,
+                   #g102_lims=[7000, 12000], g141_lims=[10000, 18000],
+                   tmp_err=False, phot_errterm = errterm,)    
+    
+    metal_i = 0.019
+    age_i = 2
+    tau_i = 0.1
+    rshift_i = specz
+    dust_i = 0.1
+    
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Bmfl, Rmfl, Pmfl = Gen_mflgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+        [Bmwv,Bmflx], [Rmwv,Rmflx] = Gs.Sim_spec_mult(wave, flux)
+
+        PC, Pgrid = Stitch_resize_redden_fit(Gs.Pwv, Gs.Pflx, Gs.Perr, Pmfl, Gs.Pwv, 
+                         metal, age, tau, rshift, dust, phot = True) 
+        Bgrid = Stitch_resize_redden_fit(Gs.Bwv, Gs.Bflx, Gs.Berr, Bmfl, Bmwv, 
+                         metal, age, tau, rshift, dust, PC)
+        Rgrid = Stitch_resize_redden_fit(Gs.Rwv, Gs.Rflx, Gs.Rerr, Rmfl, Rmwv, 
+                         metal, age, tau, rshift, dust, PC)
+        
+        print('g102:', Best_fit_model(Bgrid, metal, age, tau, rshift, dust))
+        print('g141:', Best_fit_model(Rgrid, metal, age, tau, rshift, dust))
+        print('phot:', Best_fit_model(Pgrid, metal, age, tau, rshift, dust))
+        
+        
+        
+        
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Pgrid + Bgrid +Rgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print(bfZ, bft, bftau, specz, bfd)   
+
+def Best_fit_model(chi, metal, age, tau, rshift, dust):
+    x = np.argwhere(chi == np.min(chi))[0]
+    return dust[x[0]],metal[x[1]], age[x[2]], tau[x[3]] , rshift[x[4]]
+        
+def Stitch_resize_redden_fit(fit_wv, fit_fl, fit_er, mfl, mwv, 
+                     metal, age, tau, rshift, dust, PC = 0, phot=False):
+    #############Read in spectra and stich spectra grid together#################
+    if phot:
+        PC, chigrid = Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, rshift, dust, phot = True)  
+        return PC, chigrid
+    else:
+        mfl = Resize(fit_wv, mwv, mfl)
+        chigrid = Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, rshift, dust, PC)  
+        return chigrid
+        
+def Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, Av, PC = 0, phot = False):    
+    minidust = Gen_dust_minigrid(fit_wv, redshift, Av)
+
+    scales = []
+    chigrids = []
+    
+    if phot:
+        for i in range(len(Av)):
+            dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
+                [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
+            redflgrid = mfl * dustgrid        
+            SCL = Scale_model_mult(fit_fl,fit_er,redflgrid)
+            redflgrid = np.array([SCL]).T*redflgrid
+            chigrid = np.sum(((fit_fl - redflgrid) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+        
+            scales.append(np.array([SCL]).T)
+            chigrids.append(chigrid)
+            
+        return np.array(scales), np.array(chigrids) 
+
+    else:
+        for i in range(len(Av)):
+            dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
+                [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
+            redflgrid = mfl * dustgrid
+            redflgrid = PC[i]*redflgrid
+            SCL2 = Scale_model_mult(fit_fl,fit_er,redflgrid)
+            chigrid = np.sum(((fit_fl / np.array([SCL2]).T - redflgrid) / (fit_er / np.array([SCL2]).T)) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+            chigrids.append(chigrid)
+
+        return np.array(chigrids)
+
+def Gen_dust_minigrid(fit_wv, rshift, Av):
+    dust_dict = {}
+    for i in range(len(Av)):
+        key = str(Av[i])
+        minigrid = np.zeros([len(rshift),len(fit_wv)])
+        for ii in range(len(rshift)):
+            minigrid[ii] = Salmon(Av[i],fit_wv / (1 + rshift[ii]))
+        dust_dict[key] = minigrid
+    return dust_dict
+
+def Resize(fit_wv, mwv, mfl):
+    mfl = np.ma.masked_invalid(mfl)
+    mfl.data[mfl.mask] = 0
+    mfl = interp2d(mwv,range(len(mfl.data)),mfl.data)(fit_wv,range(len(mfl.data)))
+    return mfl
+
+def Gen_mflgrid(spec, models, metal, age, tau, rshift):
+    wv,fl = models.get_spectrum(tage = 2.0, peraa = True)
+    [Bmwv,Bmf_len], [Rmwv,Rmf_len] = spec.Sim_spec_mult(wv,fl)
+    
+    ##### set model wave
+    
+    Bmfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(Bmf_len)])
+    Rmfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(Rmf_len)])
+    Pmfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(spec.IDP)])
+    
+    for i in range(len(metal)):
+        models.params['logzsol'] = np.log10(metal[i] / 0.019)
+        for ii in range(len(age)):
+            for iii in range(len(tau)):
+                models.params['tau'] = tau[iii]
+                wv,fl = models.get_spectrum(tage = age[ii], peraa = True)
+                for iv in range(len(rshift)):
+                    [Bmwv,Bmflx], [Rmwv,Rmflx] = spec.Sim_spec_mult(wv * (1 + rshift[iv]),fl)
+                    Pmflx = spec.Sim_phot_mult(wv * (1 + rshift[iv]),fl)
+
+                    Bmfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = Bmflx
+                    Rmfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = Rmflx
+                    Pmfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = Pmflx
+    
+    return Bmfl, Rmfl, Pmfl
+            
+def Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage):
+    if stage == 0:
+        age = np.round(np.arange(0.5, 6.1, .25),2)
+        metal= np.round(np.arange(0.002 , 0.031, 0.003),4)
+        tau = np.round(np.logspace(np.log10(0.01), np.log10(3), 8), 3)
+        rshift = np.round(np.arange( rshift_i - 0.01, rshift_i + 0.011, 0.002),4)
+        dust = np.round(np.arange(0, 1.1, 0.1),2)
+    
+    if stage == 1:
+        if age_i <=1.5:
+            age_i = 1.6
+        age = np.round(np.arange(age_i  - 1.5, age_i  + 1.6, .125),2)
+        
+        if metal_i <= 0.0075:
+            metal_i = 0.0095
+        metal= np.round(np.arange(metal_i  - 0.0075, metal_i  + 0.0085, 0.0015),4)
+        
+        if tau_i <= 1:
+            tau_i = 1.1 
+        tau = np.round(np.logspace(np.log10(tau_i  - 1), np.log10(tau_i  + 1), 8), 3)
+        rshift = np.round(np.arange( rshift_i - 0.005, rshift_i + 0.006, 0.001),4)
+        
+        if dust_i <= 0.25:
+            dust_i = 0.25         
+        dust = np.round(np.arange(dust_i - 0.25, dust_i + 0.3, 0.05),2)
+    
+    if stage == 2:
+        if age_i <= 0.75:
+            age_i = 0.85
+        age = np.round(np.arange(age_i  - 0.75, age_i  + 0.85, .06),2)
+        
+        if metal_i <= 0.00375:
+            metal_i = 0.00575
+        metal= np.round(np.arange(metal_i  - 0.00375, metal_i  + 0.00475, 0.00075),4)
+                
+        if tau_i <= 0.5:
+            tau_i = 0.51   
+        tau = np.round(np.logspace(np.log10(tau_i  - 0.5), np.log10(tau_i  + 0.5), 8), 3)
+        rshift = np.round(np.arange( rshift_i - 0.0025, rshift_i + 0.003, 0.0005),4)
+        
+        if dust_i <= 0.125:
+            dust_i = 0.125    
+        dust = np.round(np.arange(dust_i - 0.125, dust_i + 0.135, 0.025),3)
+    
+    return metal, age, tau, rshift, dust
