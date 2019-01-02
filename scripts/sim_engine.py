@@ -134,7 +134,7 @@ def apply_tmp_err(wv_rf, er,flx, tmp_err = True, pht_err = 0):
     return np.sqrt(er**2 + (iTEF*flx)**2 + (pht_err*flx)**2)
 
 def init_sim(model_wave, model_fl, specz, stellar_mass, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
-            btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj):
+            btrans, rtrans, bflat, rflat, bbeam, rbeam, IDP, sens_wv, b, dnu, adj):
    #remove mass?
     
     # convert model to f_lam / sol_mass
@@ -149,23 +149,29 @@ def init_sim(model_wave, model_fl, specz, stellar_mass, bwv, rwv, bflx, rflx, pf
     iBmf = interp1d(Bmw,Bmf)(bwv)       
     iRmf = interp1d(Rmw,Rmf)(rwv)  
     
-    SPer = perr
-    SBer = berr
-    SRer = rerr
+    SPerr = perr
+    SBerr = berr
+    SRerr = rerr
+    
+    SBflx = Scale_model(bflx,berr,iBmf) * iBmf
+    SRflx = Scale_model(rflx,rerr,iRmf) * iRmf
     
     # scale by mass
     mass = Scale_model(pflx,perr,SPfl)
     logmass = np.log10(mass)
     
-    SPfl *= mass
+    SPflx = SPfl* mass
     SBfl = mass * iBmf / btrans
     SRfl = mass * iRmf / rtrans
     
-    SPflx = SPfl# + np.random.normal(0, np.abs(SPer))
-    SBflx = SBfl# + np.random.normal(0, np.abs(SBer))
-    SRflx = SRfl# + np.random.normal(0, np.abs(SRer))
+    SBer = SBerr / bflat
+    SRer = SRerr / rflat
+
+    #SPflx = SPfl# + np.random.normal(0, np.abs(SPer))
+    #SBflx = SBfl# + np.random.normal(0, np.abs(SBer))
+    #SRflx = SRfl# + np.random.normal(0, np.abs(SRer))
   
-    return SBflx, SBer, SRflx, SRer, SPflx, SPer, mass, logmass
+    return SBflx, SBerr, SBfl, SBer, SRflx, SRerr, SRfl, SRer, SPflx, SPerr, mass, logmass
 
 def forward_model_grism(BEAM, model_wave, model_flux):
     ### creates a model using an individual beam
