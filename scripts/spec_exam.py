@@ -2,6 +2,7 @@ __author__ = 'vestrada'
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy import wcs
 from astropy.table import Table
@@ -16,7 +17,7 @@ from C_full_fit import Gen_mflgrid, Analyze_full_fit, Stich_grids,\
     Stitch_spec, Scale_model_mult, Resize
 from time import time
 from sim_engine import *
-
+from matplotlib import gridspec
 hpath = os.environ['HOME'] + '/'
 
 """
@@ -337,6 +338,31 @@ def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
         
         print('PHOT:', bfZ, bft, bftau, bfz, bfd)   
      
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Pgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
+        
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
+    
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()
+    
     rshift_i = simz
 
     for x in range(3):
@@ -358,7 +384,32 @@ def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
         dust_i = bfd
         
         print('G102:', bfZ, bft, bftau, bfz, bfd)   
+ 
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Bgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
         
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
+    
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()
+
     rshift_i = simz
 
     for x in range(3):
@@ -381,6 +432,31 @@ def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
         
         print('G141:', bfZ, bft, bftau, bfz, bfd)
     
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Rgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
+        
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
+    
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()
+
     rshift_i = simz
  
     for x in range(3):
@@ -408,6 +484,31 @@ def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
         dust_i = bfd
         
         print('ALL:', bfZ, bft, bftau, bfz, bfd)
+        
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Pgrid + Bgrid + Rgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
+        
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
+    
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()
         
 def Best_fitter_sim_flatted(field, galaxy, g102_beam, g141_beam, specz, 
                     simZ, simt, simtau, simz, simd,
@@ -452,7 +553,32 @@ def Best_fitter_sim_flatted(field, galaxy, g102_beam, g141_beam, specz,
         dust_i = bfd
         
         print('PHOT:', bfZ, bft, bftau, bfz, bfd)   
-     
+
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Pgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
+        
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
+    
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()
+
     rshift_i = simz
 
     for x in range(3):
@@ -474,7 +600,32 @@ def Best_fitter_sim_flatted(field, galaxy, g102_beam, g141_beam, specz,
         dust_i = bfd
         
         print('G102:', bfZ, bft, bftau, bfz, bfd)   
+ 
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Bgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
         
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
+    
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()
+
     rshift_i = simz
 
     for x in range(3):
@@ -497,7 +648,32 @@ def Best_fitter_sim_flatted(field, galaxy, g102_beam, g141_beam, specz,
         dust_i = bfd
         
         print('G141:', bfZ, bft, bftau, bfz, bfd)
+
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Rgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
+        
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
     
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()
+
     rshift_i = simz
  
     for x in range(3):
@@ -525,7 +701,31 @@ def Best_fitter_sim_flatted(field, galaxy, g102_beam, g141_beam, specz,
         dust_i = bfd
         
         print('ALL:', bfZ, bft, bftau, bfz, bfd)
+    
+    PZ, Pt, Ptau, Pz, Pd = Simple_analyze(Pgrid + Bgrid + Rgrid, metal, age, tau, rshift, dust)
+    gs = gridspec.GridSpec(1,5)
+
+    plt.figure(figsize=[20,6])
+    plt.subplot(gs[0])
+    plt.plot(metal,PZ)
+    plt.xlabel('Z',fontsize=20)
+
+    plt.subplot(gs[1])
+    plt.plot(age,Pt)
+    plt.xlabel('t',fontsize=20)
         
+    plt.subplot(gs[2])
+    plt.plot(tau,Ptau)
+    plt.xlabel('tau',fontsize=20)
+    
+    plt.subplot(gs[3])
+    plt.plot(rshift,Pz)
+    plt.xlabel('z',fontsize=20)
+    
+    plt.subplot(gs[4])
+    plt.plot(dust,Pd)
+    plt.xlabel('Av',fontsize=20)
+    plt.show()       
         
 def Best_fit_model(chi, metal, age, tau, rshift, dust):
     x = np.argwhere(chi == np.min(chi))[0]
@@ -700,3 +900,22 @@ def Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage):
         dust = np.round(np.arange(dust_i - 0.125, dust_i + 0.135, 0.025),3)
     
     return metal, age, tau, rshift, dust
+
+def Simple_analyze(chi, metal, age, tau, rshift, dust):
+    ######## get Pd and Pz 
+    P_full = np.exp(- chi / 2).astype(np.float128)
+
+    P_full /= np.trapz(np.trapz(np.trapz(np.trapz(np.trapz(P_full, rshift, axis=4), tau, axis=3), age, axis=2), metal, axis=1),dust)
+    
+    Pd = np.trapz(np.trapz(np.trapz(np.trapz(P_full, rshift, axis=4), tau, axis=3), age, axis=2), metal, axis=1) 
+
+    Pz = np.trapz(np.trapz(np.trapz(np.trapz(P_full.T, dust, axis=4), metal, axis=3), age, axis=2), tau, axis=1) 
+
+    P = np.trapz(P_full, rshift, axis=4)
+    P = np.trapz(P.T, dust, axis=3).T
+   
+    PZ = np.trapz(np.trapz(P, tau, axis=2), age, axis=1)
+    Pt = np.trapz(np.trapz(P, tau, axis=2).T, metal, axis=1)
+    Ptau = np.trapz(np.trapz(P.T, metal, axis=2), age, axis=1)
+
+    return PZ, Pt, Ptau, Pz, Pd
