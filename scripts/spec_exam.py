@@ -409,6 +409,123 @@ def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
         
         print('ALL:', bfZ, bft, bftau, bfz, bfd)
         
+def Best_fitter_sim_flatted(field, galaxy, g102_beam, g141_beam, specz, 
+                    simZ, simt, simtau, simz, simd,
+                    errterm = 0):
+    ######## initialize spec
+    
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
+    wave, flux = sp.get_spectrum(tage = 2.0, peraa = True)
+   
+    Gs = Gen_spec(field, galaxy, specz, g102_beam, g141_beam,
+                   g102_lims=[7000, 12000], g141_lims=[10000, 18000],
+                   tmp_err=False, phot_errterm = errterm,)    
+    
+    Gs.Make_sim(simZ, simt, simtau, simz, simd)
+    
+    metal_i = 0.019
+    age_i = 2
+    tau_i = 0.1
+    rshift_i = simz
+    dust_i = 0.1
+    
+    [Bmwv,Bmflx], [Rmwv,Rmflx] = Gs.Sim_spec_mult(wave, flux)
+
+    
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Pmfl = Gen_Pgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+
+        Pgrid = Stitch_resize_redden_fit(Gs.Pwv, Gs.SPflx, Gs.SPerr, Pmfl, Gs.Pwv, 
+                         metal, age, tau, rshift, dust, phot=True) 
+        
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Pgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print('PHOT:', bfZ, bft, bftau, bfz, bfd)   
+     
+    rshift_i = simz
+
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Bmfl = Gen_Bgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+        Bgrid = Stitch_resize_redden_fit_flat(Gs.Bwv, Gs.SBfl, Gs.SBer, Gs.Btrans, Bmfl, Bmwv, 
+                         metal, age, tau, rshift, dust)    
+        
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Bgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print('G102:', bfZ, bft, bftau, bfz, bfd)   
+        
+    rshift_i = simz
+
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Rmfl = Gen_Rgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+        Rgrid = Stitch_resize_redden_fit_flat(Gs.Rwv, Gs.SRfl, Gs.SRer, Gs.Rtrans, Rmfl, Rmwv, 
+                         metal, age, tau, rshift, dust)
+
+
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Rgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print('G141:', bfZ, bft, bftau, bfz, bfd)
+    
+    rshift_i = simz
+ 
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Pmfl = Gen_Pgrid(Gs, sp, metal, age, tau, rshift)
+        Bmfl = Gen_Bgrid(Gs, sp, metal, age, tau, rshift)
+        Rmfl = Gen_Rgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+        Pgrid = Stitch_resize_redden_fit(Gs.Pwv, Gs.SPflx, Gs.SPerr, Pmfl, Gs.Pwv, 
+                         metal, age, tau, rshift, dust, phot=True) 
+        Bgrid = Stitch_resize_redden_fit_flat(Gs.Bwv, Gs.SBfl, Gs.SBer, Gs.Btrans, Bmfl, Bmwv, 
+                         metal, age, tau, rshift, dust)    
+        Rgrid = Stitch_resize_redden_fit_flat(Gs.Rwv, Gs.SRfl, Gs.SRer, Gs.Rtrans, Rmfl, Rmwv, 
+                         metal, age, tau, rshift, dust)
+
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Pgrid + Bgrid + Rgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print('ALL:', bfZ, bft, bftau, bfz, bfd)
+        
         
 def Best_fit_model(chi, metal, age, tau, rshift, dust):
     x = np.argwhere(chi == np.min(chi))[0]
@@ -434,6 +551,34 @@ def Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, Av):
         dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
             [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
         redflgrid = mfl * dustgrid        
+        SCL = Scale_model_mult(fit_fl,fit_er,redflgrid)
+        redflgrid = np.array([SCL]).T*redflgrid
+        chigrid = np.sum(((fit_fl - redflgrid) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+        chigrids.append(chigrid)
+
+    return np.array(chigrids)
+
+def Stitch_resize_redden_fit_flat(fit_wv, fit_fl, fit_er, fit_flat, mfl, mwv, 
+                     metal, age, tau, rshift, dust, phot=False):
+    #############Read in spectra and stich spectra grid together#################
+    if phot:
+        chigrid = Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, rshift, dust)  
+        return chigrid
+    else:
+        mfl = Resize(fit_wv, mwv, mfl)
+        chigrid = Redden_and_fit_flat(fit_wv, fit_fl, fit_er, fit_flat, mfl, metal, age, tau, rshift, dust)  
+        return chigrid
+        
+def Redden_and_fit_flat(fit_wv, fit_fl, fit_er, fit_flat, mfl, metal, age, tau, redshift, Av):    
+    minidust = Gen_dust_minigrid(fit_wv, redshift, Av)
+
+    chigrids = []
+    
+    for i in range(len(Av)):
+        dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
+            [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
+        
+        redflgrid = mfl / fit_flat * dustgrid        
         SCL = Scale_model_mult(fit_fl,fit_er,redflgrid)
         redflgrid = np.array([SCL]).T*redflgrid
         chigrid = np.sum(((fit_fl - redflgrid) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
