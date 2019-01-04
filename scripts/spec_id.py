@@ -1,346 +1,384 @@
 __author__ = 'vestrada'
 
 import numpy as np
-from numpy.linalg import inv
-from scipy.interpolate import interp1d, interp2d
-from astropy.cosmology import Planck13 as cosmo
-import sympy as sp
-import grizli
+import pandas as pd
+import matplotlib.pyplot as plt
 from astropy.io import fits
-from astropy.io import ascii
+from astropy import wcs
 from astropy.table import Table
-import os
+from scipy.interpolate import interp1d, interp2d
 from glob import glob
+import os
+from grizli import multifit
+from grizli import model
+from astropy.cosmology import Planck13 as cosmo
+import fsps
+from C_full_fit import Gen_mflgrid, Analyze_full_fit, Stich_grids,\
+    Stitch_spec, Scale_model_mult, Resize
+from time import time
+from sim_engine import *
+from matplotlib import gridspec
+hpath = os.environ['HOME'] + '/'
 
-import rpy2
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
-from rpy2.robjects import pandas2ri
-R = robjects.r
-pandas2ri.activate()
+"""
+class:
 
-"""Single Galaxy"""
+def:
+Best_fitter
+Best_fitter_sim
+"""
+
+if hpath == '/home/vestrada78840/':
+    from C_spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
+    data_path = '/fdata/scratch/vestrada78840/data/'
+    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
+    chi_path = '/fdata/scratch/vestrada78840/chidat/'
+    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
+    beam_path = '/fdata/scratch/vestrada78840/clear_q_beams/'
+    template_path = '/fdata/scratch/vestrada78840/data/'
+    out_path = '/home/vestrada78840/chidat/'
+    phot_path = '/fdata/scratch/vestrada78840/phot/'
+
+else:
+    from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
+    data_path = '../data/'
+    model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
+    chi_path = '../chidat/'
+    spec_path = '../spec_files/'
+    beam_path = '../beams/'
+    template_path = '../templates/'
+    out_path = '../data/posteriors/'
+    phot_path = '../phot/'
+
+
+
+def Best_fitter(field, galaxy, g102_beam, g141_beam, specz,
+                errterm = 0):
+    ######## initialize spec
+    
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
+    wave, flux = sp.get_spectrum(tage = 2.0, peraa = True)
+   
+    Gs = Gen_spec(field, galaxy, specz, g102_beam, g141_beam,
+                   g102_lims=[7000, 12000], g141_lims=[10000, 18000],
+                   tmp_err=False, phot_errterm = errterm,)    
+    
+    metal_i = 0.019
+    age_i = 2
+    tau_i = 0.1
+    rshift_i = specz
+    dust_i = 0.1
+    
+    if Gs.g102:
+        Bmwv,Bmflx = forward_model_grism(Gs.Bbeam, wave, flux)
+    
+    if Gs.g141:
+        Rmwv,Rmflx = forward_model_grism(Gs.Rbeam, wave, flux)
+    
+    Pmflx = []
+
+    instr = ['P','B','R']
+    
+    for u in instr:
+        if u == 'P':
+            mflx = Pmflx
+            W = Gs.Pwv; F = Gs.Pflx; E = Gs.Perr; MW = Gs.Pwv; phot = True
+        if u == 'B' and Gs.g102:
+            mflx = Bmflx
+            W = Gs.Bwv; F = Gs.Bflx; E = Gs.Berr; MW = Bmwv; phot = False
+        if u == 'R' and Gs.g141:
+            mflx = Rmflx
+            W = Gs.Rwv; F = Gs.Rflx; E = Gs.Rerr; MW = Rmwv; phot = False
+        
+        try:  
+            for x in range(3):
+
+                metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+
+                mfl = Gen_grid(Gs, sp, metal, age, tau, rshift, u, mflx)
+
+                ## set some variables
+
+                grid = Stitch_resize_redden_fit(W, F, E, mfl, MW, 
+                                 metal, age, tau, rshift, dust, phot = phot) 
+
+                bfd, bfZ, bft, bftau, bfz = Best_fit_model(grid, metal, age, tau, rshift, dust)
+
+                metal_i = bfZ
+                age_i = bft
+                tau_i = bftau
+                rshift_i = bfz
+                dust_i = bfd
+
+                print(u, bfZ, bft, bftau, bfz, bfd)   
+
+        except:
+            print('data missing')
+            
+        rshift_i = specz
+
+def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz, 
+                    simZ, simt, simtau, simz, simd,
+                    errterm = 0):
+    ######## initialize spec
+    
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
+    wave, flux = sp.get_spectrum(tage = 2.0, peraa = True)
+   
+    Gs = Gen_spec(field, galaxy, specz, g102_beam, g141_beam,
+                   g102_lims=[7000, 12000], g141_lims=[10000, 18000],
+                   tmp_err=False, phot_errterm = errterm,)    
+    
+    Gs.Make_sim(simZ, simt, simtau, simz, simd)
+    
+    metal_i = 0.019
+    age_i = 2
+    tau_i = 0.1
+    rshift_i = simz
+    dust_i = 0.1
+    
+    [Bmwv,Bmflx], [Rmwv,Rmflx] = Gs.Sim_spec_mult(wave, flux)
+
+    
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Pmfl = Gen_Pgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+
+        Pgrid = Stitch_resize_redden_fit(Gs.Pwv, Gs.SPflx, Gs.SPerr, Pmfl, Gs.Pwv, 
+                         metal, age, tau, rshift, dust, phot=True) 
+        
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Pgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print('PHOT:', bfZ, bft, bftau, bfz, bfd)   
+       
+    rshift_i = simz
+
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Bmfl = Gen_Bgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+        Bgrid = Stitch_resize_redden_fit(Gs.Bwv, Gs.SBflx, Gs.SBerr, Bmfl, Bmwv, 
+                         metal, age, tau, rshift, dust)
+        
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Bgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print('G102:', bfZ, bft, bftau, bfz, bfd)   
+
+    rshift_i = simz
+
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Rmfl = Gen_Rgrid(Gs, sp, metal, age, tau, rshift)
+
+        ## set some variables
+        Rgrid = Stitch_resize_redden_fit(Gs.Rwv, Gs.SRflx, Gs.SRerr, Rmfl, Rmwv, 
+                         metal, age, tau, rshift, dust)
+
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Rgrid, metal, age, tau, rshift, dust)
+        
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
+        
+        print('G141:', bfZ, bft, bftau, bfz, bfd)
+
+
+    rshift_i = simz
  
-def Single_gal_fit_full(metal, age, tau, specz, galaxy, name, minwv = 7900, maxwv = 11300):
-    #############Read in spectra#################
-    spec = Gen_spec(galaxy, specz, minwv = minwv, maxwv = maxwv)
+    for x in range(3):
+    
+        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+    
+        Pmfl = Gen_Pgrid(Gs, sp, metal, age, tau, rshift)
+        Bmfl = Gen_Bgrid(Gs, sp, metal, age, tau, rshift)
+        Rmfl = Gen_Rgrid(Gs, sp, metal, age, tau, rshift)
 
-    if galaxy == 'n21156' or galaxy == 'n38126':
-        IDer = []
-        for ii in range(len(spec.gal_wv_rf)):
-            if 4855 <= spec.gal_wv_rf[ii] <= 4880:
-                IDer.append(ii)
-        spec.gal_er[IDer] = 1E8
-        spec.gal_fl[IDer] = 0
+        ## set some variables
+        Pgrid = Stitch_resize_redden_fit(Gs.Pwv, Gs.SPflx, Gs.SPerr, Pmfl, Gs.Pwv, 
+                         metal, age, tau, rshift, dust, phot=True) 
+        Bgrid = Stitch_resize_redden_fit(Gs.Bwv, Gs.SBflx, Gs.SBerr, Bmfl, Bmwv, 
+                         metal, age, tau, rshift, dust)    
+        Rgrid = Stitch_resize_redden_fit(Gs.Rwv, Gs.SRflx, Gs.SRerr, Rmfl, Rmwv, 
+                         metal, age, tau, rshift, dust)
 
-    if galaxy == 's47677' or galaxy == 'n14713':
-        IDer = []
-        for ii in range(len(spec.gal_wv_rf)):
-            if 4845 <= spec.gal_wv_rf[ii] <= 4863:
-                IDer.append(ii)
-        spec.gal_er[IDer] = 1E8
-        spec.gal_fl[IDer] = 0
-
-    if galaxy == 's39170':
-        IDer = []
-        for ii in range(len(spec.gal_wv_rf)):
-            if 4865 <= spec.gal_wv_rf[ii] <= 4885:
-                IDer.append(ii)
-        spec.gal_er[IDer] = 1E8
-        spec.gal_fl[IDer] = 0
-
-    IDF = []
-    for i in range(len(spec.gal_wv_rf)):
-        if 3800 <= spec.gal_wv_rf[i] <= 3850 or 3910 <= spec.gal_wv_rf[i] <= 4030 or 4080 <= spec.gal_wv_rf[i] <= 4125 \
-                or 4250 <= spec.gal_wv_rf[i] <= 4385 or 4515 <= spec.gal_wv_rf[i] <= 4570 or 4810 <= spec.gal_wv_rf[i]\
-                <= 4910 or 4975 <= spec.gal_wv_rf[i] <= 5055 or 5110 <= spec.gal_wv_rf[i] <= 5285:
-            IDF.append(i)
-
-    IDC = []
-    for i in range(len(spec.gal_wv_rf)):
-        if spec.gal_wv_rf[0] <= spec.gal_wv_rf[i] <= 3800 or 3850 <= spec.gal_wv_rf[i] <= 3910 or 4030 <= \
-                spec.gal_wv_rf[i] <= 4080 or 4125 <= spec.gal_wv_rf[i] <= 4250 or 4385 <= spec.gal_wv_rf[i] <= 4515 or \
-                4570 <= spec.gal_wv_rf[i] <= 4810 or 4910 <= spec.gal_wv_rf[i] <= 4975 or 5055 <= spec.gal_wv_rf[i] <= \
-                5110 or 5285 <= spec.gal_wv_rf[i] <= spec.gal_wv_rf[-1]:
-            IDC.append(i)
-
-    #############Prep output files: 1-full, 2-cont, 3-feat###############
-    chifile1 = '../chidat/%s_chidata' % name
-    chifile2 = '../chidat/%s_cont_chidata' % name
-    chifile3 = '../chidat/%s_feat_chidata' % name
-
-    ##############Create chigrid and add to file#################
-    mfl = np.zeros([len(metal)*len(age)*len(tau),len(spec.gal_wv_rf)])
-    mfl_f = np.zeros([len(metal)*len(age)*len(tau),len(IDF)])
-    mfl_c = np.zeros([len(metal)*len(age)*len(tau),len(IDC)])
-    for i in range(len(metal)):
-        for ii in range(len(age)):
-            for iii in range(len(tau)):
-                spec.Sim_spec(metal[i], age[ii], tau[iii])
-                mfl[i*len(age)*len(tau)+ii*len(tau)+iii]=spec.fl
-                mfl_f[i*len(age)*len(tau)+ii*len(tau)+iii]=spec.fl[IDF]
-                mfl_c[i*len(age)*len(tau)+ii*len(tau)+iii]=spec.fl[IDC]
-    chigrid1 = np.sum(((spec.gal_fl - mfl) / spec.gal_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau)]).\
-        astype(np.float128)
-    chigrid2 = np.sum(((spec.gal_fl[IDF] - mfl_f) / spec.gal_er[IDF]) ** 2, axis=1).reshape([len(metal), len(age), len(tau)]).\
-        astype(np.float128)
-    chigrid3 = np.sum(((spec.gal_fl[IDC] - mfl_c) / spec.gal_er[IDC]) ** 2, axis=1).reshape([len(metal), len(age), len(tau)]).\
-        astype(np.float128)
-
-    ################Write chigrid file###############
-    np.save(chifile1,chigrid1)
-    np.save(chifile2,chigrid2)
-    np.save(chifile3,chigrid3)
-
-    P, PZ, Pt = Analyze_LH_cont_feat(chifile2 + '.npy', chifile3 + '.npy', specz, metal, age, tau)
-
-    np.save('../chidat/%s_tZ_pos' % name,P)
-    np.save('../chidat/%s_Z_pos' % name,[metal,PZ])
-    np.save('../chidat/%s_t_pos' % name,[age,Pt])
-
-    print 'Done!'
-    return
-
-
-def Specz_fit(galaxy, metal, age, rshift, name):
-    #############initialize spectra#################
-    spec = RT_spec(galaxy)
-
-    #############Prep output file###############
-    chifile = '../rshift_dat/%s_z_fit' % name
-
-    ##############Create chigrid and add to file#################
-    mfl = np.zeros([len(metal)*len(age)*len(rshift),len(spec.gal_wv)])
-    for i in range(len(metal)):
-        for ii in range(len(age)):
-            for iii in range(len(rshift)):
-                spec.Sim_spec(metal[i], age[ii], 0, rshift[iii])
-                mfl[i*len(age)*len(rshift)+ii*len(rshift)+iii]=spec.fl
-    chigrid = np.sum(((spec.gal_fl - mfl) / spec.gal_er) ** 2, axis=1).reshape([len(metal), len(age), len(rshift)]).\
-        astype(np.float128)
-
-    np.save(chifile,chigrid)
-    ###############Write chigrid file###############
-    Analyze_specz(chifile + '.npy', rshift, metal, age, name)
-
-    print 'Done!'
-
-    return
-
-
-def Norm_P_specz(rshift, metal, age, chi):
-    ####### Heirarchy is rshift_-> age -> metal
-    ####### Change chi to probabilites using sympy
-    ####### for its arbitrary precission, must be done in loop
-    prob = []
-    for i in range(len(rshift)):
-        preprob1 = []
-        for ii in range(len(age)):
-            preprob2 = []
-            for iii in range(len(metal)):
-                preprob2.append(sp.N(sp.exp(-chi[i][ii][iii] / 2)))
-            preprob1.append(preprob2)
-        prob.append(preprob1)
-
-    ######## Marginalize over all metal
-    ######## End up with age vs rshift matricies
-    R = []
-    for i in range(len(rshift)):
-        A = []
-        for ii in range(len(age)):
-            M = []
-            for iii in range(len(metal) - 1):
-                M.append(sp.N((metal[iii + 1] - metal[iii]) * (prob[i][ii][iii] + prob[i][ii][iii + 1]) / 2))
-            A.append(sp.mpmath.fsum(M))
-        R.append(A)
-
-    ######## Integrate over age to get rshift prob
-    ######## Then again over age to find normalizing coefficient
-    preC1 = []
-    for i in range(len(rshift)):
-        preC2 = []
-        for ii in range(len(age) - 1):
-            preC2.append(sp.N((age[ii + 1] - age[ii]) * (R[i][ii] + R[i][ii + 1]) / 2))
-        preC1.append(sp.mpmath.fsum(preC2))
-
-    preC3 = []
-    for i in range(len(rshift) - 1):
-        preC3.append(sp.N((rshift[i + 1] - rshift[i]) * (preC1[i] + preC1[i + 1]) / 2))
-
-    C = sp.mpmath.fsum(preC3)
-
-    ######## Create normal prob grid
-    P = []
-    for i in range(len(rshift)):
-        P.append(preC1[i] / C)
-
-    return np.array(P).astype(np.float128)
-
-
-def Analyze_specz(chifits, rshift, metal, age, name):
-    ####### Read in file
-    dat = np.load(chifits)
-
-    ###### Create normalize probablity marginalized over tau
-    prob = np.array(Norm_P_specz(rshift, metal, age, dat.T)).astype(np.float128)
-
-    ###### get best fit values
-    print 'Best fit specz is %s' % rshift[np.argmax(prob)]
-
-    np.save('../rshift_dat/%s_Pofz' % name,[rshift, prob])
-    return
-
-
-def Analyze_LH_lwa(chifits, specz, metal, age, tau, age_conv='../data/light_weight_scaling_3.npy'):
-    ####### Get maximum age
-    max_age = Oldest_galaxy(specz)
-
-    ####### Read in file
-    chi = np.load(chifits).T
-
-    chi[:, len(age[age <= max_age]):, :] = 1E5
-
-    ####### Get scaling factor for tau reshaping
-    ultau = np.append(0, np.power(10, np.array(tau)[1:] - 9))
-
-    convtable = np.load(age_conv)
-
-    overhead = np.zeros([len(tau),metal.size]).astype(int)
-    for i in range(len(tau)):
-        for ii in range(metal.size):
-            amt=[]
-            for iii in range(age.size):
-                if age[iii] > convtable.T[i].T[ii][-1]:
-                    amt.append(1)
-            overhead[i][ii] = sum(amt)
-
-    ######## Reshape likelihood to get average age instead of age when marginalized
-    newchi = np.zeros(chi.shape)
-
-    for i in range(len(chi)):
-        # if i == 0:
-        #     newchi[i] = chi[i]
-        # else:
-        frame = np.zeros([metal.size,age.size])
-        for ii in range(metal.size):
-            dist = interp1d(convtable.T[i].T[ii],chi[i].T[ii])(age[:-overhead[i][ii]])
-            frame[ii] = np.append(dist,np.repeat(1E5, overhead[i][ii]))
-        newchi[i] = frame.T
-
-    ####### Create normalize probablity marginalized over tau
-    P = np.exp(-newchi.T.astype(np.float128) / 2)
-
-    prob = np.trapz(P, ultau, axis=2)
-    C = np.trapz(np.trapz(prob, age, axis=1), metal)
-
-    prob /= C
-
-    #### Get Z and t posteriors
-
-    PZ = np.trapz(prob, age, axis=1)
-    Pt = np.trapz(prob.T, metal,axis=1)
-
-    return prob.T, PZ,Pt
-
-
-
-
-"""Proposal fit 2D"""
+        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Pgrid + Bgrid + Rgrid, metal, age, tau, rshift, dust)
         
-def Analyze_2D(chifits, specz, metal, age, tau, age_conv='../data/light_weight_scaling.npy'):
-    ####### Get maximum age
-    max_age = Oldest_galaxy(specz)
-
-    ####### Read in file
-    chi = np.load(chifits).T
-
-    chi[:, len(age[age <= max_age]):, :] = 1E1
-
-    ####### Get scaling factor for tau reshaping
-    ultau = np.append(0, np.power(10, np.array(tau)[1:] - 9))
-
-    convtable = np.load(age_conv)
-
-    overhead = np.zeros([len(tau),metal.size]).astype(int)
-    for i in range(len(tau)):
-        for ii in range(metal.size):
-            amt=[]
-            for iii in range(age.size):
-                if age[iii] > convtable.T[i].T[ii][-1]:
-                    amt.append(1)
-            overhead[i][ii] = sum(amt)
-
-    ######## Reshape likelihood to get average age instead of age when marginalized
-    newchi = np.zeros(chi.shape)
-
-    for i in range(len(chi)):
-        frame = np.zeros([metal.size, age.size])
-        for ii in range(metal.size):
-            dist = interp1d(convtable.T[i].T[ii], chi[i].T[ii])(age[:-overhead[i][ii]])
-            frame[ii] = np.append(dist, np.repeat(1E5, overhead[i][ii]))
-        newchi[i] = frame.T
-
-
-    ####### Create normalize probablity marginalized over tau
-    P = np.exp(-newchi.T.astype(np.float128) / 2)
-
-    prob = np.trapz(P, ultau, axis=2)
-    C = np.trapz(np.trapz(prob, age, axis=1), metal)
-
-    prob /= C
-
-    #### Get Z and t posteriors
-
-    PZ = np.trapz(prob, age, axis=1)
-    Pt = np.trapz(prob.T, metal,axis=1)
-
-    return prob.T, PZ,Pt
+        metal_i = bfZ
+        age_i = bft
+        tau_i = bftau
+        rshift_i = bfz
+        dust_i = bfd
         
-def Single_gal_fit_full_2d(metal, age, tau, specz,stack_2d, stack_2d_error, grism_flt, direct_flt , name):
-    #############Read in spectra#################
-    spec = Gen_spec_2d(stack_2d, stack_2d_error, grism_flt, direct_flt, specz)
+        print('ALL:', bfZ, bft, bftau, bfz, bfd)
 
-    #############Prep output files: 1-full, 2-cont, 3-feat###############
-    chifile1 = '../chidat/%s_chidata' % name
 
-    ##############Create chigrid and add to file#################
-    chigrid1 = np.zeros([len(metal),len(age),len(tau)])
+def Best_fit_model(chi, metal, age, tau, rshift, dust):
+    x = np.argwhere(chi == np.min(chi))[0]
+    return dust[x[0]],metal[x[1]], age[x[2]], tau[x[3]] , rshift[x[4]]
+        
+def Stitch_resize_redden_fit(fit_wv, fit_fl, fit_er, mfl, mwv, 
+                     metal, age, tau, rshift, dust, phot=False):
+    #############Read in spectra and stich spectra grid together#################
+    if phot:
+        chigrid = Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, rshift, dust)  
+        return chigrid
+    else:
+        mfl = Resize(fit_wv, mwv, mfl)
+        chigrid = Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, rshift, dust)  
+        return chigrid
+        
+def Redden_and_fit(fit_wv, fit_fl, fit_er, mfl, metal, age, tau, redshift, Av):    
+    minidust = Gen_dust_minigrid(fit_wv, redshift, Av)
 
-    for i in range(len(metal)):
-        for ii in range(len(age)):
-            for iii in range(len(tau)):
-                spec.Sim_spec(metal[i], age[ii], tau[iii])
-                chigrid1[i][ii][iii] = np.sum(((spec.gal - spec.sim)/spec.err)**2)
+    chigrids = []
+    
+    for i in range(len(Av)):
+        dustgrid = np.repeat([minidust[str(Av[i])]], len(metal)*len(age)*len(tau), axis=0).reshape(
+            [len(minidust[str(Av[i])])*len(metal)*len(age)*len(tau), len(fit_wv)])
+        redflgrid = mfl * dustgrid        
+        SCL = Scale_model_mult(fit_fl,fit_er,redflgrid)
+        redflgrid = np.array([SCL]).T*redflgrid
+        chigrid = np.sum(((fit_fl - redflgrid) / fit_er) ** 2, axis=1).reshape([len(metal), len(age), len(tau), len(redshift)])
+        chigrids.append(chigrid)
 
-    ################Write chigrid file###############
-    np.save(chifile1,chigrid1)
+    return np.array(chigrids)
 
-    print 'Done!'
-    return
+def Gen_dust_minigrid(fit_wv, rshift, Av):
+    dust_dict = {}
+    for i in range(len(Av)):
+        key = str(Av[i])
+        minigrid = np.zeros([len(rshift),len(fit_wv)])
+        for ii in range(len(rshift)):
+            minigrid[ii] = Salmon(Av[i],fit_wv / (1 + rshift[ii]))
+        dust_dict[key] = minigrid
+    return dust_dict
 
-"""Proposal spec z"""
+def Resize(fit_wv, mwv, mfl):
+    mfl = np.ma.masked_invalid(mfl)
+    mfl.data[mfl.mask] = 0
+    mfl = interp2d(mwv,range(len(mfl.data)),mfl.data)(fit_wv,range(len(mfl.data)))
+    return mfl
 
-def Specz_fit_2(spec_file, metal, age, rshift, name):
-    #############initialize spectra#################
-    spec = Gen_spec_z(spec_file)
 
-    #############Prep output file###############
-    chifile = '../rshift_dat/%s_z_fit' % name
+def Gen_grid(spec, models, metal, age, tau, rshift, instr, grism_flux = None):    
+    ##### set model wave
+    if instr == 'P'
+        mfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(spec.IDP)])
+    
+        for i in range(len(metal)):
+            models.params['logzsol'] = np.log10(metal[i] / 0.019)
+            for ii in range(len(age)):
+                for iii in range(len(tau)):
+                    models.params['tau'] = tau[iii]
+                    wv,fl = models.get_spectrum(tage = age[ii], peraa = True)
+                    for iv in range(len(rshift)):
+                        mfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = spec.Sim_phot_mult(wv * (1 + rshift[iv]),fl)
+    
+    if instr == 'B'
+        mfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(grism_flux)])
+        beam = spec.Bbeam
+    
+    if instr == 'R'
+        mfl = np.zeros([len(metal)*len(age)*len(tau)*len(rshift),len(grism_flux)])
+        beam = spec.Rbeam      
+      
+    if instr != 'P'
+        for i in range(len(metal)):
+            models.params['logzsol'] = np.log10(metal[i] / 0.019)
+            for ii in range(len(age)):
+                for iii in range(len(tau)):
+                    models.params['tau'] = tau[iii]
+                    wv,fl = models.get_spectrum(tage = age[ii], peraa = True)
+                    for iv in range(len(rshift)):
+                        mwv,mflx= forward_model_grism(beam, wv * (1 + rshift[iv]),fl)
+                        mfl[i*len(age)*len(tau)*len(rshift) + ii*len(tau)*len(rshift) + iii*len(rshift) + iv] = mflx
+    return mfl
 
-    ##############Create chigrid and add to file#################
-    mfl = np.zeros([len(metal)*len(age)*len(rshift),len(spec.gal_wv)])
-    for i in range(len(metal)):
-        for ii in range(len(age)):
-            for iii in range(len(rshift)):
-                spec.Sim_spec(metal[i], age[ii], rshift[iii])
-                mfl[i*len(age)*len(rshift)+ii*len(rshift)+iii]=spec.fl
-    chigrid = np.sum(((spec.gal_fl - mfl) / spec.gal_er) ** 2, axis=1).reshape([len(metal), len(age), len(rshift)]).\
-        astype(np.float128)
+    
+def Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage):
+    if stage == 0:
+        age = np.round(np.arange(0.5, 6.1, .25),2)
+        metal= np.round(np.arange(0.002 , 0.031, 0.003),4)
+        tau = np.round(np.logspace(np.log10(0.01), np.log10(3), 8), 3)
+        rshift = np.round(np.arange( rshift_i - 0.01, rshift_i + 0.011, 0.002),4)
+        dust = np.round(np.arange(0, 1.1, 0.1),2)
+    
+    if stage == 1:
+        if age_i <=1.5:
+            age_i = 1.6
+        age = np.round(np.arange(age_i  - 1.5, age_i  + 1.6, .125),2)
+        
+        if metal_i <= 0.0075:
+            metal_i = 0.0095
+        metal= np.round(np.arange(metal_i  - 0.0075, metal_i  + 0.0085, 0.0015),4)
+        
+        if tau_i <= 1:
+            tau_i = 1.1 
+        tau = np.round(np.logspace(np.log10(tau_i  - 1), np.log10(tau_i  + 1), 8), 3)
+        rshift = np.round(np.arange( rshift_i - 0.005, rshift_i + 0.006, 0.001),4)
+        
+        if dust_i <= 0.25:
+            dust_i = 0.25         
+        dust = np.round(np.arange(dust_i - 0.25, dust_i + 0.3, 0.05),2)
+    
+    if stage == 2:
+        if age_i <= 0.75:
+            age_i = 0.85
+        age = np.round(np.arange(age_i  - 0.75, age_i  + 0.85, .06),2)
+        
+        if metal_i <= 0.00375:
+            metal_i = 0.00575
+        metal= np.round(np.arange(metal_i  - 0.00375, metal_i  + 0.00475, 0.00075),4)
+                
+        if tau_i <= 0.5:
+            tau_i = 0.51   
+        tau = np.round(np.logspace(np.log10(tau_i  - 0.5), np.log10(tau_i  + 0.5), 8), 3)
+        rshift = np.round(np.arange( rshift_i - 0.0025, rshift_i + 0.003, 0.0005),4)
+        
+        if dust_i <= 0.125:
+            dust_i = 0.125    
+        dust = np.round(np.arange(dust_i - 0.125, dust_i + 0.135, 0.025),3)
+    
+    return metal, age, tau, rshift, dust
 
-    np.save(chifile,chigrid)
-    ###############Write chigrid file###############
-    Analyze_specz(chifile + '.npy', rshift, metal, age, name)
+def Simple_analyze(chi, metal, age, tau, rshift, dust):
+    ######## get Pd and Pz 
+    P_full = np.exp(- chi / 2).astype(np.float128)
 
-    print 'Done!'
+    P_full /= np.trapz(np.trapz(np.trapz(np.trapz(np.trapz(P_full, rshift, axis=4), tau, axis=3), age, axis=2), metal, axis=1),dust)
+    
+    Pd = np.trapz(np.trapz(np.trapz(np.trapz(P_full, rshift, axis=4), tau, axis=3), age, axis=2), metal, axis=1) 
 
-    return
+    Pz = np.trapz(np.trapz(np.trapz(np.trapz(P_full.T, dust, axis=4), metal, axis=3), age, axis=2), tau, axis=1) 
+
+    P = np.trapz(P_full, rshift, axis=4)
+    P = np.trapz(P.T, dust, axis=3).T
+   
+    PZ = np.trapz(np.trapz(P, tau, axis=2), age, axis=1)
+    Pt = np.trapz(np.trapz(P, tau, axis=2).T, metal, axis=1)
+    Ptau = np.trapz(np.trapz(P.T, metal, axis=2), age, axis=1)
+
+    return PZ, Pt, Ptau, Pz, Pd

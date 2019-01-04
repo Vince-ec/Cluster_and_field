@@ -151,9 +151,13 @@ class Extract_all(object):
 
             except:
                 print('no g141')
-        SBW, SBF, SBE, SBT, SBL, SBC = Stack(Bwv, Bfl, Ber, Bft, Bln, Bct)
-        SRW, SRF, SRE, SRT, SRL, SRC = Stack(Rwv, Rfl, Rer, Rft, Rln, Rct)
     
-        np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[SBW, SBF, SBE, SBT, SBL, SBC])
-        np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[SRW, SRF, SRE, SRT, SRL, SRC])
+        if len(Bwv) > 0:                
+            SBW, SBF, SBE, SBT, SBL, SBC = Stack(Bwv, Bfl, Ber, Bft, Bln, Bct)
+            np.save('../spec_files/{0}_{1}_g102'.format(self.field, self.galaxy_id),[SBW, SBF, SBE, SBT, SBL, SBC])
+
+
+        if len(Rwv) > 0:     
+            SRW, SRF, SRE, SRT, SRL, SRC = Stack(Rwv, Rfl, Rer, Rft, Rln, Rct)
+            np.save('../spec_files/{0}_{1}_g141'.format(self.field, self.galaxy_id),[SRW, SRF, SRE, SRT, SRL, SRC])
 
