@@ -11,7 +11,6 @@ import os
 from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
-from spec_tools import Scale_model
 import fsps
 
 hpath = os.environ['HOME'] + '/'

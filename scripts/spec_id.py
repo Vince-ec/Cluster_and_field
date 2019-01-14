@@ -14,8 +14,7 @@ from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
-from C_full_fit import Gen_mflgrid, Analyze_full_fit, Stich_grids,\
-    Stitch_spec, Scale_model_mult, Resize
+from C_full_fit import Scale_model_mult, Stitch_spec
 from time import time
 from sim_engine import *
 from matplotlib import gridspec
@@ -27,6 +26,18 @@ class:
 def:
 Best_fitter
 Best_fitter_sim
+Redshift_fitter
+Best_fit_model
+Stich_resize_and_fit
+Stich_grids
+Fit
+Resize
+Gen_grid  
+Set_params
+Set_rshift_params
+Simple_analyze
+Redshift_analyze
+
 """
 
 if hpath == '/home/vestrada78840/':
@@ -39,7 +50,8 @@ if hpath == '/home/vestrada78840/':
     template_path = '/fdata/scratch/vestrada78840/data/'
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
-
+    temp_out = '/tmp/'
+    
 else:
     from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
     data_path = '../data/'
@@ -50,6 +62,7 @@ else:
     template_path = '../templates/'
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
+    temp_out = '../data/tmp/'
 
 
 
@@ -288,34 +301,30 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
                 Gen_grid(Gs, sp, metal, age, tau, rshift, dust, u, mflx)
 
                 ## set some variables
-
                 grids.append(Stich_resize_and_fit(W, F, E, MW, 
                                  metal, age, tau, rshift, dust, phot = phot))
-                #np.save('../data/posteriors/test_{0}_chi_{1}'.format(u,x), grids[idx])
-                #idx +=1
+
         except:
-            print('data missing')
+            print('{0} data missing'.format(u))
            
         if mchi == 0:
             mchi = np.min(np.array(sum(grids)))
         
-        #np.save('../data/posteriors/test_chi_{0}'.format(x), np.array(sum(grids)))
-
         PZ, Pt, Ptau, Pz, Pd =  Simple_analyze(np.array(sum(grids)), mchi, metal, age, tau, rshift, dust)
         
         metal_i = np.round(metal[PZ == max(PZ)],4)
         age_i = np.round(age[Pt == max(Pt)],4)
         rshift_i = np.round(rshift[Pz == max(Pz)],4)
 
-        np.save('../data/posteriors/test_fitz_{0}'.format(x), [rshift,Pz])
+        np.save(temp_out + 'test_fitz_{0}'.format(x), [rshift,Pz])
         print(metal_i)   
         print(age_i)       
         print(rshift_i)   
         
-    z0,Pz0 = np.load('../data/posteriors/test_fitz_0.npy')
-    z1,Pz1 = np.load('../data/posteriors/test_fitz_1.npy')
-    z2,Pz2 = np.load('../data/posteriors/test_fitz_2.npy')
-    z3,Pz3 = np.load('../data/posteriors/test_fitz_3.npy')
+    z0,Pz0 = np.load(temp_out + 'test_fitz_0.npy')
+    z1,Pz1 = np.load(temp_out + 'test_fitz_1.npy')
+    z2,Pz2 = np.load(temp_out + 'test_fitz_2.npy')
+    z3,Pz3 = np.load(temp_out + 'test_fitz_3.npy')
         
     hrz = np.append(np.append(np.append(z0,z1),z2),z3)
 
@@ -344,7 +353,7 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
     Pz = nPz0 * nPz1 * nPz2 * nPz3 
     Pz /= np.trapz(Pz,hrz)
 
-    np.save('../data/posteriors/{0}_{1}_Pofz'.format(field,galaxy), [hrz,Pz])
+    np.save(out_path + '{0}_{1}_Pofz'.format(field,galaxy), [hrz,Pz])
 
     
 def Best_fit_model(chi, metal, age, tau, rshift, dust):
@@ -354,7 +363,7 @@ def Best_fit_model(chi, metal, age, tau, rshift, dust):
 def Stich_resize_and_fit(fit_wv, fit_fl, fit_er, mwv, 
                      metal, age, tau, rshift, dust, phot=False):
     #############Read in spectra and stich spectra grid together#################
-    files = ['../chidat/spec_files/m{0}_spec.npy'.format(U) for U in range(len(metal))]
+    files = [temp_out + 'm{0}_spec.npy'.format(U) for U in range(len(metal))]
     mfl = Stitch_spec(files)
     
     if phot:
@@ -416,7 +425,7 @@ def Gen_grid(spec, models, metal, age, tau, rshift, dust, instr, grism_flux = No
                                 iii*len(rshift)*len(dust) + iv*len(dust) + v] = \
                             spec.Sim_phot_mult(wv * (1 + rshift[iv]),fl )
                             
-            np.save('../chidat/spec_files/m{0}_spec'.format(i), mfl)  
+            np.save(temp_out + 'm{0}_spec'.format(i), mfl)  
       
     if instr != 'P':
         for i in range(len(metal)):
@@ -440,7 +449,7 @@ def Gen_grid(spec, models, metal, age, tau, rshift, dust, instr, grism_flux = No
                             mfl[ii*len(tau)*len(rshift)*len(dust) + \
                                 iii*len(rshift)*len(dust) + iv*len(dust) + v] =mflx
                             
-            np.save('../chidat/spec_files/m{0}_spec'.format(i), mfl)
+            np.save(temp_out + 'm{0}_spec'.format(i), mfl)
 
     
 def Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage):
@@ -557,6 +566,5 @@ def Simple_analyze(chi, mchi, metal, age, tau, rshift, dust):
 def Redshift_analyze(chi, mchi, metal, age, tau, rshift, dust):
     ######## get Pd and Pz 
     P_full = np.exp(- (chi - mchi) / 2).astype(np.float128)
-    #P_full /= np.trapz(np.trapz(np.trapz(np.trapz(np.trapz(P_full, rshift, axis=4), tau, axis=3), age, axis=2), metal, axis=1),dust)
     
     return np.trapz(np.trapz(np.trapz(np.trapz(P_full, dust, axis=4).T, metal, axis=3), age, axis=2), tau, axis=1) 
