@@ -52,7 +52,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                tmp_err = True, phot_errterm = 0):
+                tmp_err = True, phot_errterm = 0, decontam = False):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -78,8 +78,12 @@ class Gen_spec(object):
         
         # load spec and phot
         try:
-            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB = load_spec(self.field,
+            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec(self.field,
                                 self.galaxy_id, 'g102', self.g102_lims,  self.specz)
+            if decontam:
+                self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
+                        self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
+                print('cleaned')
             self.Bfl = self.Bflx / self.Bflt 
             self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, g102_beam)
             self.Berr = apply_tmp_err(self.Bwv_rf,self.Berr,self.Bflx, tmp_err = tmp_err)
@@ -91,8 +95,13 @@ class Gen_spec(object):
             self.g102 = False
         
         try:
-            self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR = load_spec(self.field,
+            self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec(self.field,
                                 self.galaxy_id, 'g141', self.g141_lims,  self.specz)
+            
+            if decontam:
+                self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = decontaminate(self.Rwv, 
+                                self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont)
+                
             self.Rfl = self.Rflx / self.Rflt 
             self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, g141_beam)
             self.Rerr = apply_tmp_err(self.Rwv_rf,self.Rerr,self.Rflx, tmp_err = tmp_err)

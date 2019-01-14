@@ -67,7 +67,7 @@ def Median_w_Error(Pofx, x):
 
 
 def Median_w_Error_cont(Pofx, x):
-    ix = np.linspace(x[0], x[-1], 1000)
+    ix = np.linspace(x[0], x[-1], 10000)
     iP = interp1d(x, Pofx)(ix)
 
     C = np.trapz(iP,ix)

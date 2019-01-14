@@ -67,13 +67,6 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True):
         
     if grism:
         W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
-
-        #M = np.load(spec_path + 'spec_mask/{0}_{1}_{2}_mask.npy'.format(field, galaxy_id, instr))
-        
-        #W = W[M]
-        #FLT = FLT[M]
-        #F = F[M]
-        #E = E[M] 
     
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
@@ -82,8 +75,10 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True):
         FLT = FLT[IDX]
         F = F[IDX] 
         E = E[IDX] 
+        L = L[IDX] 
+        C = C[IDX] 
         
-        return W, WRF, F, E, FLT, IDX
+        return W, WRF, F, E, FLT, IDX, L, C
 
     else:
         W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
@@ -125,10 +120,12 @@ def load_beams_and_trns(wv, beam):
     return Beam, trans
 
 def apply_tmp_err(wv_rf, er,flx, tmp_err = True, pht_err = 0):
-    WV,TEF = np.load(template_path + 'template_error_updt.npy')
-    iTEF = interp1d(WV,TEF)(wv_rf)
     
-    if not tmp_err:
+    if tmp_err:
+        WV,TEF = np.load(template_path + 'template_error_updt.npy')
+        iTEF = interp1d(WV,TEF)(wv_rf)
+    
+    else:
         iTEF = 0
         
     return np.sqrt(er**2 + (iTEF*flx)**2 + (pht_err*flx)**2)
@@ -187,6 +184,25 @@ def forward_model_phot(model_wave, model_flux, IDP, sens_wv, b, dnu, adj):
     mphot = (np.trapz(imfl(c /(sens_wv[IDP])).reshape([len(IDP),len(sens_wv[0])]) \
                       * b[IDP], dnu[IDP])/np.trapz(b[IDP], dnu[IDP])) * adj[IDP]
     return np.array(mphot)
+
+def decontaminate(W, WRF, F, E, FLT, IDX, L, C):
+    IDC = []
+        
+    for i in range(len(W)):
+        if (C[i] + E[i]) > L[i]:
+            IDC.append(i)
+
+    W = W[IDC]
+    WRF = WRF[IDC]
+    F = F[IDC]
+    E = E[IDC]
+    FLT = FLT[IDC]
+    IDX = np.array(IDX)[IDC]
+    L = L[IDC]
+    C = C[IDC]
+    
+    return W, WRF, F, E, FLT, IDX, L, C
+
 
 def Calzetti_low(Av,lam):
     lam = lam * 1E-4
@@ -268,3 +284,4 @@ def Get_mass(gwv, gfl, ger, Z, t, z, Av):
     
     IDX = [U for U in range(len(gwv)) if 8000 < gwv[U] < 11300]
     return np.log10(Scale_model(gfl[IDX],ger[IDX],interp1d(wv,fl_m)(gwv[IDX])))
+
