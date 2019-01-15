@@ -104,30 +104,30 @@ def Best_fitter(field, galaxy, g102_beam, g141_beam, specz,
             mflx = Rmflx
             W = Gs.Rwv; F = Gs.Rflx; E = Gs.Rerr; MW = Rmwv; phot = False
         
-        try:  
-            for x in range(3):
+        #try:  
+        for x in range(3):
 
-                metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+            metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
 
-                mfl = Gen_grid(Gs, sp, metal, age, tau, rshift, u, mflx)
+            mfl = Gen_grid(Gs, sp, metal, age, tau, rshift, u, mflx)
 
-                ## set some variables
+            ## set some variables
 
-                grid = Stitch_resize_redden_fit(W, F, E, mfl, MW, 
-                                 metal, age, tau, rshift, dust, phot = phot) 
+            grid = Stitch_resize_redden_fit(W, F, E, mfl, MW, 
+                             metal, age, tau, rshift, dust, phot = phot) 
 
-                bfd, bfZ, bft, bftau, bfz = Best_fit_model(grid, metal, age, tau, rshift, dust)
+            bfd, bfZ, bft, bftau, bfz = Best_fit_model(grid, metal, age, tau, rshift, dust)
 
-                metal_i = bfZ
-                age_i = bft
-                tau_i = bftau
-                rshift_i = bfz
-                dust_i = bfd
+            metal_i = bfZ
+            age_i = bft
+            tau_i = bftau
+            rshift_i = bfz
+            dust_i = bfd
 
-                print(u, bfZ, bft, bftau, bfz, bfd)   
+            print(u, bfZ, bft, bftau, bfz, bfd)   
 
-        except:
-            print('data missing')
+        #except:
+        #    print('data missing')
             
         rshift_i = specz
 
@@ -284,7 +284,6 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
         grids = []
         
         try:  
-            idx = 0
             for u in instr:
                 if u == 'P':
                     mflx = Pmflx
