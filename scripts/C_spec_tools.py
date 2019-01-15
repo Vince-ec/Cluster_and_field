@@ -227,19 +227,12 @@ class Photometry(object):
         bottom = np.trapz(bottom1, filtnu)
         photonu = top / bottom
 
-        top1 = Ernu * energy * self.trans[IDX]
-        top = np.trapz(top1, filtnu)
-        bottom1 = self.trans[IDX] * energy
-        bottom = np.trapz(bottom1, filtnu)
-        erphotonu = top / bottom
-
         tp = np.trapz(((self.trans * np.log(self.sens_wv)) / self.sens_wv), self.sens_wv)
         bm = np.trapz(self.trans / self.sens_wv, self.sens_wv)
 
         wave_eff = np.exp(tp / bm)
 
         photo = photonu * (c / (wave_eff * atocm) ** 2)
-        photoer = erphotonu * (c / (wave_eff * atocm) ** 2)
 
         self.eff_wv = wave_eff
         self.photo = photo

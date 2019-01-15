@@ -104,30 +104,30 @@ def Best_fitter(field, galaxy, g102_beam, g141_beam, specz,
             mflx = Rmflx
             W = Gs.Rwv; F = Gs.Rflx; E = Gs.Rerr; MW = Rmwv; phot = False
         
-        #try:  
-        for x in range(3):
+        try:  
+            for x in range(3):
 
-            metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+                metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
 
-            mfl = Gen_grid(Gs, sp, metal, age, tau, rshift, u, mflx)
+                mfl = Gen_grid(Gs, sp, metal, age, tau, rshift, u, mflx)
 
-            ## set some variables
+                ## set some variables
 
-            grid = Stitch_resize_redden_fit(W, F, E, mfl, MW, 
-                             metal, age, tau, rshift, dust, phot = phot) 
+                grid = Stitch_resize_redden_fit(W, F, E, mfl, MW, 
+                                 metal, age, tau, rshift, dust, phot = phot) 
 
-            bfd, bfZ, bft, bftau, bfz = Best_fit_model(grid, metal, age, tau, rshift, dust)
+                bfd, bfZ, bft, bftau, bfz = Best_fit_model(grid, metal, age, tau, rshift, dust)
 
-            metal_i = bfZ
-            age_i = bft
-            tau_i = bftau
-            rshift_i = bfz
-            dust_i = bfd
+                metal_i = bfZ
+                age_i = bft
+                tau_i = bftau
+                rshift_i = bfz
+                dust_i = bfd
 
-            print(u, bfZ, bft, bftau, bfz, bfd)   
+                print(u, bfZ, bft, bftau, bfz, bfd)   
 
-        #except:
-        #    print('data missing')
+        except:
+            print('data missing')
             
         rshift_i = specz
 
@@ -248,7 +248,7 @@ def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
         
         print('ALL:', bfZ, bft, bftau, bfz, bfd)
 
-def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
+def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
                 errterm = 0, decontam = True):
     ######## initialize spec
     
@@ -265,6 +265,10 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
     tau_i = 1
     rshift_i = 1
     dust_i = 1
+    
+    bfm = []
+    bfa = []
+    bfz = []
     
     mchi = 0
     if Gs.g102:
@@ -284,6 +288,7 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
         grids = []
         
         try:  
+            idx = 0
             for u in instr:
                 if u == 'P':
                     mflx = Pmflx
@@ -311,19 +316,28 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
         
         PZ, Pt, Ptau, Pz, Pd =  Simple_analyze(np.array(sum(grids)), mchi, metal, age, tau, rshift, dust)
         
+        np.save(temp_out + 'test_chi_{0}_v{1}'.format(x, mod), np.array(sum(grids)))
+        
         metal_i = np.round(metal[PZ == max(PZ)],4)
         age_i = np.round(age[Pt == max(Pt)],4)
         rshift_i = np.round(rshift[Pz == max(Pz)],4)
 
-        np.save(temp_out + 'test_fitz_{0}'.format(x), [rshift,Pz])
+        np.save(temp_out  + 'test_fitz_{0}_v{1}'.format(x, mod), [rshift,Pz])
+
         print(metal_i)   
         print(age_i)       
         print(rshift_i)   
         
-    z0,Pz0 = np.load(temp_out + 'test_fitz_0.npy')
-    z1,Pz1 = np.load(temp_out + 'test_fitz_1.npy')
-    z2,Pz2 = np.load(temp_out + 'test_fitz_2.npy')
-    z3,Pz3 = np.load(temp_out + 'test_fitz_3.npy')
+        bfm.append(metal_i)   
+        bfa.append(age_i)       
+        bfz.append(rshift_i)  
+        
+    np.save(temp_out + 'best_fits_v{0}'.format(mod), [bfm,bfa,bfz])
+
+    z0,Pz0 = np.load(temp_out + 'test_fitz_0_v{0}.npy'.format(mod))
+    z1,Pz1 = np.load(temp_out + 'test_fitz_1_v{0}.npy'.format(mod))
+    z2,Pz2 = np.load(temp_out + 'test_fitz_2_v{0}.npy'.format(mod))
+    z3,Pz3 = np.load(temp_out + 'test_fitz_3_v{0}.npy'.format(mod))
         
     hrz = np.append(np.append(np.append(z0,z1),z2),z3)
 
@@ -352,7 +366,7 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam,
     Pz = nPz0 * nPz1 * nPz2 * nPz3 
     Pz /= np.trapz(Pz,hrz)
 
-    np.save(out_path + '{0}_{1}_Pofz'.format(field,galaxy), [hrz,Pz])
+    np.save(out_path + '{0}_{1}_v{2}_Pofz'.format(field, galaxy, mod), [hrz,Pz])
 
     
 def Best_fit_model(chi, metal, age, tau, rshift, dust):
