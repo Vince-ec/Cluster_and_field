@@ -278,9 +278,6 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
         Rmwv,Rmflx = forward_model_grism(Gs.Rbeam, wave, flux)
     
     Pmflx = []
-
-    # create analyze redshift to marginalize
-    # P(z)
     
     instr = np.array(['P','B','R'])
     
@@ -322,7 +319,7 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
         age_i = np.round(age[Pt == max(Pt)],4)
         rshift_i = np.round(rshift[Pz == max(Pz)],4)
 
-        np.save(temp_out  + 'test_fitz_{0}_v{1}'.format(x, mod), [rshift,Pz])
+        np.save(out_path  + 'test_fitz_{0}_v{1}'.format(x, mod), [rshift,Pz])
 
         print(metal_i)   
         print(age_i)       
@@ -334,10 +331,10 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
         
     np.save(temp_out + 'best_fits_v{0}'.format(mod), [bfm,bfa,bfz])
 
-    z0,Pz0 = np.load(temp_out + 'test_fitz_0_v{0}.npy'.format(mod))
-    z1,Pz1 = np.load(temp_out + 'test_fitz_1_v{0}.npy'.format(mod))
-    z2,Pz2 = np.load(temp_out + 'test_fitz_2_v{0}.npy'.format(mod))
-    z3,Pz3 = np.load(temp_out + 'test_fitz_3_v{0}.npy'.format(mod))
+    z0,Pz0 = np.load(out_path + 'test_fitz_0_v{0}.npy'.format(mod))
+    z1,Pz1 = np.load(out_path + 'test_fitz_1_v{0}.npy'.format(mod))
+    z2,Pz2 = np.load(out_path + 'test_fitz_2_v{0}.npy'.format(mod))
+    z3,Pz3 = np.load(out_path + 'test_fitz_3_v{0}.npy'.format(mod))
         
     hrz = np.append(np.append(np.append(z0,z1),z2),z3)
 
