@@ -105,7 +105,7 @@ def Best_fit_model(input_file, metal, age, tau):
     chi = np.array(chi)
 
     x = np.argwhere(chi == np.min(chi))
-    print metal[x[0][0]], age[x[0][1]], tau[x[0][2]]
+    print( metal[x[0][0]], age[x[0][1]], tau[x[0][2]])
     return metal[x[0][0]], age[x[0][1]], tau[x[0][2]]
 
 def B_factor(input_chi_file, tau, metal, age):
@@ -186,18 +186,28 @@ def Stack_posteriors(P_grid, x):
     P =sum(top)/sum(W)
     return P / np.trapz(P,x)
 
-def Iterative_stacking(grid_o,x_o,iterations = 20,resampling = 250):
+def Iterative_stacking(grid_o,x_o, extend=False, iterations = 20,resampling = 250):
     ksmooth = importr('KernSmooth')
     del_x = x_o[1] - x_o[0]
+    rto = int(np.abs(min(np.log10(x_o)[np.abs(np.log10(x_o)) != np.inf])))+1
 
-    ### resample
-    x = np.linspace(x_o[0],x_o[-1],resampling)
-    grid = np.zeros([len(grid_o),x.size])    
-    for i in range(len(grid_o)):
-        grid[i] = interp1d(x_o,grid_o[i])(x)
-   
-    ### select bandwidth
-    H = ksmooth.dpik(x)
+    if extend:
+        x_n,grid_n = Reconfigure_dist(grid_o,x_o,rto)
+
+        x = np.linspace(x_n[0],x_n[-1],resampling)
+        grid = np.zeros([len(grid_n),x.size])    
+        for i in range(len(grid_n)):
+            grid[i] = interp1d(x_n,grid_n[i])(x)
+        ### select bandwidth
+        H = ksmooth.dpik(x_o) 
+    else:
+        x = np.linspace(x_o[0],x_o[-1],resampling)
+        grid = np.zeros([len(grid_o),x.size])    
+        for i in range(len(grid_o)):
+            grid[i] = interp1d(x_o,grid_o[i])(x)
+
+        ### select bandwidth
+        H = ksmooth.dpik(x)
     ### stack posteriors w/ weights
     stkpos = Stack_posteriors(grid,x)
     ### initialize prior as flat
@@ -211,8 +221,12 @@ def Iterative_stacking(grid_o,x_o,iterations = 20,resampling = 250):
         Fx = interp1d(X,iFX)(x)
 
     Fx[Fx<0]=0
-    Fx = Fx/np.trapz(Fx,x)
-    return Fx,x
+    rsFx = interp1d(x,Fx)(x_o)
+    rsFx = rsFx/np.trapz(rsFx,x_o)  
+    
+    rsstkpos = interp1d(x,stkpos)(x_o)
+    rsstkpos = rsstkpos/np.trapz(rsstkpos,x_o)  
+    return rsFx,rsstkpos
 
 def Linear_fit(x,Y,sig,new_x,return_cov = False):
     A=np.array([np.ones(len(x)),x]).T
@@ -235,3 +249,38 @@ def Gen_grid(DB,param):
         x,Px = np.load('../chidat/%s_dtau_%s_pos_lwa_3.npy' % (DB['gids'][i],param))
         grid.append(Px)
     return np.array(grid)
+
+def Highest_density_region(Px, x, region = 0.68):
+    resample_x = np.linspace(x[0],x[-1],1E6)
+    iPx = interp1d(x,Px)(resample_x)
+
+    border = max(Px)
+
+    match = False
+
+    while not match:
+        top = np.array(iPx)
+        top[top < border] = 0
+        bottom = np.array(iPx)
+
+        bottom[bottom >= border] = 0
+
+        integral_size = np.trapz(top,resample_x)
+
+        diff = integral_size - region
+
+        if np.abs(diff) > 0.001:
+            if diff < 0:
+                border *= 0.99
+
+            if diff > 0:
+                border *= 1.01
+        else:
+            match = True
+
+    rng = []
+    for i in range(len(top)):
+        if top[i] > 0:
+            rng.append(resample_x[i])
+
+    return resample_x[top == max(top)][0], resample_x[top == max(top)][0] - rng[0], rng[-1] - resample_x[top == max(top)][0]

@@ -284,9 +284,8 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
     for x in range(4):
         grids = []
         
-        try:  
-            idx = 0
-            for u in instr:
+        for u in instr:
+            try:  
                 if u == 'P':
                     mflx = Pmflx
                     W = Gs.Pwv; F = Gs.Pflx; E = Gs.Perr; MW = Gs.Pwv; phot = True
@@ -298,28 +297,25 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
                     W = Gs.Rwv; F = Gs.Rflx; E = Gs.Rerr; MW = Rmwv; phot = False
 
                 metal, age, tau, rshift, dust = Set_rshift_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
-
                 Gen_grid(Gs, sp, metal, age, tau, rshift, dust, u, mflx)
 
                 ## set some variables
                 grids.append(Stich_resize_and_fit(W, F, E, MW, 
                                  metal, age, tau, rshift, dust, phot = phot))
 
-        except:
-            print('{0} data missing'.format(u))
+            except:
+                print('{0} data missing'.format(u))
            
         if mchi == 0:
             mchi = np.min(np.array(sum(grids)))
         
         PZ, Pt, Ptau, Pz, Pd =  Simple_analyze(np.array(sum(grids)), mchi, metal, age, tau, rshift, dust)
         
-        np.save(temp_out + 'test_chi_{0}_v{1}'.format(x, mod), np.array(sum(grids)))
+        np.save(temp_out + 'tmp_chi_{0}_v{1}'.format(x, mod), np.array(sum(grids)))
         
         metal_i = np.round(metal[PZ == max(PZ)],4)
         age_i = np.round(age[Pt == max(Pt)],4)
         rshift_i = np.round(rshift[Pz == max(Pz)],4)
-
-        np.save(out_path  + 'test_fitz_{0}_v{1}'.format(x, mod), [rshift,Pz])
 
         print(metal_i)   
         print(age_i)       
@@ -329,42 +325,60 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
         bfa.append(age_i)       
         bfz.append(rshift_i)  
         
-    np.save(temp_out + 'best_fits_v{0}'.format(mod), [bfm,bfa,bfz])
+    np.save(temp_out + 'tmp_best_fits_v{0}'.format(mod), [bfm,bfa,bfz])
 
-    z0,Pz0 = np.load(out_path + 'test_fitz_0_v{0}.npy'.format(mod))
-    z1,Pz1 = np.load(out_path + 'test_fitz_1_v{0}.npy'.format(mod))
-    z2,Pz2 = np.load(out_path + 'test_fitz_2_v{0}.npy'.format(mod))
-    z3,Pz3 = np.load(out_path + 'test_fitz_3_v{0}.npy'.format(mod))
+def Redshift_get_Pz(field, galaxy):
+    versions = len(glob(temp_out + 'tmp_chi_*')) // 4
+
+    # get true minimum
+    MIN = 1E18
+    for i in range(versions):
+        for ii in range(4):
+            chi = np.load(temp_out + 'tmp_chi_{0}_v{1}.npy'.format(ii,i))
+            if np.min(chi) < MIN:
+                MIN = np.min(chi)
+
+    # rederive P(z)s
+    for i in range(versions):
+        bfm,bfa,bfz = np.load(temp_out + 'tmp_best_fits_v{0}.npy'.format(i))
+        bfm = np.append([1],bfm)
+        bfa = np.append([1],bfa)
+        bfz = np.append([1],bfz)
         
-    hrz = np.append(np.append(np.append(z0,z1),z2),z3)
+        for ii in range(4):
+            mdist, adist, tdist, zdist, ddist = Set_rshift_params(bfm[ii], bfa[ii], 1, bfz[ii], 1, ii)
+            chi = np.load(temp_out + 'tmp_chi_{0}_v{1}.npy'.format(ii,i))
+            PZ, Pt, Ptau, Pz, Pd =  Simple_analyze(chi, MIN, mdist, adist, tdist, zdist, ddist)
+            np.save(temp_out + 'tmp_fitz_{0}_v{1}'.format(ii,i), [zdist,Pz])
 
-    hrz = np.sort(hrz)
+    hrz = np.arange(0,3.4+0.0001,0.0001)
 
-    nPz0, nPz1, nPz2, nPz3 = np.ones([4, len(hrz)])
+    zgrid = np.zeros([4 * versions, len(hrz)])
+    wgrid = np.zeros(zgrid.shape)
 
-    iPz0 = interp1d(z0,Pz0/ max(Pz3))
-    iPz1 = interp1d(z1,Pz1/ max(Pz3))
-    iPz2 = interp1d(z2,Pz2/ max(Pz3))
-    iPz3 = interp1d(z3,Pz3/ max(Pz3))
-
+    for i in range(versions):
+        for ii in range(4):
+            z, Pz = np.load(temp_out + 'tmp_fitz_{0}_v{1}.npy'.format(ii,i))
+            iPz = interp1d(z,Pz)
+            for iii in range(len(hrz)):
+                if z[0] <= hrz[iii] <= z[-1]:
+                    zgrid[i*4 + ii][iii] = iPz(hrz[iii])
+                    wgrid[i*4 + ii][iii] = 1                
+    
+    #stack posteriors
+    pz_stack = np.zeros(len(hrz))
     for i in range(len(hrz)):
-        if z0[0] <= hrz[i] <= z0[-1]:
-            nPz0[i] = iPz0(hrz[i])
+        pz_stack[i] = np.sum(zgrid.T[i] * wgrid.T[i]) / (np.sum(wgrid.T[i]))
 
-        if z1[0] <= hrz[i] <= z1[-1]:
-            nPz1[i] = iPz1(hrz[i])
+    pz_stack /= np.trapz(pz_stack,hrz)
 
-        if z2[0] <= hrz[i] <= z2[-1]:
-            nPz2[i] = iPz2(hrz[i])
-
-        if z3[0] <= hrz[i] <= z3[-1]:
-            nPz3[i] = iPz3(hrz[i])
-
-    Pz = nPz0 * nPz1 * nPz2 * nPz3 
-    Pz /= np.trapz(Pz,hrz)
-
-    np.save(out_path + '{0}_{1}_v{2}_Pofz'.format(field, galaxy, mod), [hrz,Pz])
-
+    #save result
+    np.save(out_path + '{0}_{1}_Pofz'.format(field, galaxy), [hrz,pz_stack])
+    
+    #remove temporary files
+    all_temps = glob(temp_out + 'tmp*npy')
+    [os.remove(U) for U in all_temps]
+    
     
 def Best_fit_model(chi, metal, age, tau, rshift, dust):
     x = np.argwhere(chi == np.min(chi))[0]
