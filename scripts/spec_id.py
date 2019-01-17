@@ -273,38 +273,42 @@ def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
     mchi = 0
     if Gs.g102:
         Bmwv,Bmflx = forward_model_grism(Gs.Bbeam, wave, flux)
-    
+        instr = np.array(['P','B'])
+
     if Gs.g141:
         Rmwv,Rmflx = forward_model_grism(Gs.Rbeam, wave, flux)
-    
+        instr = np.array(['P','R'])
+ 
+    if Gs.g102 and Gs.g141:
+        instr = np.array(['P','B','R'])
+
     Pmflx = []
-    
-    instr = np.array(['P','B','R'])
-    
+    print(instr)
     for x in range(4):
         grids = []
         
         for u in instr:
-            try:  
-                if u == 'P':
-                    mflx = Pmflx
-                    W = Gs.Pwv; F = Gs.Pflx; E = Gs.Perr; MW = Gs.Pwv; phot = True
-                if u == 'B' and Gs.g102:
-                    mflx = Bmflx
-                    W = Gs.Bwv; F = Gs.Bflx; E = Gs.Berr; MW = Bmwv; phot = False
-                if u == 'R' and Gs.g141:
-                    mflx = Rmflx
-                    W = Gs.Rwv; F = Gs.Rflx; E = Gs.Rerr; MW = Rmwv; phot = False
+#            try:  
+            if u == 'P':
+                mflx = Pmflx
+                W = Gs.Pwv; F = Gs.Pflx; E = Gs.Perr; MW = Gs.Pwv; phot = True
+            if u == 'B' and Gs.g102:
+                mflx = Bmflx
+                W = Gs.Bwv; F = Gs.Bflx; E = Gs.Berr; MW = Bmwv; phot = False
+            if u == 'R' and Gs.g141:
+                mflx = Rmflx
+                W = Gs.Rwv; F = Gs.Rflx; E = Gs.Rerr; MW = Rmwv; phot = False
 
-                metal, age, tau, rshift, dust = Set_rshift_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
-                Gen_grid(Gs, sp, metal, age, tau, rshift, dust, u, mflx)
+            metal, age, tau, rshift, dust = Set_rshift_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
 
-                ## set some variables
-                grids.append(Stich_resize_and_fit(W, F, E, MW, 
-                                 metal, age, tau, rshift, dust, phot = phot))
+            Gen_grid(Gs, sp, metal, age, tau, rshift, dust, u, mflx)
 
-            except:
-                print('{0} data missing'.format(u))
+            ## set some variables
+            grids.append(Stich_resize_and_fit(W, F, E, MW, 
+                             metal, age, tau, rshift, dust, phot = phot))
+
+#            except:
+#                print('{0} data missing'.format(u))
            
         if mchi == 0:
             mchi = np.min(np.array(sum(grids)))
@@ -533,8 +537,8 @@ def Set_rshift_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage):
         rshift = np.arange(0, 3.5, 0.1)
     
     if stage == 1:
-        if age_i <= 0.3:
-            age_i = 0.31
+        if age_i <= 3:
+            age_i = 3.1
             
         if metal_i <= 0.006:
             metal_i = 0.007
