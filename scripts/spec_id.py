@@ -135,118 +135,83 @@ def Best_fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
                     simZ, simt, simtau, simz, simd,
                     errterm = 0):
     ######## initialize spec
-    
     sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
     wave, flux = sp.get_spectrum(tage = 2.0, peraa = True)
    
-    Gs = Gen_spec(field, galaxy, specz, g102_beam, g141_beam,
+    Gs = Gen_spec(field, galaxy, 1, g102_beam, g141_beam,
                    g102_lims=[7000, 12000], g141_lims=[10000, 18000],
-                   tmp_err=False, phot_errterm = errterm,)    
+                   tmp_err=False, phot_errterm = errterm, decontam = decontam)  
     
     Gs.Make_sim(simZ, simt, simtau, simz, simd)
     
-    metal_i = 0.019
-    age_i = 2
-    tau_i = 0.1
-    rshift_i = simz
-    dust_i = 0.1
+    # set dummy value
+    metal_i = 1
+    age_i = 1
+    tau_i = 1
+    rshift_i = 1
+    dust_i = 1
     
-    [Bmwv,Bmflx], [Rmwv,Rmflx] = Gs.Sim_spec_mult(wave, flux)
-
+    bfm = []
+    bfa = []
+    bft = []
+    bfz = []
+    bfd = []
     
-    for x in range(3):
-    
-        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
-    
-        Pmfl = Gen_Pgrid(Gs, sp, metal, age, tau, rshift)
+    if Gs.g102:
+        Bmwv,Bmflx = forward_model_grism(Gs.Bbeam, wave, flux)
+        instr = np.array(['P','B'])
 
-        ## set some variables
-
-        Pgrid = Stitch_resize_redden_fit(Gs.Pwv, Gs.SPflx, Gs.SPerr, Pmfl, Gs.Pwv, 
-                         metal, age, tau, rshift, dust, phot=True) 
-        
-        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Pgrid, metal, age, tau, rshift, dust)
-        
-        metal_i = bfZ
-        age_i = bft
-        tau_i = bftau
-        rshift_i = bfz
-        dust_i = bfd
-        
-        print('PHOT:', bfZ, bft, bftau, bfz, bfd)   
-       
-    rshift_i = simz
-
-    for x in range(3):
-    
-        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
-    
-        Bmfl = Gen_Bgrid(Gs, sp, metal, age, tau, rshift)
-
-        ## set some variables
-        Bgrid = Stitch_resize_redden_fit(Gs.Bwv, Gs.SBflx, Gs.SBerr, Bmfl, Bmwv, 
-                         metal, age, tau, rshift, dust)
-        
-        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Bgrid, metal, age, tau, rshift, dust)
-        
-        metal_i = bfZ
-        age_i = bft
-        tau_i = bftau
-        rshift_i = bfz
-        dust_i = bfd
-        
-        print('G102:', bfZ, bft, bftau, bfz, bfd)   
-
-    rshift_i = simz
-
-    for x in range(3):
-    
-        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
-    
-        Rmfl = Gen_Rgrid(Gs, sp, metal, age, tau, rshift)
-
-        ## set some variables
-        Rgrid = Stitch_resize_redden_fit(Gs.Rwv, Gs.SRflx, Gs.SRerr, Rmfl, Rmwv, 
-                         metal, age, tau, rshift, dust)
-
-        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Rgrid, metal, age, tau, rshift, dust)
-        
-        metal_i = bfZ
-        age_i = bft
-        tau_i = bftau
-        rshift_i = bfz
-        dust_i = bfd
-        
-        print('G141:', bfZ, bft, bftau, bfz, bfd)
-
-
-    rshift_i = simz
+    if Gs.g141:
+        Rmwv,Rmflx = forward_model_grism(Gs.Rbeam, wave, flux)
+        instr = np.array(['P','R'])
  
-    for x in range(3):
-    
-        metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
-    
-        Pmfl = Gen_Pgrid(Gs, sp, metal, age, tau, rshift)
-        Bmfl = Gen_Bgrid(Gs, sp, metal, age, tau, rshift)
-        Rmfl = Gen_Rgrid(Gs, sp, metal, age, tau, rshift)
+    if Gs.g102 and Gs.g141:
+        instr = np.array(['P','B','R'])
 
-        ## set some variables
-        Pgrid = Stitch_resize_redden_fit(Gs.Pwv, Gs.SPflx, Gs.SPerr, Pmfl, Gs.Pwv, 
-                         metal, age, tau, rshift, dust, phot=True) 
-        Bgrid = Stitch_resize_redden_fit(Gs.Bwv, Gs.SBflx, Gs.SBerr, Bmfl, Bmwv, 
-                         metal, age, tau, rshift, dust)    
-        Rgrid = Stitch_resize_redden_fit(Gs.Rwv, Gs.SRflx, Gs.SRerr, Rmfl, Rmwv, 
-                         metal, age, tau, rshift, dust)
+    Pmflx = []
+    for x in range(4):
+        grids = []
+        
+        for u in instr:
+            if u == 'P':
+                mflx = Pmflx
+                W = Gs.Pwv; F = Gs.Pflx; E = Gs.Perr; MW = Gs.Pwv; phot = True
+            if u == 'B' and Gs.g102:
+                mflx = Bmflx
+                W = Gs.Bwv; F = Gs.Bflx; E = Gs.Berr; MW = Bmwv; phot = False
+            if u == 'R' and Gs.g141:
+                mflx = Rmflx
+                W = Gs.Rwv; F = Gs.Rflx; E = Gs.Rerr; MW = Rmwv; phot = False
 
-        bfd, bfZ, bft, bftau, bfz = Best_fit_model(Pgrid + Bgrid + Rgrid, metal, age, tau, rshift, dust)
+            metal, age, tau, rshift, dust = Set_rshift_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+
+            Gen_grid(Gs, sp, metal, age, tau, rshift, dust, u, mflx)
+
+            ## set some variables
+            grids.append(Stich_resize_and_fit(W, F, E, MW, 
+                             metal, age, tau, rshift, dust, phot = phot))
+           
+        mchi = np.min(np.array(sum(grids)))
         
-        metal_i = bfZ
-        age_i = bft
-        tau_i = bftau
-        rshift_i = bfz
-        dust_i = bfd
+        PZ, Pt, Ptau, Pz, Pd =  Simple_analyze(np.array(sum(grids)), mchi, metal, age, tau, rshift, dust)
+
+        metal_i = np.round(metal[PZ == max(PZ)],4)
+        age_i = np.round(age[Pt == max(Pt)],4)
+        tau_i = np.round(tau[Ptau == max(Ptau)],4)        
+        rshift_i = np.round(rshift[Pz == max(Pz)],4)
+        dust_i = np.round(dust[Pd == max(Pd)],4)
+
+        print(metal_i)   
+        print(age_i)       
+        print(tau_i)       
+        print(rshift_i)   
+        print(dust_i)       
         
-        print('ALL:', bfZ, bft, bftau, bfz, bfd)
+        bfm.append(metal_i)   
+        bfa.append(age_i)    
+        bft.append(tau_i)               
+        bfz.append(rshift_i) 
+        bfd.append(dust_i)       
 
 def Redshift_fitter(field, galaxy, g102_beam, g141_beam, mod = '',
                 errterm = 0, decontam = True):
