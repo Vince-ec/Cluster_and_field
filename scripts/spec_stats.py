@@ -284,3 +284,17 @@ def Highest_density_region(Px, x, region = 0.68):
             rng.append(resample_x[i])
 
     return resample_x[top == max(top)][0], resample_x[top == max(top)][0] - rng[0], rng[-1] - resample_x[top == max(top)][0]
+
+def Smooth(f,x,bw):
+    ksmooth = importr('KernSmooth')
+
+    ### select bandwidth
+    H = ksmooth.dpik(x)
+    
+    if bw == 'none':
+        bw = H
+    
+    fx = ksmooth.locpoly(x,f,bandwidth = bw)
+    X = np.array(fx[0])
+    iFX = np.array(fx[1])
+    return interp1d(X,iFX)(x)

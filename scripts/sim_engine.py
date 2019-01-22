@@ -118,16 +118,31 @@ def load_beams_and_trns(wv, beam):
 
     return Beam, trans
 
-def apply_tmp_err(wv_rf, er,flx, tmp_err = True, pht_err = 0):
+def apply_tmp_err(wv, wv_rf, er, flx, instr, instr_err = False, mdl_err = True, pht_err = 0):
     
-    if tmp_err:
-        WV,TEF = np.load(template_path + 'template_error_updt.npy')
-        iTEF = interp1d(WV,TEF)(wv_rf)
+    if instr_err:
+        if instr == 'P':
+            WV, IEF = np.load(template_path + 'intr_EF_phot.npy')
+            iIEF = interp1d(WV,IEF)(wv)
+
+        if instr == 'R':
+            WV, IEF = np.load(template_path + 'intr_EF_g141.npy')
+            iIEF = interp1d(WV,IEF)(wv)
+
+        if instr == 'B':
+            iIEF =0
     
     else:
-        iTEF = 0
+        iIEF =0
+
+    if mdl_err:
+        WV,MEF = np.load(template_path + 'mdl_EF.npy')
+        iMEF = interp1d(WV,MEF)(wv_rf)
+    
+    else:
+        iMEF = 0
         
-    return np.sqrt(er**2 + (iTEF*flx)**2 + (pht_err*flx)**2)
+    return np.sqrt(er**2 + (iIEF*flx)**2 + (iMEF*flx)**2 + (pht_err*flx)**2)
 
 def init_sim(model_wave, model_fl, specz, stellar_mass, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
             btrans, rtrans, bflat, rflat, bbeam, rbeam, IDP, sens_wv, b, dnu, adj):

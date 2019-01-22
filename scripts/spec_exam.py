@@ -52,7 +52,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                tmp_err = True, phot_errterm = 0, decontam = False):
+                mdl_err = True, instr_err = True, phot_errterm = 0, decontam = False):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -86,7 +86,7 @@ class Gen_spec(object):
                 print('cleaned')
             self.Bfl = self.Bflx / self.Bflt 
             self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, g102_beam)
-            self.Berr = apply_tmp_err(self.Bwv_rf,self.Berr,self.Bflx, tmp_err = tmp_err)
+            self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err, instr_err = instr_err)
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
 
@@ -104,7 +104,7 @@ class Gen_spec(object):
                 
             self.Rfl = self.Rflx / self.Rflt 
             self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, g141_beam)
-            self.Rerr = apply_tmp_err(self.Rwv_rf,self.Rerr,self.Rflx, tmp_err = tmp_err)
+            self.Rerr = apply_tmp_err(self.Rwv, self.Rwv_rf, self.Rerr, self.Rflx, 'R', mdl_err = mdl_err, instr_err = instr_err)
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
 
@@ -120,7 +120,8 @@ class Gen_spec(object):
         self.model_photDF, self.IDP, self.sens_wv, self.trans, self.b, self.dnu, self.adj, self.mdleffwv = load_phot_precalc(self.Pnum)
                
         ### apply tmp_err         
-        self.Perr = apply_tmp_err(self.Pwv_rf,self.Perr,self.Pflx, tmp_err = tmp_err, pht_err = phot_errterm)
+        self.Perr = apply_tmp_err(self.Pwv, self.Pwv_rf,self.Perr,self.Pflx, 'P', mdl_err = mdl_err,
+                                  instr_err = instr_err , pht_err = phot_errterm)
 
     def Sim_spec(self, metal, age, tau, model_redshift = 0, Av = 0, multi_component = False,
                 point_scale=1):
@@ -212,7 +213,7 @@ class Gen_spec(object):
         
         self.set_scale = True
         
-    def Make_sim(self,  bfZ, bft, bftau, bfz, bfd, phot_errterm = 0, tmp_err = False):
+    def Make_sim(self,  bfZ, bft, bftau, bfz, bfd):
         self.sp.params['logzsol'] = np.log10(bfZ / 0.019)
         self.sp.params['tau'] = bftau
         model_wave,model_flux = self.sp.get_spectrum(tage = bft, peraa = True)
@@ -222,11 +223,6 @@ class Gen_spec(object):
         self.SBflx, self.SBerr, self.SBfl, self.SBer, self.SRflx, self.SRerr, self.SRfl, self.SRer, \
             self.SPflx, self.SPerr, self.mass, self.logmass =  init_sim(model_wave, 
             model_flux * Salmon(bfd,model_wave), bfz, self.sp.stellar_mass, self.Bwv, self.Rwv, 
-            self.Bflx, self.Rflx, self.Pflx, self.Berr, self.Rerr, self.Perr, phot_errterm, 
+            self.Bflx, self.Rflx, self.Pflx, self.Berr, self.Rerr, self.Perr, 0, 
             self.Btrans, self.Rtrans, self.Bflt, self.Rflt, self.Bbeam, self.Rbeam, 
             self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
-        
-        ### need to update##
-        self.SBer = apply_tmp_err(self.Bwv_rf,self.SBer,self.SBflx, tmp_err = tmp_err)
-        self.SRer = apply_tmp_err(self.Rwv_rf,self.SRer,self.SRflx, tmp_err = tmp_err)
-        self.SPerr = apply_tmp_err(self.Pwv_rf,self.SPerr,self.SPflx, tmp_err = tmp_err, pht_err = phot_errterm)
