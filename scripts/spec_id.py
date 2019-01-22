@@ -67,6 +67,7 @@ else:
 def Fitter_sim(field, galaxy, g102_beam, g141_beam, specz, 
                     simZ, simt, simtau, simz, simd,
                 mod = '',errterm = 0, decontam = False):
+
     ######## initialize spec
     sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
     wave, flux = sp.get_spectrum(tage = 2.0, peraa = True)
@@ -118,7 +119,8 @@ def Fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
                 mflx = Rmflx
                 W = Gs.Rwv; F = Gs.SRflx; E = Gs.SRerr; MW = Rmwv; phot = False
 
-            metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x)
+            metal, age, tau, rshift, dust = Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, x, 
+                            alims = [[0.1, 8.2], 2.0, 0.8, 0.8, 0.8,],astep = [0.5, 0.25, 0.1, 0.05, 0.05])
 
             Gen_grid(Gs, sp, metal, age, tau, rshift, dust, u, mflx)
 
@@ -137,14 +139,19 @@ def Fitter_sim(field, galaxy, g102_beam, g141_beam, specz,
                 
         np.save(temp_out + 'tmp_chi_{0}_v{1}'.format(x, mod), np.array(sum(grids)))
 
-        metal_i = np.round(metal[PZ == max(PZ)],4)
-        age_i = np.round(age[Pt == max(Pt)],4)
-        tau_i = np.round(tau[Ptau == max(Ptau)],4)        
-        rshift_i = np.round(rshift[Pz == max(Pz)],4)
-        dust_i = np.round(dust[Pd == max(Pd)],4)
+        metal_i = np.round(metal[PZ == max(PZ)],4)[0]
+        age_prep = np.round(age[Pt == max(Pt)],4)[0]
+        tau_i = np.round(tau[Ptau == max(Ptau)],4)[0]      
+        rshift_i = np.round(rshift[Pz == max(Pz)],4)[0]
+        dust_i = np.round(dust[Pd == max(Pd)],4)[0]
 
+        lwa = np.load('../data/tmp/tmp_lwa_scale_{0}_v{1}.npy'.format(x, mod))
+        
+        lwa_iso = np.round(lwa[metal == metal_i].T[tau == tau_i][0].reshape(len(age)),3)
+        age_i = age[np.argmin(np.abs(lwa_iso - age_prep))]        
+        
         print(metal_i)   
-        print(age_i)       
+        print(age_prep, age_i)       
         print(tau_i)       
         print(rshift_i)   
         print(dust_i)       
@@ -608,81 +615,39 @@ def Gen_lwagrid(models, metal, age, tau, v, mod):
 
     np.save(temp_out + 'tmp_lwa_scale_{0}_v{1}'.format(v, mod),lwa_grid)
             
-def Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage):
+def Set_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage, alims = [[0.1, 8.2], 2.0, 0.8, 0.4, 0.2,],
+        mlims = [[0.001 , 0.032], 0.009, 0.006, 0.003, 0.0015], tlims = [[0.25, 2.251], 0.4, 0.2, 0.1, 0.04],
+        zlims = [0.008, 0.004, 0.002, 0.0008, 0.0004], dlims = [[0, 1.9], 0.6, 0.3, 0.15, 0.06],   
+        astep = [0.5, 0.25, 0.1, 0.05, 0.025], mstep = [0.0045, 0.003, 0.002, 0.001, 0.0005],
+        tstep = [0.25, 0.1, 0.05, 0.025, 0.01], zstep = [0.002, 0.001, 0.0005, 0.0002, 0.0001],
+        dstep = [0.3, 0.2, 0.1, 0.05, 0.02]):
+      
     if stage == 0:
-        age = np.round(np.arange(0.1, 8.2, 0.5),2)
-        metal= np.round(np.arange(0.001 , 0.032, 0.0045),4)
-        tau = np.round(np.arange(0.25,2.251,0.25), 3)
-        rshift = np.round(np.arange( rshift_i - 0.008, rshift_i + 0.0081, 0.002),4)
-        dust = np.round(np.arange(0, 1.9, 0.3),2)
-    
-    if stage == 1:
-        if age_i <=2:
-            age_i = 2.1
-        if metal_i <= 0.009:
-            metal_i = 0.01    
-        if tau_i <= 0.4:
-            tau_i = 0.41 
-        if dust_i <= 0.6:
-            dust_i = 0.6  
+        age = np.round(np.arange(alims[stage][0], alims[stage][1] + 1E-6, astep[stage]),3)
+        metal= np.round(np.arange(mlims[stage][0], mlims[stage][1] + 1E-6, mstep[stage]),4)
+        tau = np.round(np.arange(tlims[stage][0], tlims[stage][1] + 1E-6, tstep[stage]), 3)
+        rshift = np.round(np.arange(rshift_i - zlims[stage], rshift_i + zlims[stage] + 1E-6, zstep[stage]),4)
+        dust = np.round(np.arange(dlims[stage][0], dlims[stage][1] + 1E-6, dstep[stage]),3) 
+        
+    else:
+        if age_i <= alims[stage]:
+            age_i = alims[stage] + 0.1    
+        if metal_i <= mlims[stage]:
+            metal_i = mlims[stage] + 0.001              
+        if tau_i <= tlims[stage]:
+            tau_i = tlims[stage] + 0.1    
+        if dust_i <= dlims[stage]:
+            dust_i = dlims[stage]
             
-        age = np.round(np.arange(age_i  - 2., age_i  + 2.1, 0.25),2)
-        metal= np.round(np.arange(metal_i - 0.009, metal_i + 0.0091, 0.003),4)
-        tau = np.round(np.arange(tau_i - 0.4,tau_i + 0.41,0.1), 3)
-        rshift = np.round(np.arange( rshift_i - 0.004, rshift_i + 0.0041, 0.001),4)
-        dust = np.round(np.arange(dust_i - 0.6, dust_i + 0.61, 0.2),2)
-    
-    if stage == 2:
-        if age_i <= 0.8:
-            age_i = 0.9
-        if metal_i <= 0.006:
-            metal_i = 0.007
-        if tau_i <= 0.2:
-            tau_i = 0.21   
-        if dust_i <= 0.3:
-            dust_i = 0.3 
-            
-        age = np.round(np.arange(age_i  - 0.8, age_i  + 0.81, 0.1),2)
-        metal= np.round(np.arange(metal_i - 0.006, metal_i + 0.0061, 0.002),4)
-        tau = np.round(np.arange(tau_i - 0.2,tau_i + 0.21,0.05), 3)
-        rshift = np.round(np.arange( rshift_i - 0.002, rshift_i + 0.0021, 0.0005),4)
-        dust = np.round(np.arange(dust_i - 0.3, dust_i + 0.31, 0.1),3)
-    
-    if stage == 3:
-        if age_i <= 0.4:
-            age_i = 0.5    
-        if metal_i <= 0.003:
-            metal_i = 0.004              
-        if tau_i <= 0.1:
-            tau_i = 0.11      
-        if dust_i <= 0.15:
-            dust_i = 0.15 
-            
-        age = np.round(np.arange(age_i  - 0.4, age_i  + 0.41, 0.05),2)
-        metal= np.round(np.arange(metal_i - 0.003, metal_i + 0.0031, 0.001),4)
-        tau = np.round(np.arange(tau_i - 0.1,tau_i + 0.11,0.025), 3)
-        rshift = np.round(np.arange( rshift_i - 0.0008, rshift_i + 0.00081, 0.0002),4)
-        dust = np.round(np.arange(dust_i - 0.15, dust_i + 0.16, 0.05),3)
-    
-    if stage == 4:
-        if age_i <= 0.2:
-            age_i = 0.3    
-        if metal_i <= 0.0015:
-            metal_i = 0.0025              
-        if tau_i <= 0.04:
-            tau_i = 0.05      
-        if dust_i <= 0.06:
-            dust_i = 0.06 
-            
-        age = np.round(np.arange(age_i  - 0.2, age_i  + 0.21, 0.025),2)
-        metal= np.round(np.arange(metal_i - 0.0015, metal_i + 0.0016, 0.0005),4)
-        tau = np.round(np.arange(tau_i - 0.04,tau_i + 0.041,0.01), 3)
-        rshift = np.round(np.arange( rshift_i - 0.0004, rshift_i + 0.00041, 0.0001),4)
-        dust = np.round(np.arange(dust_i - 0.06, dust_i + 0.07, 0.02),3)
-    
+        age = np.round(np.arange(age_i  - alims[stage], age_i  + alims[stage] + 1E-6, astep[stage]),3)
+        metal= np.round(np.arange(metal_i - mlims[stage], metal_i + mlims[stage] + 1E-6, mstep[stage]),4)
+        tau = np.round(np.arange(tau_i - tlims[stage],tau_i + tlims[stage] + 1E-6, tstep[stage]), 3)
+        rshift = np.round(np.arange( rshift_i - zlims[stage], rshift_i+ zlims[stage] + 1E-6, zstep[stage]),4)
+        dust = np.round(np.arange(dust_i - dlims[stage], dust_i + dlims[stage] + 1E-6, dstep[stage]),3)
     
     return metal, age, tau, rshift, dust
-
+    
+    
 def Set_rshift_params(metal_i, age_i, tau_i, rshift_i, dust_i, stage):
     tau = np.round(np.logspace(np.log10(0.01), np.log10(3), 5), 3)
     dust = np.round(np.arange(0, 1.1, 0.3),2)
@@ -813,9 +778,6 @@ def Full_analyze(chi, mchi, metal, age, tau, rshift, dust, v, mod):
     P = new_P.T
 
     # test_prob = np.trapz(test_P, ultau, axis=2)
-    C = np.trapz(np.trapz(np.trapz(P, tau, axis=2), age, axis=1), metal)
-
-    P /= C
     
     PZ = np.trapz(np.trapz(P, tau, axis=2), age, axis=1)
     Pt = np.trapz(np.trapz(P, tau, axis=2).T, metal, axis=1)
@@ -828,3 +790,98 @@ def Redshift_analyze(chi, mchi, metal, age, tau, rshift, dust):
     P_full = np.exp(- (chi - mchi) / 2).astype(np.float128)
     
     return np.trapz(np.trapz(np.trapz(np.trapz(P_full, dust, axis=4).T, metal, axis=3), age, axis=2), tau, axis=1) 
+
+def Get_posteriors(field, galaxy, specz):
+    versions = len(glob(temp_out + 'tmp_chi_*')) // 5
+
+    # get true minimum
+    MIN = 1E18
+    for i in range(versions):
+        for ii in range(5):
+            chi = np.load(temp_out + 'tmp_chi_{0}_v{1}.npy'.format(ii,i))
+            if np.min(chi) < MIN:
+                MIN = np.min(chi)
+
+    # rederive P(z)s
+    for i in range(versions):
+        g1,g2 = np.load(temp_out + 'tmp_grism_combo_v{0}.npy'.format(i))
+        bfm,bfa,bft,bfz,bfd = np.load(temp_out + 'tmp_best_fits_v{0}.npy'.format(i))
+        
+        bfm = np.append([1],bfm)
+        bfa = np.append([1],bfa)
+        bft = np.append([1],bft)
+        bfz = np.append([specz],bfz)
+        bfd = np.append([1],bfd)
+        
+        for ii in range(5):
+            mdist, adist, tdist, zdist, ddist = Set_params(bfm[ii], bfa[ii], bft[ii], bfz[ii], bfd[ii], ii, 
+                            alims = [[0.1, 8.2], 2.0, 0.8, 0.8, 0.8,],astep = [0.5, 0.25, 0.1, 0.05, 0.05])
+            
+            chi = np.load(temp_out + 'tmp_chi_{0}_v{1}.npy'.format(ii,i))
+            PZ, Pt, Ptau, Pz, Pd =  Full_analyze(chi, MIN, mdist, adist, tdist, zdist, ddist, ii, i)
+            
+            np.save(temp_out + 'tmp_PZ_{0}_v{1}'.format(ii,i), [mdist,PZ])
+            np.save(temp_out + 'tmp_Pt_{0}_v{1}'.format(ii,i), [adist,Pt])
+            np.save(temp_out + 'tmp_Ptau_{0}_v{1}'.format(ii,i), [tdist,Ptau])
+            np.save(temp_out + 'tmp_Pr_{0}_v{1}'.format(ii,i), [zdist,Pz])
+            np.save(temp_out + 'tmp_Pd_{0}_v{1}'.format(ii,i), [ddist,Pd])
+
+    posteriors = ['PZ', 'Pt', 'Ptau', 'Pr', 'Pd']
+            
+    for P in posteriors:      
+        hr, p_stack = Stack_P( P, versions)
+        #save result
+        np.save(out_path + '{0}_{1}_{2}'.format(field, galaxy, P), [hr,p_stack])
+    
+    #remove temporary files
+#     all_temps = glob(temp_out + 'tmp*npy')
+#     [os.remove(U) for U in all_temps]
+  
+def Setmin(P0,X0,P1,X1):
+    setmin = X1[P1 == min(P1)]
+    return interp1d(X0, P0)(setmin) / min(P1)
+    
+def Stack_P(Px, versions):
+    minx, maxx = 1E5, 0 
+    for i in range(5):
+        x, dummy = np.load(temp_out + 'tmp_{0}_{1}_v0.npy'.format(Px,i))
+
+        if x[0] < minx:
+            minx =x[0]
+
+        if x[-1] > maxx:
+            maxx =x[-1]
+
+    dx, dummy = np.load(temp_out + 'tmp_{0}_4_v0.npy'.format(Px))
+    dx = dx[1] - dx[0]
+
+    hr = np.arange(minx, maxx+ dx, dx)
+
+    ygrid = np.zeros([5 * versions, len(hr)])
+    wgrid = np.zeros(ygrid.shape)
+
+    for i in range(versions):
+        setmin = 1
+        for ii in range(5):
+            y, Py = np.load(temp_out + 'tmp_{0}_{1}_v{2}.npy'.format(Px, ii, i))
+            Py[~(Py**2 > 0)] = 0
+
+            if ii > 0:
+                u, Pu = np.load(temp_out + 'tmp_{0}_{1}_v{2}.npy'.format(Px, ii - 1, i))
+                Pu[~(Pu**2 > 0)] = 0
+                if Setmin(Pu,u,Py,y)**2 > 0 and (1 /Setmin(Pu,u,Py,y))**2 > 0:
+                    setmin *=  Setmin(Pu,u,Py,y)
+
+            iP = interp1d(y,Py * setmin)
+            for iii in range(len(hr)):
+                if y[0] <= hr[iii] <= y[-1]:
+                    ygrid[i*5 + ii][iii] = iP(hr[iii])
+                    wgrid[i*5 + ii][iii] = 1                
+    #stack posteriors
+    p_stack = np.zeros(len(hr))
+    for i in range(len(hr)):
+        p_stack[i] = np.sum(ygrid.T[i] * wgrid.T[i]) / (np.sum(wgrid.T[i]))
+
+    p_stack[~(p_stack**2 > 0)] = 0
+
+    return hr, p_stack / np.trapz(p_stack,hr)
