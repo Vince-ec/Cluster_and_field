@@ -907,3 +907,9 @@ def Which_version(m,a,t,z,d):
             'skip'
             
     return v
+
+def Get_newarray(dictionary):
+    all_ = []
+    for i in dictionary.keys():
+        all_.extend(dictionary[i])
+    return np.sort(list(set(all_)))
