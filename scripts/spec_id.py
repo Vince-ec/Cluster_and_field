@@ -885,3 +885,25 @@ def Stack_P(Px, versions):
     p_stack[~(p_stack**2 > 0)] = 0
 
     return hr, p_stack / np.trapz(p_stack,hr)
+
+def Get_minmax(dictionary):
+    MIN = 1E9; MAX = 0
+    for i in dictionary.keys():
+        mn = min(dictionary[i])
+        mx = max(dictionary[i])        
+        if mn < MIN:
+            MIN = mn
+        if mx > MAX:
+            MAX = mx
+    return MIN, MAX
+
+def Which_version(m,a,t,z,d):
+    v = -1
+
+    for i in range(5):
+        try:
+            vchi['ichi{0}'.format(i)]([m,a,t,z,d]); v=i
+        except:
+            'skip'
+            
+    return v
