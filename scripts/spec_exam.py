@@ -33,7 +33,7 @@ if hpath == '/home/vestrada78840/':
     model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
     chi_path = '/fdata/scratch/vestrada78840/chidat/'
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/clear_q_beams/'
+    beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
@@ -50,7 +50,7 @@ else:
     phot_path = '../phot/'
 
 class Gen_spec(object):
-    def __init__(self, field, galaxy_id, specz, g102_beam, g141_beam,
+    def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
                 mdl_err = True, instr_err = True, phot_errterm = 0, decontam = False):
         self.field = field
@@ -60,6 +60,8 @@ class Gen_spec(object):
         self.g102_lims = g102_lims
         self.g141_lims = g141_lims
         self.set_scale = False
+        self.g102_beam = glob(beam_path + '*{0}*g102*'.format(galaxy_id))
+        self.g141_beam = glob(beam_path + '*{0}*g141*'.format(galaxy_id))
         self.sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, 
                                          zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
 
@@ -85,7 +87,7 @@ class Gen_spec(object):
                         self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
                 print('cleaned')
             self.Bfl = self.Bflx / self.Bflt 
-            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, g102_beam)
+            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
             self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err, instr_err = instr_err)
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
@@ -97,13 +99,13 @@ class Gen_spec(object):
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec(self.field,
                                 self.galaxy_id, 'g141', self.g141_lims,  self.specz)
-            
+
             if decontam:
                 self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = decontaminate(self.Rwv, 
                                 self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont)
-                
+
             self.Rfl = self.Rflx / self.Rflt 
-            self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, g141_beam)
+            self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
             self.Rerr = apply_tmp_err(self.Rwv, self.Rwv_rf, self.Rerr, self.Rflx, 'R', mdl_err = mdl_err, instr_err = instr_err)
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
@@ -133,12 +135,10 @@ class Gen_spec(object):
         model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
 
         if self.g102:
-        
-            Bmw, Bmf= forward_model_grism(self.Bbeam, model_wave * (1 + model_redshift), 
+            Bmw, Bmf= Forward_model_all_beams(self.Bbeam, self.Bwv, model_wave * (1 + model_redshift), 
                                                         model_flux * Salmon(Av,model_wave))
-            iBmf = interp1d(Bmw,Bmf)(self.Bwv)       
 
-            self.Bmfl = iBmf / self.Btrans
+            self.Bmfl = Bmf / self.Btrans
 
             self.Bmfl *= self.PC
 
@@ -148,11 +148,10 @@ class Gen_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            Rmw, Rmf = forward_model_grism(self.Rbeam, model_wave * (1 + model_redshift), 
-                                                        model_flux * Salmon(Av,model_wave))
-            iRmf = interp1d(Rmw,Rmf)(self.Rwv)     
+            Rmw, Rmf= Forward_model_all_beams(self.Rbeam, self.Rwv, model_wave * (1 + model_redshift), 
+                                                        model_flux * Salmon(Av,model_wave)) 
 
-            self.Rmfl = iRmf / self.Rtrans
+            self.Rmfl = Rmf / self.Rtrans
 
             self.Rmfl *= self.PC
 
@@ -198,16 +197,16 @@ class Gen_spec(object):
         self.S_model_flux = US_model_flux * self.mass
           
         if self.g102:  
-            Bw,Bf = forward_model_grism(self.Bbeam, self.model_wave * (1 + bfz), self.S_model_flux)
-            iBmf = interp1d(Bw,Bf)(self.Bwv)       
-            Bmfl = iBmf / self.Btrans
+            Bw, Bf= Forward_model_all_beams(self.Bbeam, self.Bwv, model_wave * (1 + bfz), 
+                                                        self.S_model_flux)       
+            Bmfl = Bmf / self.Btrans
             self.Bscale = Scale_model(self.Bfl, self.Ber, Bmfl)
             self.Bfl = self.Bfl / self.Bscale ; self.Ber = self.Ber / self.Bscale 
         
         if self.g141:    
-            Rw,Rf = forward_model_grism(self.Rbeam, self.model_wave * (1 + bfz), self.S_model_flux)
-            iRmf = interp1d(Rw,Rf)(self.Rwv)  
-            Rmfl = iRmf / self.Rtrans
+            Rw, Rf= Forward_model_all_beams(self.Rbeam, self.Rwv, model_wave * (1 + bfz), 
+                                                        self.S_model_flux) 
+            Rmfl = Rf / self.Rtrans
             self.Rscale = Scale_model(self.Rfl, self.Rer, Rmfl)
             self.Rfl = self.Rfl / self.Rscale ; self.Rer = self.Rer / self.Rscale 
         
@@ -226,3 +225,6 @@ class Gen_spec(object):
             self.Bflx, self.Rflx, self.Pflx, self.Berr, self.Rerr, self.Perr, 0, 
             self.Btrans, self.Rtrans, self.Bflt, self.Rflt, self.Bbeam, self.Rbeam, 
             self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
+        
+    def Forward_model_all_beams(self, beams, in_wv, model_wave, model_flux):
+        return forward_model_all_beams(beams, in_wv, model_wave, model_flux)

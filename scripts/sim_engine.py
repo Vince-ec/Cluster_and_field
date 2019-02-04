@@ -105,18 +105,25 @@ def load_phot_precalc(Pnum):
     return MDF, IDP, SWV, TR, B, DNU, ADJ, MFWV
         
 def load_beams_and_trns(wv, beam):
-    ### set beams
-    Beam = model.BeamCutout(fits_file = beam)
-
     ### Set transmission curve
     sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), sfh = 4, tau = 0.6)
 
     model_wave, model_flux = sp.get_spectrum(tage = 3.6, peraa = True)
 
-    W, F = forward_model_grism(Beam, model_wave, np.ones(len(model_wave)))
-    trans = interp1d(W,F)(wv)       
+    ### set beams
+    BEAMS = []
+    TRANS = []
+    
+    for i in beam:
+        Beam = model.BeamCutout(fits_file = i)
 
-    return Beam, trans
+        W, F = forward_model_grism(Beam, model_wave, np.ones(len(model_wave)))
+        trans = interp1d(W,F)(wv)       
+        
+        BEAMS.append(Beam)
+        TRANS.append(trans)
+        
+    return BEAMS, TRANS
 
 def apply_tmp_err(wv, wv_rf, er, flx, instr, instr_err = False, mdl_err = True, pht_err = 0):
     
@@ -153,34 +160,32 @@ def init_sim(model_wave, model_fl, specz, stellar_mass, bwv, rwv, bflx, rflx, pf
 
     # make models
     SPfl = forward_model_phot(model_wave*(1 + specz), fl_sol, IDP, sens_wv, b, dnu, adj)
-    
-    Bmw, Bmf = forward_model_grism(bbeam, model_wave*(1 + specz), fl_sol)
-    Rmw, Rmf = forward_model_grism(rbeam, model_wave*(1 + specz), fl_sol)
-    
-    iBmf = interp1d(Bmw,Bmf)(bwv)       
-    iRmf = interp1d(Rmw,Rmf)(rwv)  
+
+    Bmf = forward_model_all_beams(bbeam, bwv, model_wave*(1 + specz), fl_sol)
+    Rmf = forward_model_all_beams(rbeam, rwv, model_wave*(1 + specz), fl_sol)
     
     SPerr = perr
     SBerr = berr
     SRerr = rerr
     
-    SBflx = Scale_model(bflx,berr,iBmf) * iBmf
-    SRflx = Scale_model(rflx,rerr,iRmf) * iRmf
+    SBflx = Scale_model(bflx, berr, Bmf) * iBmf
+    SRflx = Scale_model(rflx, rerr, Rmf) * iRmf
     
     # scale by mass
-    mass = Scale_model(pflx,perr,SPfl)
+    mass = Scale_model(pflx, perr, SPfl)
     logmass = np.log10(mass)
     
     SPflx = SPfl* mass
-    SBfl = mass * iBmf / btrans
-    SRfl = mass * iRmf / rtrans
     
     SBer = SBerr / bflat
     SRer = SRerr / rflat
 
-    #SPflx = SPfl# + np.random.normal(0, np.abs(SPer))
-    #SBflx = SBfl# + np.random.normal(0, np.abs(SBer))
-    #SRflx = SRfl# + np.random.normal(0, np.abs(SRer))
+    SPflx = SPflx + np.random.normal(0, np.abs(SPerr))
+    SBflx = SBflx + np.random.normal(0, np.abs(SBerr))
+    SRflx = SRflx + np.random.normal(0, np.abs(SRerr))
+    
+    SBfl = (mass / Scale_model(bflx,berr,iBmf)) * SBflx / btrans
+    SRfl = (mass / Scale_model(rflx,rerr,iRmf)) * SRflx / rtrans
   
     return SBflx, SBerr, SBfl, SBer, SRflx, SRerr, SRfl, SRer, SPflx, SPerr, mass, logmass
 
@@ -198,6 +203,15 @@ def forward_model_phot(model_wave, model_flux, IDP, sens_wv, b, dnu, adj):
     mphot = (np.trapz(imfl(c /(sens_wv[IDP])).reshape([len(IDP),len(sens_wv[0])]) \
                       * b[IDP], dnu[IDP])/np.trapz(b[IDP], dnu[IDP])) * adj[IDP]
     return np.array(mphot)
+
+def forward_model_all_beams(beams, in_wv, model_wave, model_flux):
+    FL = np.zeros([len(beams),len(in_wv)])
+
+    for i in range(len(beams)):
+        mwv, mflx = forward_model_grism(beams[i], model_wave, model_flux)
+        FL[i] = interp1d(mwv, mflx)(in_wv)
+
+    return np.mean(FL.T,axis=1)
 
 def decontaminate(W, WRF, F, E, FLT, IDX, L, C):
     IDC = []
