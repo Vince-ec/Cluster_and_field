@@ -135,10 +135,9 @@ class Gen_spec(object):
         self.sp.params['dust2'] = Av
         
         model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
-        model_wave *= (1 + model_redshift)
 
         if self.g102:
-            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave, 
+            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave * (1 + model_redshift), 
                                                         model_flux)
             self.Bmfl *= self.PC
 
@@ -148,7 +147,7 @@ class Gen_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave, 
+            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave * (1 + model_redshift), 
                                                         model_flux) 
             self.Rmfl *= self.PC
 
@@ -169,9 +168,8 @@ class Gen_spec(object):
         self.sp.params['dust2'] = Av
         
         model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
-        model_wave *= (1 + model_redshift)
 
-        self.Pmfl = self.Sim_phot_mult(model_wave, model_flux)
+        self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), model_flux)
         self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
         self.Pmfl = self.Pmfl * self.PC
         
@@ -185,11 +183,10 @@ class Gen_spec(object):
         self.sp.params['dust2'] = bfd
         
         model_wave,model_flux = self.sp.get_spectrum(tage = bft, peraa = True)
-        model_wave *= (1+bfz)
         
-        US_model_flux = F_lam_per_M(model_flux, model_wave, bfz, 0, self.sp.stellar_mass)
+        US_model_flux = F_lam_per_M(model_flux, model_wave * (1+bfz), bfz, 0, self.sp.stellar_mass)
 
-        US_pfl = self.Sim_phot_mult(model_wave, US_model_flux)
+        US_pfl = self.Sim_phot_mult(model_wave * (1+bfz), US_model_flux)
         
         self.mass = Scale_model(self.Pflx, self.Perr, US_pfl)
         
@@ -199,14 +196,14 @@ class Gen_spec(object):
         self.S_model_flux = US_model_flux * self.mass
           
         if self.g102:  
-            Bmf= self.Forward_model_all_beams(self.Bbeam, self.Bwv, model_wave, 
+            Bmf= self.Forward_model_all_beams(self.Bbeam, self.Bwv, model_wave * (1+bfz), 
                                                         self.S_model_flux)       
             Bmfl = Bmf / self.Btrans
             self.Bscale = Scale_model(self.Bfl, self.Ber, Bmfl)
             self.Bfl = self.Bfl / self.Bscale ; self.Ber = self.Ber / self.Bscale 
         
         if self.g141:    
-            Rmf= self.Forward_model_all_beams(self.Rbeam, self.Rwv, model_wave, 
+            Rmf= self.Forward_model_all_beams(self.Rbeam, self.Rwv, model_wave * (1+bfz), 
                                                         self.S_model_flux) 
             Rmfl = Rmf / self.Rtrans
             self.Rscale = Scale_model(self.Rfl, self.Rer, Rmfl)
@@ -218,7 +215,6 @@ class Gen_spec(object):
         self.sp.params['logzsol'] = np.log10(bfZ)
         self.sp.params['tau'] = bftau
         self.sp.params['dust2'] = bfd
-        self.sp.params['zred'] = bfz
         model_wave,model_flux = self.sp.get_spectrum(tage = bft, peraa = True)
         
         
