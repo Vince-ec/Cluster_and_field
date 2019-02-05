@@ -62,8 +62,8 @@ class Gen_spec(object):
         self.set_scale = False
         self.g102_beam = glob(beam_path + '*{0}*g102*'.format(galaxy_id))
         self.g141_beam = glob(beam_path + '*{0}*g141*'.format(galaxy_id))
-        self.sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, 
-                                         zcontinuous = 1, logzsol = np.log10(0.019/0.019), sfh = 4, tau = 0.1)
+        self.sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), 
+                                sfh = 4, tau = 0.1, dust_type = 1)
 
         """
         B - prefix refers to g102
@@ -130,16 +130,16 @@ class Gen_spec(object):
         if model_redshift ==0:
             model_redshift = self.specz
 
-        self.sp.params['logzsol'] = np.log10(metal / 0.019)
+        self.sp.params['logzsol'] = np.log10(metal)
         self.sp.params['tau'] = tau
+        self.sp.params['dust2'] = Av
+        
         model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
+        model_wave *= (1 + model_redshift)
 
         if self.g102:
-            Bmw, Bmf= Forward_model_all_beams(self.Bbeam, self.Bwv, model_wave * (1 + model_redshift), 
-                                                        model_flux * Salmon(Av,model_wave))
-
-            self.Bmfl = Bmf / self.Btrans
-
+            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave, 
+                                                        model_flux)
             self.Bmfl *= self.PC
 
             if not self.set_scale:
@@ -148,11 +148,8 @@ class Gen_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            Rmw, Rmf= Forward_model_all_beams(self.Rbeam, self.Rwv, model_wave * (1 + model_redshift), 
-                                                        model_flux * Salmon(Av,model_wave)) 
-
-            self.Rmfl = Rmf / self.Rtrans
-
+            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave, 
+                                                        model_flux) 
             self.Rmfl *= self.PC
 
             if not self.set_scale:
@@ -167,12 +164,14 @@ class Gen_spec(object):
         if model_redshift ==0:
             model_redshift = self.specz
 
-        self.sp.params['logzsol'] = np.log10(metal / 0.019)
+        self.sp.params['logzsol'] = np.log10(metal)
         self.sp.params['tau'] = tau
-        model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
+        self.sp.params['dust2'] = Av
         
-        self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), 
-                                                  model_flux * Salmon(Av,model_wave))
+        model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
+        model_wave *= (1 + model_redshift)
+
+        self.Pmfl = self.Sim_phot_mult(model_wave, model_flux)
         self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
         self.Pmfl = self.Pmfl * self.PC
         
@@ -181,13 +180,16 @@ class Gen_spec(object):
         self.Sim_spec(metal, age, tau, model_redshift, Av)
         
     def Scale_flux(self,  bfZ, bft, bftau, bfz, bfd):      
-        self.sp.params['logzsol'] = np.log10(bfZ / 0.019)
+        self.sp.params['logzsol'] = np.log10(bfZ)
         self.sp.params['tau'] = bftau
-        model_wave,model_flux = self.sp.get_spectrum(tage = bft, peraa = True)
+        self.sp.params['dust2'] = bfd
         
-        US_model_flux = F_lam_per_M(model_flux * Salmon(bfd,model_wave), model_wave * (1 + bfz), bfz, 0, 1)
+        model_wave,model_flux = self.sp.get_spectrum(tage = bft, peraa = True)
+        model_wave *= (1+bfz)
+        
+        US_model_flux = F_lam_per_M(model_flux, model_wave, bfz, 0, self.sp.stellar_mass)
 
-        US_pfl = self.Sim_phot_mult(model_wave * (1 + bfz), US_model_flux)
+        US_pfl = self.Sim_phot_mult(model_wave, US_model_flux)
         
         self.mass = Scale_model(self.Pflx, self.Perr, US_pfl)
         
@@ -197,34 +199,39 @@ class Gen_spec(object):
         self.S_model_flux = US_model_flux * self.mass
           
         if self.g102:  
-            Bw, Bf= Forward_model_all_beams(self.Bbeam, self.Bwv, model_wave * (1 + bfz), 
+            Bmf= self.Forward_model_all_beams(self.Bbeam, self.Bwv, model_wave, 
                                                         self.S_model_flux)       
             Bmfl = Bmf / self.Btrans
             self.Bscale = Scale_model(self.Bfl, self.Ber, Bmfl)
             self.Bfl = self.Bfl / self.Bscale ; self.Ber = self.Ber / self.Bscale 
         
         if self.g141:    
-            Rw, Rf= Forward_model_all_beams(self.Rbeam, self.Rwv, model_wave * (1 + bfz), 
+            Rmf= self.Forward_model_all_beams(self.Rbeam, self.Rwv, model_wave, 
                                                         self.S_model_flux) 
-            Rmfl = Rf / self.Rtrans
+            Rmfl = Rmf / self.Rtrans
             self.Rscale = Scale_model(self.Rfl, self.Rer, Rmfl)
             self.Rfl = self.Rfl / self.Rscale ; self.Rer = self.Rer / self.Rscale 
         
         self.set_scale = True
         
     def Make_sim(self,  bfZ, bft, bftau, bfz, bfd):
-        self.sp.params['logzsol'] = np.log10(bfZ / 0.019)
+        self.sp.params['logzsol'] = np.log10(bfZ)
         self.sp.params['tau'] = bftau
+        self.sp.params['dust2'] = bfd
+        self.sp.params['zred'] = bfz
         model_wave,model_flux = self.sp.get_spectrum(tage = bft, peraa = True)
         
         
         ### set sim and transmission curve
         self.SBflx, self.SBerr, self.SBfl, self.SBer, self.SRflx, self.SRerr, self.SRfl, self.SRer, \
             self.SPflx, self.SPerr, self.mass, self.logmass =  init_sim(model_wave, 
-            model_flux * Salmon(bfd,model_wave), bfz, self.sp.stellar_mass, self.Bwv, self.Rwv, 
+            model_flux, bfz, self.sp.stellar_mass, self.Bwv, self.Rwv, 
             self.Bflx, self.Rflx, self.Pflx, self.Berr, self.Rerr, self.Perr, 0, 
             self.Btrans, self.Rtrans, self.Bflt, self.Rflt, self.Bbeam, self.Rbeam, 
             self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
         
     def Forward_model_all_beams(self, beams, in_wv, model_wave, model_flux):
         return forward_model_all_beams(beams, in_wv, model_wave, model_flux)
+    
+    def Forward_model_all_beams_flatted(self, beams, trans, in_wv, model_wave, model_flux):
+        return forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux)

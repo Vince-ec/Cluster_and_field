@@ -13,6 +13,7 @@ from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
 
+
 hpath = os.environ['HOME'] + '/'
 
 if hpath == '/home/vestrada78840/':
@@ -106,7 +107,8 @@ def load_phot_precalc(Pnum):
         
 def load_beams_and_trns(wv, beam):
     ### Set transmission curve
-    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), sfh = 4, tau = 0.6)
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), 
+                                sfh = 4, tau = 0.6, dust_type = 1)
 
     model_wave, model_flux = sp.get_spectrum(tage = 3.6, peraa = True)
 
@@ -213,6 +215,16 @@ def forward_model_all_beams(beams, in_wv, model_wave, model_flux):
 
     return np.mean(FL.T,axis=1)
 
+def forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux):
+    FL = np.zeros([len(beams),len(in_wv)])
+
+    for i in range(len(beams)):
+        mwv, mflx = forward_model_grism(beams[i], model_wave, model_flux)
+        FL[i] = interp1d(mwv, mflx)(in_wv)
+        FL[i] /= trans[i]
+
+    return np.mean(FL.T,axis=1)
+
 def decontaminate(W, WRF, F, E, FLT, IDX, L, C):
     IDC = []
         
@@ -305,7 +317,9 @@ def F_lam_per_M(l_aa, lam, z, Av, m_star):
     return (c / lam**2) * F_nu_per_M(l_aa, lam, z, Av, m_star)
 
 def Get_mass(gwv, gfl, ger, Z, t, z, Av):
-    sp = fsps.StellarPopulation(imf_type=1, tpagb_norm_type=0, zcontinuous=1, logzsol=np.log10(Z / 0.019), sfh=0)
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type = 0, zcontinuous = 1, logzsol = np.log10(Z/0.019), 
+                                sfh = 4, tau = 0.6, dust_type = 1)
+    
     wave,flux=np.array(sp.get_spectrum(tage=t,peraa=True))
     
     fl_m = F_lam_per_M(flux, wave * (1 + z), z, Av, sp.stellar_mass)
