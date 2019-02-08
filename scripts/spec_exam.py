@@ -117,13 +117,13 @@ class Gen_spec(object):
         self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec(self.field,
                                 self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False)
          
-        
+        self.Perr = np.sqrt(self.Perr**2 + (phot_errterm*self.Pflx)**2)
         # load photmetry precalculated values
         self.model_photDF, self.IDP, self.sens_wv, self.trans, self.b, self.dnu, self.adj, self.mdleffwv = load_phot_precalc(self.Pnum)
                
         ### apply tmp_err         
         self.Perr = apply_tmp_err(self.Pwv, self.Pwv_rf,self.Perr,self.Pflx, 'P', mdl_err = mdl_err,
-                                  instr_err = instr_err , pht_err = phot_errterm)
+                                  instr_err = instr_err)
 
     def Sim_spec(self, metal, age, tau, model_redshift = 0, Av = 0, multi_component = False,
                 point_scale=1):
