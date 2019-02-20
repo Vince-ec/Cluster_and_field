@@ -37,19 +37,21 @@ else:
 if __name__ == '__main__':
     field = sys.argv[1] 
     galaxy = sys.argv[2] 
+    specz = float(sys.argv[3])
     
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
 Gs = Gen_spec(field, galaxy, 1,
-               g102_lims=[8300, 11500], g141_lims=[11100, 16500],mdl_err = False, instr_err = False,
+               g102_lims=[8300, 11500], g141_lims=[11100, 16500],mdl_err = True,
             phot_errterm = 0.03, decontam = True) 
 
 ############
 ###priors###
-    
+agelim = Oldest_galaxy(specz + .1)
+     
 def prior_transform(u):
     m = (0.03 * u[0] + 0.001) / 0.019
-    a = 7. * u[1] + 0.1
+    a = agelim * u[1] + 0.1
 
     t1 = u[2]
     t2 = u[3]
@@ -57,7 +59,7 @@ def prior_transform(u):
     t4 = u[5]
     t5 = u[6]
     t6 = u[7]
-    z = 2.5*u[8]
+    z = specz + 0.2*(2*u[8] - 1)
     d = 2*u[9]
     
     return [m, a, t1, t2, t3, t4, t5, t6, z, d]
@@ -148,4 +150,4 @@ dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=Fa
 dres = dsampler.results
 ############
 ####save####
-np.save(out_path + '{0}_{1}_nested_Bfit.npy'.format(field, galaxy), dres) 
+np.save(out_path + '{0}_{1}_nestedfit.npy'.format(field, galaxy), dres) 
