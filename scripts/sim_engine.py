@@ -127,26 +127,19 @@ def load_beams_and_trns(wv, beam):
         
     return BEAMS, TRANS
 
-def apply_tmp_err(wv, wv_rf, er, flx, instr, instr_err = False, mdl_err = True):
+def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
     
-    if instr_err:
+    if mdl_err:
         if instr == 'P':
-            WV, IEF = np.load(template_path + 'intr_EF_phot.npy')
-            iIEF = interp1d(WV,IEF)(wv)
+            WV, MEF = np.load(template_path + 'P_mdl_EF.npy')
+            iMEF = interp1d(WV,MEF)(wv_rf)
 
         if instr == 'R':
-            WV, IEF = np.load(template_path + 'intr_EF_g141.npy')
-            iIEF = interp1d(WV,IEF)(wv)
+            WV, MEF = np.load(template_path + 'R_mdl_EF.npy')
+            iMEF = interp1d(WV,MEF)(wv_rf)
 
         if instr == 'B':
-            iIEF =0
-    
-        er = np.sqrt(er**2 + (iIEF*flx)**2)
-    
-
-    if mdl_err:
-        WV,MEF = np.load(template_path + 'mdl_EF.npy')
-        iMEF = interp1d(WV,MEF)(wv_rf)
+            iMEF =0
     
         er = np.sqrt(er**2 + (iMEF*flx)**2)
 

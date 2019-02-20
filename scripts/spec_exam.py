@@ -52,7 +52,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                mdl_err = True, instr_err = True, phot_errterm = 0, decontam = False):
+                mdl_err = True, phot_errterm = 0, decontam = False):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -88,7 +88,7 @@ class Gen_spec(object):
                 print('cleaned')
             self.Bfl = self.Bflx / self.Bflt 
             self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
-            self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err, instr_err = instr_err)
+            self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err)
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
 
@@ -106,7 +106,7 @@ class Gen_spec(object):
 
             self.Rfl = self.Rflx / self.Rflt 
             self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
-            self.Rerr = apply_tmp_err(self.Rwv, self.Rwv_rf, self.Rerr, self.Rflx, 'R', mdl_err = mdl_err, instr_err = instr_err)
+            self.Rerr = apply_tmp_err(self.Rwv, self.Rwv_rf, self.Rerr, self.Rflx, 'R', mdl_err = mdl_err)
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
 
@@ -122,8 +122,7 @@ class Gen_spec(object):
         self.model_photDF, self.IDP, self.sens_wv, self.trans, self.b, self.dnu, self.adj, self.mdleffwv = load_phot_precalc(self.Pnum)
                
         ### apply tmp_err         
-        self.Perr = apply_tmp_err(self.Pwv, self.Pwv_rf,self.Perr,self.Pflx, 'P', mdl_err = mdl_err,
-                                  instr_err = instr_err)
+        self.Perr = apply_tmp_err(self.Pwv, self.Pwv_rf,self.Perr,self.Pflx, 'P', mdl_err = mdl_err)
 
     def Sim_spec(self, metal, age, tau, model_redshift = 0, Av = 0, multi_component = False,
                 point_scale=1):
