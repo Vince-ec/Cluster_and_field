@@ -59,7 +59,7 @@ def prior_transform(u):
     t4 = u[5]
     t5 = u[6]
     t6 = u[7]
-    z = specz + 0.2*(2*u[8] - 1)
+    z = specz + 0.1*(2*u[8] - 1)
     d = 2*u[9]
     
     return [m, a, t1, t2, t3, t4, t5, t6, z, d]
