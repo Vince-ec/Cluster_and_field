@@ -60,9 +60,7 @@ def:
 -Get_mass
 """  
 
-
-
-def load_spec(field, galaxy_id, instr, lims, specz, grism = True):
+def load_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = None):
     # if loading photometry FLT stands in for num
         
     if grism:
@@ -70,23 +68,33 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True):
     
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
-        W = W[IDX]
-        WRF = W / (1 + specz)
-        FLT = FLT[IDX]
-        F = F[IDX] 
-        E = E[IDX] 
-        L = L[IDX] 
-        C = C[IDX] 
+        W = np.array(W[IDX])
+        WRF = np.array(W / (1 + specz))
+        FLT = np.array(FLT[IDX])
+        F = np.array(F[IDX]) 
+        E = np.array(E[IDX]) 
+        L = np.array(L[IDX]) 
+        C = np.array(C[IDX]) 
         
-        return W, WRF, F, E, FLT, IDX, L, C
+        if trim == None:
+            trim = 0 
+
+        return W[WRF > trim], WRF[WRF > trim], F[WRF > trim], E[WRF > trim], FLT[WRF > trim], np.array(IDX)[WRF > trim], L[WRF > trim], C[WRF > trim]
 
     else:
         W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
         
         WRF = W / (1 + specz)
         
-        return W, WRF, F, E, FLT
-
+        W, WRF, F, E, FLT = W[F > 0], WRF[F > 0], F[F > 0], E[F > 0], FLT[F > 0]
+        
+        if trim == None:
+            trim = 0 
+        
+        return W[WRF > trim], WRF[WRF > trim], F[WRF > trim], E[WRF > trim], FLT[WRF > trim]
+        
+        
+        
 def load_phot_precalc(Pnum):
     MDF = pd.read_pickle(phot_path + 'model_photometry_list.pkl')
 

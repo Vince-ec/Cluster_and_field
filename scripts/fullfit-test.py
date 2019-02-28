@@ -35,35 +35,51 @@ else:
     phot_path = '../phot/'
     
 if __name__ == '__main__':
-    field = sys.argv[1] 
-    galaxy = sys.argv[2] 
-    specz = float(sys.argv[3])
+    name = sys.argv[1]
+    tau = sys.argv[2]
+    trim = float(sys.argv[3])
     
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
+if tau == 'tab':
+    sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
-Gs = Gen_spec(field, galaxy, 1,
-               g102_lims=[8300, 11500], g141_lims=[11100, 16500],mdl_err = False,
-            phot_errterm = 0.03, decontam = True) 
+if tau == 'delay':
+    sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1, dust_type = 1)
+    
+Gs = Gen_spec('GND', 21156, 1.253,
+               g102_lims=[8300, 11500], g141_lims=[11100, 16500], mdl_err = True,
+            phot_errterm = 0.03, decontam = True, trim = trim) 
 
 ############
 ###priors###
-agelim = Oldest_galaxy(specz + .1)
+agelim = Oldest_galaxy(1.253 + .1)
      
-def prior_transform(u):
-    m = (0.03 * u[0] + 0.001) / 0.019
-    a = agelim * u[1] + 0.1
-
-    t1 = u[2]
-    t2 = u[3]
-    t3 = u[4]
-    t4 = u[5]
-    t5 = u[6]
-    z = specz + 0.1*(2*u[8] - 1)
-    d = 2*u[9]
+if tau == 'tab':
     
-    return [m, a, t1, t2, t3, t4, t5, z, d]
+    def prior_transform(u):
+        m = (0.03 * u[0] + 0.001) / 0.019
+        a = agelim * u[1] + 0.1
 
+        t1 = u[2]
+        t2 = u[3]
+        t3 = u[4]
+        t4 = u[5]
+        t5 = u[6]
+        z = 1.253 + 0.1*(2*u[7] - 1)
+        d = u[8]
 
+        return [m, a, t1, t2, t3, t4, t5, z, d]
+
+if tau == 'delay':
+    
+    def prior_transform(u):
+        m = (0.03 * u[0] + 0.001) / 0.019
+        a = agelim * u[1] + 0.1
+        t = u[2]
+        z = 1.253 + 0.1*(2*u[3] - 1)
+        d = u[4]
+
+        return [m, a, t, z, d]
+    
 ############
 #likelihood#
 def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
@@ -124,29 +140,53 @@ def Full_fit(spec, Gmfl, Pmfl):
     
     return Gchi, Pchi
 
-def loglikelihood(X):
-    m, a, t1, t2, t3, t4, t5, z, d = X
-    
-    sp.params['logzsol'] = np.log10( m )
-    sp.params['dust2'] = d
-        sp.set_tabular_sfh(np.array([0.25, 0.75, 1.5, 3, 7]),np.array([t1, t2, t3, t4, t5]))
-    wave, flux = sp.get_spectrum(tage = a, peraa = True)
-    
-    Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
-    
-    PC= Full_scale(Gs, Pmfl)
+if tau == 'tab':
+    def loglikelihood(X):
+        m, a, t1, t2, t3, t4, t5, z, d = X
 
-    Gchi, Pchi = Full_fit(Gs, PC * Gmfl, PC * Pmfl)
-                  
-    return -0.5 * (Gchi + Pchi)
+        sp.params['logzsol'] = np.log10( m )
+        sp.params['dust2'] = d
+        sp.set_tabular_sfh(np.array([0.25, 0.75, 1.5, 3, 7]),np.array([t1, t2, t3, t4, t5]))
+        wave, flux = sp.get_spectrum(tage = a, peraa = True)
+
+        Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
+
+        PC= Full_scale(Gs, Pmfl)
+
+        Gchi, Pchi = Full_fit(Gs, PC * Gmfl, PC * Pmfl)
+
+        return -0.5 * (Gchi + Pchi)
+    
+if tau == 'delay':
+    def loglikelihood(X):
+        m, a, t, z, d = X
+
+        sp.params['logzsol'] = np.log10( m )
+        sp.params['dust2'] = d
+        sp.params['tau'] = t
+        wave, flux = sp.get_spectrum(tage = a, peraa = True)
+
+        Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
+
+        PC= Full_scale(Gs, Pmfl)
+
+        Gchi, Pchi = Full_fit(Gs, PC * Gmfl, PC * Pmfl)
+
+        return -0.5 * (Gchi + Pchi)
+    
 ############
 ####run#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
 
-dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 9, sample = 'rwalk', bound = 'balls') 
+if tau == 'tab':
+    dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 9, sample = 'rwalk', bound = 'balls') 
+
+if tau == 'delay':
+    dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 5, sample = 'rwalk', bound = 'balls') 
+
 dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
 dres = dsampler.results
 ############
 ####save####
-np.save(out_path + '{0}_{1}_bestfit.npy'.format(field, galaxy), dres) 
+np.save(out_path + 'GND_21156_{0}_{1}_{2}_testfit.npy'.format(tau, name, trim), dres) 

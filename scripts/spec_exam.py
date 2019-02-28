@@ -52,7 +52,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                mdl_err = True, phot_errterm = 0, decontam = False):
+                mdl_err = True, phot_errterm = 0, decontam = False, trim = None):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -79,26 +79,26 @@ class Gen_spec(object):
         """
         
         # load spec and phot
-        try:
-            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec(self.field,
-                                self.galaxy_id, 'g102', self.g102_lims,  self.specz)
-            if decontam:
-                self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
-                        self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
-                print('cleaned')
-            self.Bfl = self.Bflx / self.Bflt 
-            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
-            self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err)
-            self.Ber = self.Berr / self.Bflt
-            self.g102 = True
+        #try:
+        self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec(self.field,
+                            self.galaxy_id, 'g102', self.g102_lims,  self.specz, trim = trim)
+        if decontam:
+            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
+                    self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
+            print('cleaned')
+        self.Bfl = self.Bflx / self.Bflt 
+        self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
+        self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err)
+        self.Ber = self.Berr / self.Bflt
+        self.g102 = True
 
-        except:
-            print('missing g102')
-            self.g102 = False
+        #except:
+        #    print('missing g102')
+        #    self.g102 = False
         
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec(self.field,
-                                self.galaxy_id, 'g141', self.g141_lims,  self.specz)
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, trim = trim)
 
             if decontam:
                 self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = decontaminate(self.Rwv, 
@@ -115,7 +115,7 @@ class Gen_spec(object):
             self.g141 = False
         
         self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec(self.field,
-                                self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False)
+                                self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False, trim = trim)
          
         self.Perr = np.sqrt(self.Perr**2 + (phot_errterm*self.Pflx)**2)
         # load photmetry precalculated values
