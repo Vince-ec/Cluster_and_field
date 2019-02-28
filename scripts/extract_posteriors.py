@@ -24,12 +24,12 @@ def Get_posterior(sample,logwt,logz):
     return x0, y0 / np.trapz(y0,x0)
 
 ### grab names
-fnm = glob('../data/out_dict/G*nestedfit*')
+fnm = glob('../data/out_dict/G*bestfit*')
 
 ### get object names
 nm=[]
 for i in fnm:
-    nm.append(os.path.basename(i).replace('_nestedfit','').replace('.npy',''))
+    nm.append(os.path.basename(i).replace('_bestfit','').replace('.npy',''))
 
 ### extract posteriors
 
@@ -37,32 +37,32 @@ for i in range(len(fnm)):
     results = np.load(fnm[i]).item()
     
     Z,PZ = Get_posterior(results.samples[:, 0], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_PZ'.format(nm[i]),[Z,PZ / np.trapz(PZ,Z)])
+    np.save('../data/posteriors/{0}_bf_PZ'.format(nm[i]),[Z,PZ / np.trapz(PZ,Z)])
     
     t,Pt = Get_posterior(results.samples[:, 1], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Pt'.format(nm[i]),[t,Pt / np.trapz(Pt,t)])
+    np.save('../data/posteriors/{0}_bf_Pt'.format(nm[i]),[t,Pt / np.trapz(Pt,t)])
     
     tau,Ptau = Get_posterior(results.samples[:, 2], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Ptau1'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
+    np.save('../data/posteriors/{0}_bf_Ptau1'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
     
     tau,Ptau = Get_posterior(results.samples[:, 3], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Ptau2'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
+    np.save('../data/posteriors/{0}_bf_Ptau2'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
     
     tau,Ptau = Get_posterior(results.samples[:, 4], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Ptau3'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
+    np.save('../data/posteriors/{0}_bf_Ptau3'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
     
     tau,Ptau = Get_posterior(results.samples[:, 5], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Ptau4'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
+    np.save('../data/posteriors/{0}_bf_Ptau4'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
     
     tau,Ptau = Get_posterior(results.samples[:, 6], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Ptau5'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
+    np.save('../data/posteriors/{0}_bf_Ptau5'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
     
-    tau,Ptau = Get_posterior(results.samples[:, 7], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Ptau6'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
+    #tau,Ptau = Get_posterior(results.samples[:, 7], results.logwt,results.logz)
+    #np.save('../data/posteriors/{0}_Ptau6'.format(nm[i]),[tau,Ptau / np.trapz(Ptau,tau)])
     
-    z,Pz = Get_posterior(results.samples[:, 8], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Prs'.format(nm[i]),[z,Pz / np.trapz(Pz,z)])
+    z,Pz = Get_posterior(results.samples[:, 7], results.logwt,results.logz)
+    np.save('../data/posteriors/{0}_bf_Prs'.format(nm[i]),[z,Pz / np.trapz(Pz,z)])
     
-    d,Pd = Get_posterior(results.samples[:, 9], results.logwt,results.logz)
-    np.save('../data/posteriors/{0}_Pd'.format(nm[i]),[d,Pd / np.trapz(Pd,d)])
+    d,Pd = Get_posterior(results.samples[:, 8], results.logwt,results.logz)
+    np.save('../data/posteriors/{0}_bf_Pd'.format(nm[i]),[d,Pd / np.trapz(Pd,d)])
     

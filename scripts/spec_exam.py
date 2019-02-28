@@ -154,7 +154,26 @@ class Gen_spec(object):
                 Rscale = Scale_model(self.Rfl, self.Rer, self.Rmfl)
 
                 self.Rfl = self.Rfl / Rscale ; self.Rer = self.Rer / Rscale 
+    
+    def Sim_spec_premade(self, model_wave, model_flux):
+        if self.g102:
+            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
+            self.Bmfl *= self.PC
+
+            if not self.set_scale:
+                Bscale = Scale_model(self.Bfl, self.Ber, self.Bmfl)
+
+                self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
+        if self.g141: 
+            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
+            self.Rmfl *= self.PC
+
+            if not self.set_scale:
+                Rscale = Scale_model(self.Rfl, self.Rer, self.Rmfl)
+
+                self.Rfl = self.Rfl / Rscale ; self.Rer = self.Rer / Rscale 
+    
     def Sim_phot_mult(self, model_wave, model_flux):
         return forward_model_phot(model_wave, model_flux, self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
 
@@ -171,6 +190,12 @@ class Gen_spec(object):
         self.Pmfl = self.Sim_phot_mult(model_wave * (1 + model_redshift), model_flux)
         self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
         self.Pmfl = self.Pmfl * self.PC
+        
+    def Sim_phot_premade(self, model_wave, model_flux):
+        self.Pmfl = self.Sim_phot_mult(model_wave, model_flux)
+        self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
+        self.Pmfl = self.Pmfl * self.PC
+        
         
     def Sim_all(self, metal, age, tau, model_redshift = 0, Av = 0):
         self.Sim_phot(metal, age, tau, model_redshift, Av)
@@ -230,3 +255,7 @@ class Gen_spec(object):
     
     def Forward_model_all_beams_flatted(self, beams, trans, in_wv, model_wave, model_flux):
         return forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux)
+    
+    def Sim_all_premade(self, model_wave, model_flux):
+        self.Sim_phot_premade(model_wave, model_flux)
+        self.Sim_spec_premade(model_wave, model_flux)
