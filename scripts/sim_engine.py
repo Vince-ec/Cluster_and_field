@@ -62,7 +62,8 @@ def:
 
 def load_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = None):
     # if loading photometry FLT stands in for num
-        
+    bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
+
     if grism:
         W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
     
@@ -85,6 +86,14 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = None):
         W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
         
         WRF = W / (1 + specz)
+        
+        IDX = []
+        
+        for i in range(len(FLT)):
+            if FLT[i] not in bfilters and F[i] / E[i] > 0.5:
+                IDX.append(i)
+        
+        W, WRF, F, E, FLT = W[IDX], WRF[IDX], F[IDX], E[IDX], FLT[IDX]
         
         W, WRF, F, E, FLT = W[F > 0], WRF[F > 0], F[F > 0], E[F > 0], FLT[F > 0]
         
