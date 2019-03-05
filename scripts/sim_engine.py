@@ -148,17 +148,24 @@ def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
     
     if mdl_err:
         if instr == 'P':
-            WV, MEF = np.load(template_path + 'P_mdl_EF.npy')
-            iMEF = interp1d(WV,MEF)(wv_rf)
+            WV_RF, MEF = np.load(template_path + 'P_mdl_EF.npy')
+            WV, IEF = np.load(template_path + 'P_inst_EF.npy')
+            
+            iMEF = interp1d(WV_RF,MEF)(wv_rf)
+            iIEF = interp1d(WV,IEF)(wv)
 
         if instr == 'R':
-            WV, MEF = np.load(template_path + 'R_mdl_EF.npy')
-            iMEF = interp1d(WV,MEF)(wv_rf)
-
+            WV_RF, MEF = np.load(template_path + 'R_mdl_EF.npy')
+            WV, IEF = np.load(template_path + 'R_inst_EF.npy')
+            
+            iMEF = interp1d(WV_RF,MEF)(wv_rf)
+            iIEF = interp1d(WV,IEF)(wv)
+            
         if instr == 'B':
             iMEF =0
+            iIEF = 0
     
-        er = np.sqrt(er**2 + (iMEF*flx)**2)
+        er = np.sqrt(er**2 + (0.5 * iMEF*flx)**2 + (0.5 * iIEF*flx)**2)
 
         
     return er
