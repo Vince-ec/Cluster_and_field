@@ -41,27 +41,28 @@ if __name__ == '__main__':
     
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
-Gs = Gen_spec(field, galaxy, 1,
-               g102_lims=[8300, 11500], g141_lims=[11100, 16500],mdl_err = False,
-            phot_errterm = 0.03, decontam = True) 
+Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500], mdl_err = True,
+            phot_errterm = 0.0, decontam = True) 
 
 ############
 ###priors###
-agelim = Oldest_galaxy(specz + .1)
+agelim = Oldest_galaxy(specz - 0.01)
      
 def prior_transform(u):
     m = (0.03 * u[0] + 0.001) / 0.019
-    a = agelim * u[1] + 0.1
+    a = agelim * u[1] + 0.01
 
     t1 = u[2]
     t2 = u[3]
     t3 = u[4]
     t4 = u[5]
     t5 = u[6]
-    z = specz + 0.1*(2*u[8] - 1)
+    t6 = u[7]
+    
+    z = specz + 0.01*(2*u[8] - 1)
     d = 2*u[9]
     
-    return [m, a, t1, t2, t3, t4, t5, z, d]
+    return [m, a, t1, t2, t3, t4, t5, t6, z, d]
 
 
 ############
@@ -124,12 +125,21 @@ def Full_fit(spec, Gmfl, Pmfl):
     
     return Gchi, Pchi
 
+def Time_bins(agelim):
+    lbt = np.array([0, 0.1, 0.3, 0.6, 1, 1.5])
+    return np.round(agelim  - lbt / 2.1 * agelim, 2)[::-1]
+
+LBT = Time_bins(agelim)
+
 def loglikelihood(X):
-    m, a, t1, t2, t3, t4, t5, z, d = X
+    m, a, t1, t2, t3, t4, t5, t6, z, d = X
     
     sp.params['logzsol'] = np.log10( m )
     sp.params['dust2'] = d
-        sp.set_tabular_sfh(np.array([0.25, 0.75, 1.5, 3, 7]),np.array([t1, t2, t3, t4, t5]))
+    sp.params['dust1'] = d
+    
+    sp.set_tabular_sfh(LBT, np.array([t1, t2, t3, t4, t5, t6]))
+    
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
     
     Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
@@ -143,10 +153,10 @@ def loglikelihood(X):
 ####run#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
 
-dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 9, sample = 'rwalk', bound = 'balls') 
+dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 10, sample = 'rwalk', bound = 'balls') 
 dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
 dres = dsampler.results
 ############
 ####save####
-np.save(out_path + '{0}_{1}_bestfit.npy'.format(field, galaxy), dres) 
+np.save(out_path + '{0}_{1}_nestfit.npy'.format(field, galaxy), dres) 
