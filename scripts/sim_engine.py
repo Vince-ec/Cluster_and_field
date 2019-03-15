@@ -170,47 +170,26 @@ def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
         
     return er
 
-#def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
-#            btrans, rtrans, bflat, rflat, bbeam, rbeam, IDP, sens_wv, b, dnu, adj):
 def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
             btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj): 
-    # convert model to f_lam / sol_mass
-    fl_sol = F_lam_per_M(model_fl * (1 + specz), model_wave, specz, 0, 1)
-
     # make models
-    SPfl = forward_model_phot(model_wave*(1 + specz), fl_sol, IDP, sens_wv, b, dnu, adj)
+    SPfl = forward_model_phot(model_wave*(1 + specz), model_fl, IDP, sens_wv, b, dnu, adj)
 
-    Bmf = forward_model_all_beams_flatted(bbeam, btrans, bwv, model_wave*(1 + specz), fl_sol)
-    Rmf = forward_model_all_beams_flatted(rbeam, rtrans, rwv, model_wave*(1 + specz), fl_sol)
+    Bmf = forward_model_all_beams_flatted(bbeam, btrans, bwv, model_wave*(1 + specz), model_fl)
+    Rmf = forward_model_all_beams_flatted(rbeam, rtrans, rwv, model_wave*(1 + specz), model_fl)
     
     SPerr = perr
     SBer = berr
     SRer = rerr
     
-    mass = Scale_model(pflx, perr, SPfl)
-
-    
-    SPflx = mass * SPfl
-    SBfl = mass * Bmf
-    SRfl = mass * Rmf
-    
-    # scale by mass
-    #mass = Scale_model(pflx, perr, SPfl)
-    #logmass = np.log10(mass)
-    
-    #SPflx = SPfl * mass
-    
-    #SBer = SBerr / bflat
-    #SRer = SRerr / rflat
+    SPflx = SPfl
+    SBfl = Bmf
+    SRfl = Rmf
 
     SPflx = SPflx + np.random.normal(0, np.abs(SPerr))
     SBfl = SBfl + np.random.normal(0, np.abs(SBer))
     SRfl = SRfl + np.random.normal(0, np.abs(SRer))
-    
-    #SBfl = (mass / Scale_model(bflx,berr,Bmf)) * SBflx / btrans
-    #SRfl = (mass / Scale_model(rflx,rerr,Rmf)) * SRflx / rtrans
   
-    #return SBflx, SBerr, SBfl, SBer, SRflx, SRerr, SRfl, SRer, SPflx, SPerr, mass, logmass
     return SBfl, SBer, SRfl, SRer, SPflx, SPerr
 
 def forward_model_grism(BEAM, model_wave, model_flux):
