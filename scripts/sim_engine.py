@@ -178,9 +178,13 @@ def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr
     Bmf = forward_model_all_beams_flatted(bbeam, btrans, bwv, model_wave*(1 + specz), model_fl)
     Rmf = forward_model_all_beams_flatted(rbeam, rtrans, rwv, model_wave*(1 + specz), model_fl)
     
-    SPerr = perr
-    SBer = berr
-    SRer = rerr
+    Bnoise = berr / bflx
+    Rnoise = rerr / rflx
+    Pnoise = perr / pflx
+    
+    SPerr = SPfl * Pnoise
+    SBer = Bmf * Bnoise
+    SRer =  Rmf * Rnoise
     
     SPflx = SPfl
     SBfl = Bmf

@@ -11,6 +11,7 @@ from scipy.interpolate import interp1d, RegularGridInterpolator
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
+from astropy.cosmology import Planck13 as cosmo
 
 hpath = os.environ['HOME'] + '/'
 
@@ -33,26 +34,92 @@ else:
     template_path = '../templates/'
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
-    
-    
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1,
-                            dust_type = 1)
 
-Gs = Gen_spec('GND', 21156, 1.25378, g102_lims=[7900, 11500], g141_lims=[11100, 16500],
-                mdl_err = True, instr_err = True, phot_errterm = 0.03, decontam = True)  
+if __name__ == '__main__':
+    runnum = sys.argv[1] 
+    
+specz = 1.25
+    
+sim1 = Gen_spec('GND', 21156, 1.25257,
+               g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = True,
+            phot_errterm = 0.0, decontam = False) 
+
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
+sp.params['dust2'] =0.2
+sp.params['dust1'] =0.2
+
+tab_sfh = np.array([0.7, 0.8, 0.5, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
+tab_Z = np.array([0.2, 0.8, 1.0, 1.0, 0.8, 1.1, 0.7, 0.8, 0.8, 0.8])*0.019
+
+def Time_bins(agelim, bins):
+    u = 0.0
+    lbt = []
+    for i in range(bins):
+        u+=0.1 * i
+        lbt.append(np.round(u,1))
+    
+    return np.array(agelim  - lbt / np.round(u + 0.1 * (i+1),1) * agelim)[::-1]
+
+LBT = Time_bins(Oldest_galaxy(1.25),10)
+
+sp.set_tabular_sfh(LBT,tab_sfh,
+                   Z = tab_Z )
+
+wave1, flux1 = sp.get_spectrum(tage = 3.5, peraa = True)
+
+mass_perc1 = sp.stellar_mass
+ 
+D_l = cosmo.luminosity_distance(specz).value # in Mpc
+conv = 3.086E24
+lsol_to_fsol = 3.839E33
+
+mass_transform = (10**11 / mass_perc1) * lsol_to_fsol / (4 * np.pi * (D_l*conv)**2)
+    
+sim1.Make_sim(wave1, flux1 * mass_transform, specz)
+   
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
+
+
 
 ############
 ###priors###
-def prior_transform(u):
+agelim = Oldest_galaxy(specz)
+
+def delay_prior(u):
     m = (0.03 * u[0] + 0.001) / 0.019
-    a = 5. * u[1] + 0.1
-    t = 2*u[2] + 0.01
-    z = 2.5*u[3]
-    d = 2*u[4]
-    return [m, a, t, z, d]
+    a = (agelim - 0.01)* u[1] + 0.01
+    t = (1.5 - 0.001)*u[2] + 0.001  
+    z = specz + 0.002*(2*u[3] - 1)
+    d = 1*u[4]
+    lm = 11.0 + 1.25*(2*u[5] - 1)
+
+    return [m, a, t, z, d, lm]
 
 ############
 #likelihood#
+def Gather_grism_sim_data(spec):
+    wvs = []
+    flxs = []
+    errs = []
+    beams = []
+    trans = []
+    
+    if spec.g102:
+        wvs.append(spec.Bwv)
+        flxs.append(spec.SBfl)
+        errs.append(spec.SBer)
+        beams.append(spec.Bbeam)
+        trans.append(spec.Btrans)
+    
+    if spec.g141:
+        wvs.append(spec.Rwv)
+        flxs.append(spec.SRfl)
+        errs.append(spec.SRer)
+        beams.append(spec.Rbeam)
+        trans.append(spec.Rtrans)
+
+    return np.array([wvs, flxs, errs, beams, trans])
+
 def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
     FL = np.zeros([len(beams),len(in_wv)])
 
@@ -64,47 +131,58 @@ def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
     return np.mean(FL.T,axis=1)
 
 def Full_forward_model(spec, wave, flux, specz):
-    Bmfl = forward_model_all_beams(spec.Bbeam, spec.Btrans, spec.Bwv, wave * (1 + specz), flux)
-    Rmfl = forward_model_all_beams(spec.Rbeam, spec.Rtrans, spec.Rwv, wave * (1 + specz), flux)
+    Gmfl = []
+    
+    for i in range(len(wvs1)):
+        Gmfl.append(forward_model_all_beams(beams1[i], trans1[i], wvs1[i], wave * (1 + specz), flux))
+
     Pmfl = spec.Sim_phot_mult(wave * (1 + specz),flux)
 
-    return Bmfl, Rmfl, Pmfl
+    return np.array(Gmfl), Pmfl
 
-def Full_scale(spec, Pmfl):
-    PC = Scale_model(spec.Pflx, spec.Perr, Pmfl)
-    return PC
 
-def Full_fit(spec, Bmfl, Rmfl, Pmfl):
-
-    Bscale = Scale_model(spec.Bfl, spec.Ber, Bmfl)
-    Rscale = Scale_model(spec.Rfl, spec.Rer, Rmfl)
-
-    Bchi = np.sum(((((spec.Bfl/ Bscale) - Bmfl) / (spec.Ber / Bscale))**2))
-    Rchi = np.sum(((((spec.Rfl/ Rscale) - Rmfl) / (spec.Rer / Rscale))**2))
-    Pchi = np.sum((((spec.Pflx - Pmfl) / spec.Perr)**2))
+def Full_fit(spec, Gmfl, Pmfl):
+    Gchi = 0
     
-    return Bchi, Rchi, Pchi
+    for i in range(len(wvs1)):
+        scale = Scale_model(flxs1[i], errs1[i], Gmfl[i])
+        Gchi = Gchi + np.sum(((((flxs1[i] / scale) - Gmfl[i]) / (errs1[i] / scale))**2))
+    
+    Pchi = np.sum((((spec.SPflx - Pmfl) / spec.SPerr)**2))
+    
+    return Gchi, Pchi
 
-def loglikelihood(X):
-    m,a,t,z,d= X
+wvs1, flxs1, errs1, beams1, trans1 = Gather_grism_sim_data(sim1)
+
+conv = 3.086E24 # Mpc to cm
+lsol_to_fsol = 3.839E33 # change L_/odot to F_/odot
+
+def delay_L(X):
+    m, a, t, z, d, lm = X
     
     sp.params['logzsol'] = np.log10( m )
-    sp.params['tau'] = t
     sp.params['dust2'] = d
-    
+    sp.params['dust1'] = d
+    sp.params['tau'] = t
+
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
-    Bmfl, Rmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
-    PC= Full_scale(Gs, Pmfl)
-    Bchi, Rchi, Pchi = Full_fit(Gs, PC * Bmfl, PC * Rmfl, PC * Pmfl)
+    
+    D_l = cosmo.luminosity_distance(z).value # in Mpc
+
+    mass_transform = (10**lm * lsol_to_fsol) / (4 * np.pi * (D_l*conv)**2)
+    
+    Gmfl, Pmfl = Full_forward_model(sim1, wave, flux * mass_transform, z)
+    
+    Gchi, Pchi = Full_fit(sim1, Gmfl, Pmfl)
                   
-    return -0.5 * (Bchi + Rchi + Pchi)
+    return -0.5 * (Gchi + Pchi)
 
 ############
 ####run#####
-dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 5, sample = 'rwalk') 
-dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
+t_dsampler = dynesty.NestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'balls') 
+t_dsampler.run_nested(print_progress=False)
 
-dres = dsampler.results
+dres = t_dsampler.results
 ############
 ####save####
-np.save(out_path + 'GND_21156_testfit_tmp_LF.npy', dres) 
+np.save(out_path + 'sim_test_tab_to_delay_{0}'.format(runnum), dres) 
