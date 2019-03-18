@@ -191,9 +191,13 @@ class Gen_spec(object):
         self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
         self.Pmfl = self.Pmfl * self.PC
         
-    def Sim_phot_premade(self, model_wave, model_flux):
+    def Sim_phot_premade(self, model_wave, model_flux, scale = True):
         self.Pmfl = self.Sim_phot_mult(model_wave, model_flux)
-        self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)  
+        self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)
+        
+        if scale == False:
+            self.PC = 1
+            
         self.Pmfl = self.Pmfl * self.PC
         
         
@@ -256,6 +260,6 @@ class Gen_spec(object):
     def Forward_model_all_beams_flatted(self, beams, trans, in_wv, model_wave, model_flux):
         return forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux)
     
-    def Sim_all_premade(self, model_wave, model_flux):
-        self.Sim_phot_premade(model_wave, model_flux)
+    def Sim_all_premade(self, model_wave, model_flux, scale = True):
+        self.Sim_phot_premade(model_wave, model_flux, scale = scale)
         self.Sim_spec_premade(model_wave, model_flux)

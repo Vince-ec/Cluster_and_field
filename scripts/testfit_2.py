@@ -12,6 +12,7 @@ from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
+from multiprocessing import Pool
 
 hpath = os.environ['HOME'] + '/'
 
@@ -193,7 +194,8 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 24, sample = 'rwalk', bound = 'balls') 
+d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 24, sample = 'rwalk', bound = 'balls',
+                                  queue_size = 8, pool = Pool(processes=8))  
 d_tsampler.run_nested(print_progress=False)
 
 dres = d_tsampler.results

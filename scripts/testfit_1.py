@@ -12,6 +12,7 @@ from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
+from multiprocessing import Pool
 
 hpath = os.environ['HOME'] + '/'
 
@@ -78,8 +79,6 @@ mass_transform = (10**11 / mass_perc1) * lsol_to_fsol / (4 * np.pi * (D_l*conv)*
 sim1.Make_sim(wave1, flux1 * mass_transform, specz)
    
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
-
-
 
 ############
 ###priors###
@@ -179,7 +178,8 @@ def delay_L(X):
 
 ############
 ####run#####
-t_dsampler = dynesty.NestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'balls') 
+t_dsampler = dynesty.NestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'balls',
+                                  queue_size = 8, pool = Pool(processes=8)) 
 t_dsampler.run_nested(print_progress=False)
 
 dres = t_dsampler.results
