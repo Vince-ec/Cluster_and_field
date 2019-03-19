@@ -6,6 +6,7 @@ from astropy.io import fits
 from astropy import wcs
 from astropy.table import Table
 from scipy.interpolate import interp1d, interp2d
+from scipy import stats
 from glob import glob
 import os
 from grizli import multifit
@@ -171,7 +172,7 @@ def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
     return er
 
 def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
-            btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj): 
+            btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj, rndstate = 10, perturb = True): 
     # make models
     SPfl = forward_model_phot(model_wave*(1 + specz), model_fl, IDP, sens_wv, b, dnu, adj)
 
@@ -190,9 +191,10 @@ def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr
     SBfl = Bmf
     SRfl = Rmf
 
-    SPflx = SPflx + np.random.normal(0, np.abs(SPerr))
-    SBfl = SBfl + np.random.normal(0, np.abs(SBer))
-    SRfl = SRfl + np.random.normal(0, np.abs(SRer))
+    if perturb:
+        SPflx = SPflx + stats.norm.rvs(size = len(SPerr), random_state = rndstate) * SPerr
+        SBfl = SBfl + stats.norm.rvs(size = len(SBer), random_state = rndstate + 1) * SBer
+        SRfl = SRfl + stats.norm.rvs(size = len(SRer), random_state = rndstate + 2) * SRer
   
     return SBfl, SBer, SRfl, SRer, SPflx, SPerr
 

@@ -40,6 +40,7 @@ else:
 if __name__ == '__main__':
     runnum = sys.argv[1] 
     
+#####SET SIM#####
 specz = 1.25
 
 sim2 = Gen_spec('GND', 21156, 1.25257,
@@ -60,7 +61,9 @@ D_l = cosmo.luminosity_distance(specz).value # in Mpc
 conv = 3.086E24
 lsol_to_fsol = 3.839E33
 
-sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz)
+sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, perturb = False)
+
+#####RESET FSPS AND MAKE LBT#####
 
 def Time_bins(agelim, bins):
     u = 0.0
@@ -73,68 +76,36 @@ def Time_bins(agelim, bins):
 
 LBT = Time_bins(Oldest_galaxy(1.25),10)
 
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
 ############
 ###priors###
-x = np.arange(0.00, 10, 0.001)
-
-rv = stats.lognorm(0.9)
-
-PDF1 = rv.pdf(x)[::-1]
-PDF2 = rv.pdf(x)
-
-CDF1 = []
-CDF2 = []
-
-for i in range(len(x)):
-    CDF1.append(sum(PDF1[:i+1]))
-    CDF2.append(sum(PDF2[:i+1]))
-    
-CDF1 /= CDF1[-1]
-CDF2 /= CDF2[-1]
-
-def translate1(rv):
-    return interp1d(CDF1,x)(rv)
-
-def translate2(rv):
-    return interp1d(CDF2,x)(rv)
-
 
 agelim = Oldest_galaxy(specz)
 
 def tab_prior(u):
-    m1 = (0.03 * u[0] + 0.001) / 0.019
-    m2 = (0.03 * u[1] + 0.001) / 0.019
-    m3 = (0.03 * u[2] + 0.001) / 0.019
-    m4 = (0.03 * u[3] + 0.001) / 0.019
-    m5 = (0.03 * u[4] + 0.001) / 0.019
-    m6 = (0.03 * u[5] + 0.001) / 0.019
-    m7 = (0.03 * u[6] + 0.001) / 0.019
-    m8 = (0.03 * u[7] + 0.001) / 0.019
-    m9 = (0.03 * u[8] + 0.001) / 0.019
-    m10 = (0.03 * u[9] + 0.001) / 0.019
+    m = (0.03 * u[0] + 0.001) / 0.019
     
-    a = (agelim - LBT[0])* u[10] + LBT[0]
+    a = (agelim - LBT[0])* u[1] + LBT[0]
     
-    t1 = translate1(u[11])
-    t2 = translate1(u[12])
-    t3 = translate2(u[13])
-    t4 = translate2(u[14])
-    t5 = translate2(u[15]) 
-    t6 = translate2(u[16])
-    t7 = translate2(u[17])
-    t8 = translate2(u[18])
-    t9 = translate2(u[19])
-    t10 = translate2(u[20]) 
+    t1 = u[2]
+    t2 = u[3]
+    t3 = u[4]
+    t4 = u[5]
+    t5 = u[6] 
+    t6 = u[7]
+    t7 = u[8]
+    t8 = u[9]
+    t9 = u[10]
+    t10 = u[11] 
     
-    z = specz + 0.002*(2*u[21] - 1)
+    z = specz + 0.002*(2*u[12] - 1)
     
-    d = 1*u[22]
+    d = 1*u[13]
     
-    lm = 11.0 + 1.25*(2*u[23] - 1)
+    lm = 11.0 + 1.25*(2*u[14] - 1)
     
-    return [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
+    return [m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
 
 ############
 #likelihood#
@@ -187,9 +158,9 @@ def Full_fit(spec, Gmfl, Pmfl):
     Gchi = 0
     
     for i in range(len(wvs2)):
-        scale = Scale_model(flxs2[i], errs2[i], Gmfl[i])
-        Gchi = Gchi + np.sum(((((flxs2[i] / scale) - Gmfl[i]) / (errs2[i] / scale))**2))
-    
+        #scale = Scale_model(flxs2[i], errs2[i], Gmfl[i])
+        #Gchi = Gchi + np.sum(((((flxs2[i] / scale) - Gmfl[i]) / (errs2[i] / scale))**2))
+        Gchi = Gchi + np.sum( ((flxs2[i] - Gmfl[i]) / errs2[i])**2 )
     Pchi = np.sum((((spec.SPflx - Pmfl) / spec.SPerr)**2))
     
     return Gchi, Pchi
@@ -197,13 +168,13 @@ def Full_fit(spec, Gmfl, Pmfl):
 wvs2, flxs2, errs2, beams2, trans2 = Gather_grism_sim_data(sim2)
 
 def tab_L(X):
-    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm = X
+    m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
-    
-    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10]),
-                      Z = np.array([m1, m2, m3, m4, m5, m6, m7, m8, m9, m10]) * 0.019)
+    sp.params['logzsol'] = np.log10(m)
+
+    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10]))
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
     
@@ -219,11 +190,11 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 24, sample = 'rwalk', bound = 'balls',
-                                  queue_size = 12, pool = Pool(processes=12))  
+d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'balls',
+                                  queue_size = 8, pool = Pool(processes=8))  
 d_tsampler.run_nested(print_progress=True)
 
 dres = d_tsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_delay_to_tab_{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_delay_to_tab_no_prior{0}'.format(runnum), dres) 

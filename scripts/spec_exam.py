@@ -239,20 +239,12 @@ class Gen_spec(object):
         
         self.set_scale = True
         
-    def Make_sim(self, model_wave, model_flux, specz):
-        ### set sim and transmission curve
-        #self.SBflx, self.SBerr, self.SBfl, self.SBer, self.SRflx, self.SRerr, self.SRfl, self.SRer, \
-        #    self.SPflx, self.SPerr, self.mass, self.logmass =  init_sim(model_wave, 
-        #    model_flux, specz, self.Bwv, self.Rwv, 
-        #    self.Bflx, self.Rflx, self.Pflx, self.Berr, self.Rerr, self.Perr, 0, 
-        #    self.Btrans, self.Rtrans, self.Bflt, self.Rflt, self.Bbeam, self.Rbeam, 
-        #    self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
-        
+    def Make_sim(self, model_wave, model_flux, specz, rndstate = 10, perturb = True):       
         self.SBfl, self.SBer,  self.SRfl, self.SRer, self.SPflx, self.SPerr =  init_sim(model_wave, 
             model_flux, specz, self.Bwv, self.Rwv, 
             self.Bfl, self.Rfl, self.Pflx, self.Ber, self.Rer, self.Perr, 0, 
             self.Btrans, self.Rtrans, self.Bbeam, self.Rbeam, 
-            self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
+            self.IDP, self.sens_wv, self.b, self.dnu, self.adj , rndstate = rndstate, perturb = perturb)
         
     def Forward_model_all_beams(self, beams, in_wv, model_wave, model_flux):
         return forward_model_all_beams(beams, in_wv, model_wave, model_flux)
