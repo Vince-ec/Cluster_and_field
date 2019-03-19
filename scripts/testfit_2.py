@@ -8,6 +8,7 @@ import sys
 import fsps
 import dynesty
 from scipy.interpolate import interp1d, RegularGridInterpolator
+from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
@@ -76,6 +77,30 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sf
 
 ############
 ###priors###
+x = np.arange(0.00, 10, 0.001)
+
+rv = stats.lognorm(0.9)
+
+PDF1 = rv.pdf(x)[::-1]
+PDF2 = rv.pdf(x)
+
+CDF1 = []
+CDF2 = []
+
+for i in range(len(x)):
+    CDF1.append(sum(PDF1[:i+1]))
+    CDF2.append(sum(PDF2[:i+1]))
+    
+CDF1 /= CDF1[-1]
+CDF2 /= CDF2[-1]
+
+def translate1(rv):
+    return interp1d(CDF1,x)(rv)
+
+def translate2(rv):
+    return interp1d(CDF2,x)(rv)
+
+
 agelim = Oldest_galaxy(specz)
 
 def tab_prior(u):
@@ -92,16 +117,16 @@ def tab_prior(u):
     
     a = (agelim - LBT[0])* u[10] + LBT[0]
     
-    t1 = u[11]
-    t2 = u[12]
-    t3 = u[13]
-    t4 = u[14]
-    t5 = u[15]  
-    t6 = u[16]
-    t7 = u[17]
-    t8 = u[18]
-    t9 = u[19]
-    t10 = u[20] 
+    t1 = translate1(u[11])
+    t2 = translate1(u[12])
+    t3 = translate2(u[13])
+    t4 = translate2(u[14])
+    t5 = translate2(u[15]) 
+    t6 = translate2(u[16])
+    t7 = translate2(u[17])
+    t8 = translate2(u[18])
+    t9 = translate2(u[19])
+    t10 = translate2(u[20]) 
     
     z = specz + 0.002*(2*u[21] - 1)
     
@@ -195,8 +220,8 @@ def tab_L(X):
 ############
 ####run#####
 d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 24, sample = 'rwalk', bound = 'balls',
-                                  queue_size = 8, pool = Pool(processes=8))  
-d_tsampler.run_nested(print_progress=False)
+                                  queue_size = 12, pool = Pool(processes=12))  
+d_tsampler.run_nested(print_progress=True)
 
 dres = d_tsampler.results
 ############
