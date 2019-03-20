@@ -90,9 +90,13 @@ def tab_prior(u):
     a = (agelim - LBT[0])* u[1] + LBT[0]
     
     tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9], u[10]])
-
-    t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = zfrac_to_sfr(total_mass=1, z_fraction=tsamp, agebins = upd_lagebins)[::-1] * 1E9
-
+    taus = stats.beta.ppf(q = tsamp, a=alpha,b=np.ones_like(alpha),loc=0, scale=1)
+        
+    SFR = zfrac_to_sfr(total_mass=1, z_fraction= taus, agebins = upd_lagebins)[::-1] * 1E9
+    SFR[SFR < 0] = 0
+    
+    t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = SFR
+    
     z = specz + 0.002*(2*u[11] - 1)
     
     d = 1*u[12]
@@ -186,7 +190,7 @@ def tab_L(X):
 ####run#####
 d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 15, npdim=14, sample = 'rwalk', bound = 'balls',
                                   queue_size = 8, pool = Pool(processes=8))  
-d_tsampler.run_nested(print_progress=True)
+d_tsampler.run_nested(print_progress=False)
 
 dres = d_tsampler.results
 ############

@@ -192,7 +192,7 @@ def tab_L(X):
 ####run#####
 d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'balls',
                                   queue_size = 8, pool = Pool(processes=8))  
-d_tsampler.run_nested(print_progress=True)
+d_tsampler.run_nested(print_progress=False)
 
 dres = d_tsampler.results
 ############
