@@ -14,6 +14,7 @@ from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
+from prospect.models.transforms import *
 
 hpath = os.environ['HOME'] + '/'
 
@@ -44,7 +45,7 @@ if __name__ == '__main__':
 specz = 1.25
 
 sim2 = Gen_spec('GND', 21156, 1.25257,
-               g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = True,
+               g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
             phot_errterm = 0.0, decontam = False) 
 
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
@@ -64,20 +65,18 @@ lsol_to_fsol = 3.839E33
 sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, perturb = False)
 
 #####RESET FSPS AND MAKE LBT#####
-
-def Time_bins(agelim, bins):
-    u = 0.0
-    lbt = []
-    for i in range(bins):
-        u+=0.1 * i
-        lbt.append(np.round(u,1))
-    
-    return np.array(agelim  - lbt / np.round(u + 0.1 * (i+1),1) * agelim)[::-1]
-
-LBT = Time_bins(Oldest_galaxy(1.25),10)
-
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
+lages = [0,8,8.25,8.5,8.75,9,9.25,9.5,9.75,10,10.25]
+
+lagebins = []
+
+for i in range(len(lages)-1):
+    lagebins.append([lages[i], lages[i+1]])
+
+upd_lagebins = zred_to_agebins(zred=specz, agebins=lagebins)
+
+LBT = (10**upd_lagebins.T[1][::-1][0] - 10**upd_lagebins.T[0][::-1])*1E-9
 ############
 ###priors###
 

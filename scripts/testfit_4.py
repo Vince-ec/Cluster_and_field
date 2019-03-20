@@ -45,7 +45,7 @@ if __name__ == '__main__':
 specz = 1.25
 
 sim2 = Gen_spec('GND', 21156, 1.25257,
-               g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = True,
+               g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
             phot_errterm = 0.0, decontam = False) 
 
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
@@ -65,7 +65,6 @@ lsol_to_fsol = 3.839E33
 sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, perturb = False)
 
 #####RESET FSPS#####
-
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
 ############
