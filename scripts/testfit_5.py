@@ -69,8 +69,8 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 
 ############
 ###priors###
-lages = [0,8,8.25,8.5,8.75,9,9.25,9.5,9.75,10,10.25]
-
+#lages = [0,8,8.25,8.5,8.75,9,9.25,9.5,9.75,10,10.25]
+lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
 lagebins = []
 
 for i in range(len(lages)-1):

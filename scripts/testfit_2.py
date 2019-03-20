@@ -67,7 +67,8 @@ sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2),
 #####RESET FSPS AND MAKE LBT#####
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
-lages = [0,8,8.25,8.5,8.75,9,9.25,9.5,9.75,10,10.25]
+#lages = [0,8,8.25,8.5,8.75,9,9.25,9.5,9.75,10,10.25]
+lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
 
 lagebins = []
 
