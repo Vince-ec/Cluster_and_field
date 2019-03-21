@@ -42,7 +42,7 @@ if __name__ == '__main__':
 specz = 1.25
     
 sim1 = Gen_spec('GND', 21156, 1.25257,
-               g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = True,
+               g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
             phot_errterm = 0.0, decontam = False) 
 
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
@@ -180,7 +180,7 @@ def delay_L(X):
 ####run#####
 t_dsampler = dynesty.NestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'balls',
                                   queue_size = 8, pool = Pool(processes=8)) 
-t_dsampler.run_nested(print_progress=False)
+t_dsampler.run_nested(print_progress=True)
 
 dres = t_dsampler.results
 ############
