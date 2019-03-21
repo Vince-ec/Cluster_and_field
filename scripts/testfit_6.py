@@ -40,7 +40,8 @@ else:
     
 if __name__ == '__main__':
     runnum = sys.argv[1] 
-    
+    rndseed = int(sys.argv[2])
+
 #####SET SIM#####
 specz = 1.25
 
@@ -54,7 +55,7 @@ sp.params['dust1'] =0.2
 sp.params['tau'] =0.3
 sp.params['logzsol'] = np.log10(0.8)
 
-wave2, flux2 = sp.get_spectrum(tage = 3.5, peraa = True)
+wave2, flux2 = sp.get_spectrum(tage = 4.25, peraa = True)
 
 mass_perc2 = sp.stellar_mass
 
@@ -62,7 +63,7 @@ D_l = cosmo.luminosity_distance(specz).value # in Mpc
 conv = 3.086E24
 lsol_to_fsol = 3.839E33
 
-sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, perturb = False)
+sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, rndstate = rndseed)
 
 #####RESET FSPS#####
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
@@ -189,11 +190,31 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'balls',
+d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8))  
-d_tsampler.run_nested(print_progress=False)
+d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
 dres = d_tsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}'.format(runnum), dres) 
+
+sp.params['compute_light_ages'] = True
+ 
+lwa = []
+
+for ii in range(len(dres.samples)):
+    bfZ, bft, bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10,\
+    bfz, bfd, bfm = dres.samples[-1]
+
+    sp.params['dust2'] = bfd
+    sp.params['dust1'] = bfd
+    sp.params['logzsol'] = np.log10(bfZ)
+
+    sp.set_tabular_sfh(LBT,np.array([bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10]))
+
+    lwa.append(sp.get_mags(tage = bft, bands =['sdss_g'])[0])
+       
+sp.params['compute_light_ages'] = False
+
+np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_lwa'.format(runnum), lwa) 

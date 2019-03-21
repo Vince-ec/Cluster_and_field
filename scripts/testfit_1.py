@@ -13,6 +13,7 @@ from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
+from prospect.models.transforms import logsfr_ratios_to_masses
 
 hpath = os.environ['HOME'] + '/'
 
@@ -38,7 +39,7 @@ else:
 
 if __name__ == '__main__':
     runnum = sys.argv[1] 
-    
+    rndseed = int(sys.argv[2])
 specz = 1.25
     
 sim1 = Gen_spec('GND', 21156, 1.25257,
@@ -52,16 +53,20 @@ sp.params['dust1'] =0.2
 tab_sfh = np.array([0.7, 0.8, 0.5, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
 tab_Z = np.array([0.2, 0.8, 1.0, 1.0, 0.8, 1.1, 0.7, 0.8, 0.8, 0.8])*0.019
 
-def Time_bins(agelim, bins):
-    u = 0.0
-    lbt = []
-    for i in range(bins):
-        u+=0.1 * i
-        lbt.append(np.round(u,1))
-    
-    return np.array(agelim  - lbt / np.round(u + 0.1 * (i+1),1) * agelim)[::-1]
+#######################
+#######set LBT#########
+lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
 
-LBT = Time_bins(Oldest_galaxy(1.25),10)
+tuniv = Oldest_galaxy(specz)
+nbins = len(lages) - 1
+
+tbinmax = (tuniv * 0.85) * 1e9
+lim1, lim2 = 7.4772, 8.0
+agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(tuniv*1e9)]
+agebins = np.array([agelims[:-1], agelims[1:]]).T
+
+LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
+#########################
 
 sp.set_tabular_sfh(LBT,tab_sfh,
                    Z = tab_Z )
@@ -76,7 +81,7 @@ lsol_to_fsol = 3.839E33
 
 mass_transform = (10**11 / mass_perc1) * lsol_to_fsol / (4 * np.pi * (D_l*conv)**2)
     
-sim1.Make_sim(wave1, flux1 * mass_transform, specz)
+sim1.Make_sim(wave1, flux1 * mass_transform, specz, rndstate = rndseed)
    
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
 
@@ -178,11 +183,33 @@ def delay_L(X):
 
 ############
 ####run#####
-t_dsampler = dynesty.NestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'balls',
+t_dsampler = dynesty.DynamicNestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8)) 
-t_dsampler.run_nested(print_progress=True)
+t_dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
 dres = t_dsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_tab_to_delay_{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_tab_to_delay_multi_{0}'.format(runnum), dres) 
+
+############# 
+#get lightweighted age
+#############
+
+sp.params['compute_light_ages'] = True
+
+lwa = []
+
+for ii in range(len(dres.samples)):
+    bfZ, bft, bftau, bfz, bfd, bfm = dres.samples[ii]
+
+    sp.params['dust2'] =bfd
+    sp.params['dust1'] =bfd
+    sp.params['tau'] =bftau
+    sp.params['logzsol'] = np.log10(bfZ)
+
+    lwa.append(sp.get_mags(tage = bft, bands =['sdss_g'])[0])
+        
+sp.params['compute_light_ages'] = False
+
+np.save(out_path + 'sim_test_tab_to_delay_multi_{0}_lwa'.format(runnum), lwa) 
