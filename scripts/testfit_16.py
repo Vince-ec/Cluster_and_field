@@ -52,24 +52,56 @@ sim2 = Gen_spec('GND', 21156, 1.25257,
                g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
             phot_errterm = 0.0, decontam = False) 
 
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
-sp.params['tau'] =0.3
-sp.params['logzsol'] = np.log10(0.8)
 
-wave2, flux2 = sp.get_spectrum(tage = 4.25, peraa = True)
+tab_sfh = np.array([0.7, 0.8, 0.5, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
+tab_Z = np.array([0.2, 0.8, 1.0, 1.0, 0.8, 1.1, 0.7, 0.8, 0.8, 0.8])*0.019
 
-mass_perc2 = sp.stellar_mass
+#######################
+#######set LBT#########
+lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
 
+tuniv = Oldest_galaxy(specz)
+nbins = len(lages) - 1
+
+tbinmax = (tuniv * 0.85) * 1e9
+lim1, lim2 = 7.4772, 8.0
+agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(tuniv*1e9)]
+agebins = np.array([agelims[:-1], agelims[1:]]).T
+
+LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
+#########################
+
+sp.set_tabular_sfh(LBT,tab_sfh,
+                   Z = tab_Z )
+
+wave1, flux1 = sp.get_spectrum(tage = 3.5, peraa = True)
+
+mass_perc1 = sp.stellar_mass
+ 
 D_l = cosmo.luminosity_distance(specz).value # in Mpc
 conv = 3.086E24
 lsol_to_fsol = 3.839E33
 
-sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, rndstate = rndseed)
+mass_transform = (10**11 / mass_perc1) * lsol_to_fsol / (4 * np.pi * (D_l*conv)**2)
+    
+sim2.Make_sim(wave1, flux1 * mass_transform, specz, rndstate = rndseed)
 
 #####RESET FSPS#####
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
+
+###########
+
+def logZ_to_zratio(logZ = None, agebins=None):
+    nbins = agebins.shape[0] 
+    Zratios = 10**np.clip(logZ,-1,1) # clip maximum and minimum values
+    coeffs = np.array([ (1. / np.prod(Zratios[:i])) for i in range(nbins)])
+
+    metals = np.clip(coeffs  / coeffs.sum() * 0.2 /0.019, 0.002 / 0.019, 0.03 / 0.019)
+    
+    return metals
 
 ############
 ###priors###
@@ -90,11 +122,15 @@ time_per_bin = np.diff(10**agebins, axis=-1)[:,0]
 agelim = Oldest_galaxy(specz)
 
 def tab_prior(u):
-    m = (0.03 * u[0] + 0.001) / 0.019
+    msamp = np.array([u[0],u[1],u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9]]) 
     
-    a = (agelim - LBT[0])* u[1] + LBT[0]
+    logZ = stats.t.ppf( q = msamp, loc = 0, scale = 0.1, df =3.)
     
-    tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9], u[10], u[11]])
+    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = logZ_to_zratio(logZ,agebins)[::-1]
+    
+    a = (agelim - LBT[0])* u[10] + LBT[0]
+    
+    tsamp = np.array([u[11],u[12],u[13],u[14],u[15],u[16],u[17],u[18], u[19], u[20]])
 
     taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
 
@@ -102,13 +138,13 @@ def tab_prior(u):
 
     t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = np.array(masses / time_per_bin)[::-1]
     
-    z = specz + 0.002*(2*u[12] - 1)
+    z = stats.norm.ppf(u[21],loc = specz, scale = 0.003)
     
-    d = 1*u[13]
+    d = u[22]
     
-    lm = 11.0 + 1.25*(2*u[14] - 1)
+    lm = stats.norm.ppf(u[23],loc = 10.75, scale = 0.5)
     
-    return [m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
+    return [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
 
 ############
 #likelihood#
@@ -161,8 +197,6 @@ def Full_fit(spec, Gmfl, Pmfl):
     Gchi = 0
     
     for i in range(len(wvs2)):
-        #scale = Scale_model(flxs2[i], errs2[i], Gmfl[i])
-        #Gchi = Gchi + np.sum(((((flxs2[i] / scale) - Gmfl[i]) / (errs2[i] / scale))**2))
         Gchi = Gchi + np.sum( ((flxs2[i] - Gmfl[i]) / errs2[i])**2 )
     Pchi = np.sum((((spec.SPflx - Pmfl) / spec.SPerr)**2))
     
@@ -171,13 +205,13 @@ def Full_fit(spec, Gmfl, Pmfl):
 wvs2, flxs2, errs2, beams2, trans2 = Gather_grism_sim_data(sim2)
 
 def tab_L(X):
-    m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm = X
+    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
-    sp.params['logzsol'] = np.log10(m)
 
-    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10]))
+    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10]),
+                      Z = np.array([m1, m2, m3, m4, m5, m6, m7, m8, m9, m10]) * 0.019)
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
     
@@ -193,53 +227,50 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'multi',
+d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 24, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8))  
 d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
 dres = d_tsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_tab_to_tab_continuity_prior_multi_metal_{0}'.format(runnum), dres) 
 
 sp.params['compute_light_ages'] = True
  
 lwa = []
 
 for ii in range(len(dres.samples)):
-    bfZ, bft, bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10,\
+    bfZ1, bfZ2, bfZ3, bfZ4, bfZ5, bfZ6, bfZ7, bfZ8, bfZ9, bfZ10, bft,\
+    bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10,\
     bfz, bfd, bfm = dres.samples[-1]
 
     sp.params['dust2'] = bfd
     sp.params['dust1'] = bfd
-    sp.params['logzsol'] = np.log10(bfZ)
 
-    sp.set_tabular_sfh(LBT,np.array([bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10]))
+    sp.set_tabular_sfh(LBT,np.array([bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10]),
+                      Z = np.array([bfZ1, bfZ2, bfZ3, bfZ4, bfZ5, bfZ6, bfZ7, bfZ8, bfZ9, bfZ10]) * 0.019)  
 
     lwa.append(sp.get_mags(tage = bft, bands =['sdss_g'])[0])
        
 sp.params['compute_light_ages'] = False
 
-np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_lwa'.format(runnum), lwa) 
+np.save(out_path + 'sim_test_tab_to_tab_continuity_prior_multi_metal_{0}_lwa'.format(runnum), lwa) 
 
-sp.params['compute_light_ages'] = False
-
-np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_lwa'.format(runnum), lwa) 
-
-params = ['m', 'a','t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
+params = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'a',
+          't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
-    np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+    np.save(pos_path + 'sim_test_tab_to_tab_continuity_prior_multi_metal_{0}_P{1}'.format(runnum, params[i]),[t,pt])
 
-bfm, bfa, bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
+bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfa,\
+          bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
 
-np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_bfit'.format(runnum),
-        [bfm, bfa, bft1, bft2, bft3, bft4,bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])
+np.save(pos_path + 'sim_test_tab_to_tab_continuity_prior_multi_metal_{0}_bfit'.format(runnum),
+        [bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfa, bft1, bft2, bft3, bft4,
+         bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])
     
 dres.samples[:,10] = lwa
 m,Pm = Get_posterior(dres, 10)
-np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_Plwa'.format(params[i]),[m,Pm])
-
-
-
+np.save(pos_path + 'sim_test_tab_to_tab_continuity_prior_multi_metal_{0}_Plwa'.format(runnum),[m,Pm])
 

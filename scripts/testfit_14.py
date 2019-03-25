@@ -78,7 +78,9 @@ def logZ_to_zratio(logZ = None, agebins=None):
     Zratios = 10**np.clip(logZ,-1,1) # clip maximum and minimum values
     coeffs = np.array([ (1. / np.prod(Zratios[:i])) for i in range(nbins)])
 
-    return coeffs  / coeffs.sum() * 0.1 /0.019
+    metals = np.clip(coeffs  / coeffs.sum() * 0.2 /0.019, 0.002 / 0.019, 0.03 / 0.019)
+    
+    return metals
 
 ############
 ###priors###
@@ -101,7 +103,7 @@ agelim = Oldest_galaxy(specz)
 def tab_prior(u):
     msamp = np.array([u[0],u[1],u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9]]) 
     
-    logZ = stats.t.ppf( q = msamp, loc = 0, scale = 0.2, df =2.)
+    logZ = stats.t.ppf( q = msamp, loc = 0, scale = 0.1, df =3.)
     
     m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = logZ_to_zratio(logZ,agebins)[::-1]
     
@@ -240,12 +242,14 @@ for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_P{1}'.format(runnum, params[i]),[t,pt])
 
-dres.samples[:,10] = lwa
-m,Pm = Get_posterior(dres, 10)
-np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_Plwa'.format(runnum),[t,pt])
-
 bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfa,\
           bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
+
 np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_bfit'.format(runnum),
         [bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfa, bft1, bft2, bft3, bft4,
          bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])
+    
+dres.samples[:,10] = lwa
+m,Pm = Get_posterior(dres, 10)
+np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_Plwa'.format(runnum),[m,Pm])
+
