@@ -12,6 +12,7 @@ from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
+from spec_stats import Get_posterior
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
 from prospect.models.transforms import logsfr_ratios_to_masses
@@ -25,7 +26,8 @@ if hpath == '/home/vestrada78840/':
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
+    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
@@ -35,7 +37,8 @@ else:
     spec_path = '../spec_files/'
     beam_path = '../beams/'
     template_path = '../templates/'
-    out_path = '../data/posteriors/'
+    out_path = '../data/out_dict/'
+    pos_path = '../data/posteriors/'
     phot_path = '../phot/'
     
 if __name__ == '__main__':
@@ -68,6 +71,15 @@ sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2),
 #####RESET FSPS#####
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
 
+###########
+
+def logZ_to_zratio(logZ = None, agebins=None):
+    nbins = agebins.shape[0] 
+    Zratios = 10**np.clip(logZ,-1,1) # clip maximum and minimum values
+    coeffs = np.array([ (1. / np.prod(Zratios[:i])) for i in range(nbins)])
+
+    return coeffs  / coeffs.sum() * 0.1 /0.019
+
 ############
 ###priors###
 lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
@@ -87,8 +99,11 @@ time_per_bin = np.diff(10**agebins, axis=-1)[:,0]
 agelim = Oldest_galaxy(specz)
 
 def tab_prior(u):
-    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = (0.03 * np.array([u[0],
-        u[1],u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9]]) + 0.001) / 0.019
+    msamp = np.array([u[0],u[1],u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9]]) 
+    
+    logZ = stats.t.ppf( q = msamp, loc = 0, scale = 0.2, df =2.)
+    
+    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = logZ_to_zratio(logZ,agebins)[::-1]
     
     a = (agelim - LBT[0])* u[10] + LBT[0]
     
@@ -100,11 +115,11 @@ def tab_prior(u):
 
     t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = np.array(masses / time_per_bin)[::-1]
     
-    z = specz + 0.002*(2*u[21] - 1)
+    z = stats.norm.ppf(u[21],loc = specz, scale = 0.003)
     
-    d = 1*u[22]
+    d = u[22]
     
-    lm = 11.0 + 1.25*(2*u[23] - 1)
+    lm = stats.norm.ppf(u[23],loc = 10.75, scale = 0.5)
     
     return [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
 
@@ -218,3 +233,19 @@ for ii in range(len(dres.samples)):
 sp.params['compute_light_ages'] = False
 
 np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_lwa'.format(runnum), lwa) 
+
+params = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'a',
+          't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+
+dres.samples[:,10] = lwa
+m,Pm = Get_posterior(dres, 10)
+np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_Plwa'.format(runnum),[t,pt])
+
+bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfa,\
+          bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
+np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_metal_{0}_bfit'.format(runnum),
+        [bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfa, bft1, bft2, bft3, bft4,
+         bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])

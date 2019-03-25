@@ -12,6 +12,7 @@ from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
+from spec_stats import Get_posterior
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
 from prospect.models.transforms import logsfr_ratios_to_masses
@@ -25,7 +26,8 @@ if hpath == '/home/vestrada78840/':
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
+    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
@@ -35,7 +37,8 @@ else:
     spec_path = '../spec_files/'
     beam_path = '../beams/'
     template_path = '../templates/'
-    out_path = '../data/posteriors/'
+    out_path = '../data/out_dict/'
+    pos_path = '../data/posteriors/'
     phot_path = '../phot/'
     
 if __name__ == '__main__':
@@ -218,3 +221,17 @@ for ii in range(len(dres.samples)):
 sp.params['compute_light_ages'] = False
 
 np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_lwa'.format(runnum), lwa) 
+
+sp.params['compute_light_ages'] = False
+
+np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_lwa'.format(runnum), lwa) 
+
+params = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'a',
+          't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+
+dres.samples[:,10] = lwa
+m,Pm = Get_posterior(dres, 10)
+np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_Plwa'.format(params[i]),[t,pt])

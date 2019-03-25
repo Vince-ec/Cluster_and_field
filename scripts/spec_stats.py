@@ -3,6 +3,8 @@ __author__ = 'vestrada'
 import numpy as np
 from numpy.linalg import inv
 from scipy.interpolate import interp1d, interp2d
+from dynesty.utils import quantile as _quantile
+from scipy.ndimage import gaussian_filter as norm_kde
 
 import rpy2
 import rpy2.robjects as robjects
@@ -298,3 +300,25 @@ def Smooth(f,x,bw):
     X = np.array(fx[0])
     iFX = np.array(fx[1])
     return interp1d(X,iFX)(x)
+
+def Get_posterior(results, entry,logwt,logz):
+    sample = results.samples[:, entry]
+    logwt = results.logwt
+    logz = results.logz
+    
+    
+    weight = np.exp(logwt - logz[-1])
+
+    q = [0.5 - 0.5 * 0.999999426697, 0.5 + 0.5 * 0.999999426697]
+    span = _quantile(sample.T, q, weights=weight)
+
+    s = 0.02
+
+    bins = int(round(10. / 0.02))
+    n, b = np.histogram(sample, bins=bins, weights=weight,
+                        range=np.sort(span))
+    n = norm_kde(n, 10.)
+    x0 = 0.5 * (b[1:] + b[:-1])
+    y0 = n
+    
+    return x0, y0 / np.trapz(y0,x0)
