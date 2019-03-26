@@ -8,9 +8,11 @@ import sys
 import fsps
 import dynesty
 from scipy.interpolate import interp1d, RegularGridInterpolator
+from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
+from spec_stats import Get_posterior
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
 from prospect.models.transforms import logsfr_ratios_to_masses
@@ -24,7 +26,8 @@ if hpath == '/home/vestrada78840/':
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
+    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
@@ -34,25 +37,27 @@ else:
     spec_path = '../spec_files/'
     beam_path = '../beams/'
     template_path = '../templates/'
-    out_path = '../data/posteriors/'
+    out_path = '../data/out_dict/'
+    pos_path = '../data/posteriors/'
     phot_path = '../phot/'
-
+    
 if __name__ == '__main__':
     runnum = sys.argv[1] 
     rndseed = int(sys.argv[2])
 
+#####SET SIM#####
 specz = 1.25
-    
-sim1 = Gen_spec('GND', 21156, 1.25257,
+
+
+sim2 = Gen_spec('GND', 21156, 1.25257,
                g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
             phot_errterm = 0.0, decontam = False) 
 
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.8), sfh = 3, dust_type = 1)
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
 
-tab_sfh = np.array([0.9, 0.3, 0.025, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
-tab_Z = np.array([0.2, 1.0, 1.1, 1.0, 0.95, 0.9, 1.1, 1.0, 0.9, 0.8])*0.019
+tab_sfh = np.array([0.9, 0.3, 0.025, 0.001, 0.0001, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
 
 #######################
 #######set LBT#########
@@ -67,10 +72,11 @@ agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.
 agebins = np.array([agelims[:-1], agelims[1:]]).T
 
 LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
+time_per_bin = np.diff(10**agebins, axis=-1)[:,0]
+ 
 #########################
 
-sp.set_tabular_sfh(LBT,tab_sfh,
-                   Z = tab_Z )
+sp.set_tabular_sfh(LBT,tab_sfh)
 
 wave1, flux1 = sp.get_spectrum(tage = 4.25, peraa = True)
 
@@ -82,26 +88,39 @@ lsol_to_fsol = 3.839E33
 
 mass_transform = (10**11 / mass_perc1) * lsol_to_fsol / (4 * np.pi * (D_l*conv)**2)
     
-sim1.Make_sim(wave1, flux1 * mass_transform, specz, rndstate = rndseed)
-   
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
+sim2.Make_sim(wave1, flux1 * mass_transform, specz, perturb = False)
+
+#####RESET FSPS#####
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
 
 ############
 ###priors###
 agelim = Oldest_galaxy(specz)
 
-def delay_prior(u):
+def tab_prior(u):
     m = (0.03 * u[0] + 0.001) / 0.019
-    a = (agelim - 0.01)* u[1] + 0.01
-    t = (1.5 - 0.001)*u[2] + 0.001  
-    z = specz + 0.002*(2*u[3] - 1)
-    d = 1*u[4]
-    lm = 11.0 + 1.25*(2*u[5] - 1)
+    
+    a = (agelim - LBT[0])* u[1] + LBT[0]
+    
+    tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9], u[10], u[11]])
 
-    return [m, a, t, z, d, lm]
+    taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
+
+    masses = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = agebins) * 1E9
+
+    t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = np.array(masses / time_per_bin)[::-1]
+    
+    z = stats.norm.ppf(u[12],loc = specz, scale = 0.003)
+    
+    d = u[13]
+    
+    lm = stats.norm.ppf(u[14],loc = 10.75, scale = 0.5)
+    
+    return [m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
 
 ############
 #likelihood#
+
 def Gather_grism_sim_data(spec):
     wvs = []
     flxs = []
@@ -138,8 +157,8 @@ def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
 def Full_forward_model(spec, wave, flux, specz):
     Gmfl = []
     
-    for i in range(len(wvs1)):
-        Gmfl.append(forward_model_all_beams(beams1[i], trans1[i], wvs1[i], wave * (1 + specz), flux))
+    for i in range(len(wvs2)):
+        Gmfl.append(forward_model_all_beams(beams2[i], trans2[i], wvs2[i], wave * (1 + specz), flux))
 
     Pmfl = spec.Sim_phot_mult(wave * (1 + specz),flux)
 
@@ -149,68 +168,82 @@ def Full_forward_model(spec, wave, flux, specz):
 def Full_fit(spec, Gmfl, Pmfl):
     Gchi = 0
     
-    for i in range(len(wvs1)):
-        scale = Scale_model(flxs1[i], errs1[i], Gmfl[i])
-        Gchi = Gchi + np.sum(((((flxs1[i] / scale) - Gmfl[i]) / (errs1[i] / scale))**2))
-    
+    for i in range(len(wvs2)):
+        scale = Scale_model(flxs2[i], errs2[i], Gmfl[i])
+        Gchi = Gchi + np.sum(((((flxs2[i] / scale) - Gmfl[i]) / (errs2[i] / scale))**2))
+
     Pchi = np.sum((((spec.SPflx - Pmfl) / spec.SPerr)**2))
     
     return Gchi, Pchi
 
-wvs1, flxs1, errs1, beams1, trans1 = Gather_grism_sim_data(sim1)
+wvs2, flxs2, errs2, beams2, trans2 = Gather_grism_sim_data(sim2)
 
-conv = 3.086E24 # Mpc to cm
-lsol_to_fsol = 3.839E33 # change L_/odot to F_/odot
-
-def delay_L(X):
-    m, a, t, z, d, lm = X
+def tab_L(X):
+    m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm = X
     
-    sp.params['logzsol'] = np.log10( m )
     sp.params['dust2'] = d
     sp.params['dust1'] = d
-    sp.params['tau'] = t
+    sp.params['logzsol'] = np.log10(m)
 
+    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10]))
+    
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
     
     D_l = cosmo.luminosity_distance(z).value # in Mpc
 
-    mass_transform = (10**lm * lsol_to_fsol) / (4 * np.pi * (D_l*conv)**2)
-    
-    Gmfl, Pmfl = Full_forward_model(sim1, wave, flux * mass_transform, z)
-    
-    Gchi, Pchi = Full_fit(sim1, Gmfl, Pmfl)
+    mass_transform = (10**lm / sp.stellar_mass) * lsol_to_fsol / (4 * np.pi * (D_l*conv)**2)  
+
+    Gmfl, Pmfl = Full_forward_model(sim2, wave, flux * mass_transform, z)
+      
+    Gchi, Pchi = Full_fit(sim2, Gmfl, Pmfl)
                   
     return -0.5 * (Gchi + Pchi)
 
 ############
 ####run#####
-t_dsampler = dynesty.DynamicNestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'multi',
-                                  queue_size = 8, pool = Pool(processes=8)) 
-t_dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
+d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'multi',
+                                  queue_size = 8, pool = Pool(processes=8))  
+d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
-dres = t_dsampler.results
+dres = d_tsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_tab_to_delay_multi_{0}'.format(runnum), dres) 
-
-############# 
-#get lightweighted age
-#############
+np.save(out_path + 'sim_test_tab_to_tab_sclspec_{0}'.format(runnum), dres) 
 
 sp.params['compute_light_ages'] = True
-
+ 
 lwa = []
 
 for ii in range(len(dres.samples)):
-    bfZ, bft, bftau, bfz, bfd, bfm = dres.samples[ii]
+    bfZ, bft, bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10,\
+    bfz, bfd, bfm = dres.samples[-1]
 
-    sp.params['dust2'] =bfd
-    sp.params['dust1'] =bfd
-    sp.params['tau'] =bftau
+    sp.params['dust2'] = bfd
+    sp.params['dust1'] = bfd
     sp.params['logzsol'] = np.log10(bfZ)
 
+    sp.set_tabular_sfh(LBT,np.array([bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10]))
+
     lwa.append(sp.get_mags(tage = bft, bands =['sdss_g'])[0])
-        
+       
 sp.params['compute_light_ages'] = False
 
-np.save(out_path + 'sim_test_tab_to_delay_multi_{0}_lwa'.format(runnum), lwa) 
+np.save(out_path + 'sim_test_tab_to_tab_sclspec_{0}_lwa'.format(runnum), lwa) 
+
+params = ['m', 'a','t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + 'sim_test_tab_to_tab_sclspec_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+
+bfm, bfa, bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
+
+np.save(pos_path + 'sim_test_tab_to_tab_sclspec_{0}_bfit'.format(runnum),
+        [bfm, bfa, bft1, bft2, bft3, bft4,bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])
+    
+dres.samples[:,10] = lwa
+m,Pm = Get_posterior(dres, 10)
+np.save(pos_path + 'sim_test_tab_to_tab_sclspec_{0}_Plwa'.format(runnum),[m,Pm])
+
+
+
+

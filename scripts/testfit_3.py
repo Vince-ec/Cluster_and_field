@@ -102,11 +102,11 @@ def tab_prior(u):
 
     t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = np.array(masses / time_per_bin)[::-1]
     
-    z = specz + 0.002*(2*u[12] - 1)
+    z = stats.norm.ppf(u[12],loc = specz, scale = 0.003)
     
-    d = 1*u[13]
+    d = u[13]
     
-    lm = 11.0 + 1.25*(2*u[14] - 1)
+    lm = stats.norm.ppf(u[14],loc = 10.75, scale = 0.5)
     
     return [m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
 
@@ -200,7 +200,7 @@ d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=
 dres = d_tsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_delay_to_tab_{0}'.format(runnum), dres) 
 
 sp.params['compute_light_ages'] = True
  
@@ -220,24 +220,18 @@ for ii in range(len(dres.samples)):
        
 sp.params['compute_light_ages'] = False
 
-np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_lwa'.format(runnum), lwa) 
-
-
+np.save(out_path + 'sim_test_delay_to_tab_{0}_lwa'.format(runnum), lwa) 
 
 params = ['m', 'a','t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
-    np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+    np.save(pos_path + 'sim_test_delay_to_tab_{0}_P{1}'.format(runnum, params[i]),[t,pt])
 
 bfm, bfa, bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
 
-np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_bfit'.format(runnum),
+np.save(pos_path + 'sim_test_delay_to_tab_{0}_bfit'.format(runnum),
         [bfm, bfa, bft1, bft2, bft3, bft4,bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])
     
-dres.samples[:,10] = lwa
-m,Pm = Get_posterior(dres, 10)
-np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_Plwa'.format(params[i]),[m,Pm])
-
-
-
-
+dres.samples[:,1] = lwa
+m,Pm = Get_posterior(dres, 1)
+np.save(pos_path + 'sim_test_delay_to_tab_{0}_Plwa'.format(runnum),[m,Pm])

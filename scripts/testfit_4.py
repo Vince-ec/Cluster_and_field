@@ -12,9 +12,10 @@ from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
+from spec_stats import Get_posterior
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
-from prospect.models.transforms import *
+from prospect.models.transforms import logsfr_ratios_to_masses
 
 hpath = os.environ['HOME'] + '/'
 
@@ -25,7 +26,8 @@ if hpath == '/home/vestrada78840/':
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
+    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
@@ -35,12 +37,14 @@ else:
     spec_path = '../spec_files/'
     beam_path = '../beams/'
     template_path = '../templates/'
-    out_path = '../data/posteriors/'
+    out_path = '../data/out_dict/'
+    pos_path = '../data/posteriors/'
     phot_path = '../phot/'
     
 if __name__ == '__main__':
     runnum = sys.argv[1] 
-    
+    rndseed = int(sys.argv[2])
+
 #####SET SIM#####
 specz = 1.25
 
@@ -54,7 +58,7 @@ sp.params['dust1'] =0.2
 sp.params['tau'] =0.3
 sp.params['logzsol'] = np.log10(0.8)
 
-wave2, flux2 = sp.get_spectrum(tage = 3.5, peraa = True)
+wave2, flux2 = sp.get_spectrum(tage = 4.25, peraa = True)
 
 mass_perc2 = sp.stellar_mass
 
@@ -69,41 +73,43 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 
 ############
 ###priors###
-#lages = [0,8,8.25,8.5,8.75,9,9.25,9.5,9.75,10,10.25]
-lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
-lagebins = []
+lages = [0,8.0,8.3,8.6,9.0,9.3,9.6,10]
 
-for i in range(len(lages)-1):
-    lagebins.append([lages[i], lages[i+1]])
+tuniv = Oldest_galaxy(specz)
+nbins = len(lages) - 1
 
-upd_lagebins = zred_to_agebins(zred=specz, agebins=lagebins)
+tbinmax = (tuniv * 0.85) * 1e9
+lim1, lim2 = 7.4772, 8.0
+agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(tuniv*1e9)]
+agebins = np.array([agelims[:-1], agelims[1:]]).T
 
-LBT = (10**upd_lagebins.T[1][::-1][0] - 10**upd_lagebins.T[0][::-1])*1E-9
+LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
 
-alpha = np.arange(len(upd_lagebins)-1, 0, -1)
+time_per_bin = np.diff(10**agebins, axis=-1)[:,0]
 
 agelim = Oldest_galaxy(specz)
+
 
 def tab_prior(u):
     m = (0.03 * u[0] + 0.001) / 0.019
     
     a = (agelim - LBT[0])* u[1] + LBT[0]
     
-    tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9], u[10]])
-    taus = stats.beta.ppf(q = tsamp, a=alpha,b=np.ones_like(alpha),loc=0, scale=1)
-        
-    SFR = zfrac_to_sfr(total_mass=1, z_fraction= taus, agebins = upd_lagebins)[::-1] * 1E9
-    SFR[SFR < 0] = 0
+    tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8]])
+
+    taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
+
+    masses = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = agebins) * 1E9
+
+    t1, t2, t3, t4, t5, t6, t7 = np.array(masses / time_per_bin)[::-1]
     
-    t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = SFR
+    z = stats.norm.ppf(u[9],loc = specz, scale = 0.003)
     
-    z = specz + 0.002*(2*u[11] - 1)
+    d = u[10]
     
-    d = 1*u[12]
+    lm = stats.norm.ppf(u[11],loc = 10.75, scale = 0.5)
     
-    lm = 11.0 + 1.25*(2*u[13] - 1)
-    
-    return [m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
+    return [m, a, t1, t2, t3, t4, t5, t6, t7, z, d, lm]
 
 ############
 #likelihood#
@@ -166,13 +172,13 @@ def Full_fit(spec, Gmfl, Pmfl):
 wvs2, flxs2, errs2, beams2, trans2 = Gather_grism_sim_data(sim2)
 
 def tab_L(X):
-    m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm = X
+    m, a, t1, t2, t3, t4, t5, t6, t7, z, d, lm = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
     sp.params['logzsol'] = np.log10(m)
 
-    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10]))
+    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7]))
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
     
@@ -188,11 +194,48 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 15, npdim=14, sample = 'rwalk', bound = 'balls',
+d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 12, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8))  
-d_tsampler.run_nested(print_progress=False)
+d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
 dres = d_tsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_delay_to_tab_dirichlet_prior_a1_{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_delay_to_tab_lessbin_{0}'.format(runnum), dres) 
+
+sp.params['compute_light_ages'] = True
+ 
+lwa = []
+
+for ii in range(len(dres.samples)):
+    bfZ, bft, bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bfz, bfd, bfm = dres.samples[-1]
+
+    sp.params['dust2'] = bfd
+    sp.params['dust1'] = bfd
+    sp.params['logzsol'] = np.log10(bfZ)
+
+    sp.set_tabular_sfh(LBT,np.array([bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7]))
+
+    lwa.append(sp.get_mags(tage = bft, bands =['sdss_g'])[0])
+       
+sp.params['compute_light_ages'] = False
+
+np.save(out_path + 'sim_test_delay_to_tab_lessbin_{0}_lwa'.format(runnum), lwa) 
+
+params = ['m', 'a','t1', 't2', 't3', 't4', 't5', 't6', 't7', 'z', 'd', 'lm']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + 'sim_test_delay_to_tab_lessbin_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+
+bfm, bfa, bft1, bft2, bft3, bft4, bft5, bft6, bft7, bfz, bfd, bflm = dres.samples[-1]
+
+np.save(pos_path + 'sim_test_delay_to_tab_lessbin_{0}_bfit'.format(runnum),
+        [bfm, bfa, bft1, bft2, bft3, bft4,bft5, bft6, bft7, bfz, bfd, bflm, dres.logl[-1]])
+    
+dres.samples[:,1] = lwa
+m,Pm = Get_posterior(dres, 1)
+np.save(pos_path + 'sim_test_delay_to_tab_lessbin_{0}_Plwa'.format(runnum),[m,Pm])
+
+
+
+

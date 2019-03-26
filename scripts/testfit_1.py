@@ -8,6 +8,7 @@ import sys
 import fsps
 import dynesty
 from scipy.interpolate import interp1d, RegularGridInterpolator
+from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
@@ -95,9 +96,9 @@ def delay_prior(u):
     m = (0.03 * u[0] + 0.001) / 0.019
     a = (agelim - 0.01)* u[1] + 0.01
     t = (1.5 - 0.001)*u[2] + 0.001  
-    z = specz + 0.002*(2*u[3] - 1)
-    d = 1*u[4]
-    lm = 11.0 + 1.25*(2*u[5] - 1)
+    z = stats.norm.ppf(u[3],loc = specz, scale = 0.003)
+    d = u[4]
+    lm = stats.norm.ppf(u[5],loc = 10.75, scale = 0.5)
 
     return [m, a, t, z, d, lm]
 
@@ -228,4 +229,4 @@ np.save(pos_path + 'sim_test_tab_to_delay_multi_{0}_bfit'.format(runnum),
     
 dres.samples[:,1] = lwa
 m,Pm = Get_posterior(dres, 1)
-np.save(pos_path + 'sim_test_tab_to_delay_multi_{0}_Plwa'.format(params[i]),[m,Pm])
+np.save(pos_path + 'sim_test_tab_to_delay_multi_{0}_Plwa'.format(runnum),[m,Pm])
