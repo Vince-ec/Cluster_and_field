@@ -12,9 +12,10 @@ from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
+from spec_stats import Get_posterior
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
-from prospect.models.transforms import *
+from prospect.models.transforms import logsfr_ratios_to_masses
 
 hpath = os.environ['HOME'] + '/'
 
@@ -25,7 +26,8 @@ if hpath == '/home/vestrada78840/':
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
+    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
@@ -35,12 +37,14 @@ else:
     spec_path = '../spec_files/'
     beam_path = '../beams/'
     template_path = '../templates/'
-    out_path = '../data/posteriors/'
+    out_path = '../data/out_dict/'
+    pos_path = '../data/posteriors/'
     phot_path = '../phot/'
     
 if __name__ == '__main__':
     runnum = sys.argv[1] 
-    
+    rndseed = int(sys.argv[2])
+
 #####SET SIM#####
 specz = 1.25
 
@@ -54,7 +58,7 @@ sp.params['dust1'] =0.2
 sp.params['tau'] =0.3
 sp.params['logzsol'] = np.log10(0.8)
 
-wave2, flux2 = sp.get_spectrum(tage = 3.5, peraa = True)
+wave2, flux2 = sp.get_spectrum(tage = 4.25, peraa = True)
 
 mass_perc2 = sp.stellar_mass
 
@@ -64,47 +68,24 @@ lsol_to_fsol = 3.839E33
 
 sim2.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, perturb = False)
 
-#####RESET FSPS AND MAKE LBT#####
+#####RESET FSPS#####
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
-
-#lages = [0,8,8.25,8.5,8.75,9,9.25,9.5,9.75,10,10.25]
-lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
-lagebins = []
-
-for i in range(len(lages)-1):
-    lagebins.append([lages[i], lages[i+1]])
-
-upd_lagebins = zred_to_agebins(zred=specz, agebins=lagebins)
-
-LBT = (10**upd_lagebins.T[1][::-1][0] - 10**upd_lagebins.T[0][::-1])*1E-9
 
 ############
 ###priors###
+lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
 
-x = np.arange(0.00, 10, 0.001)
+tuniv = Oldest_galaxy(specz)
+nbins = len(lages) - 1
 
-rv = stats.lognorm(0.9)
+tbinmax = (tuniv * 0.85) * 1e9
+lim1, lim2 = 7.4772, 8.0
+agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(tuniv*1e9)]
+agebins = np.array([agelims[:-1], agelims[1:]]).T
 
-PDF1 = rv.pdf(x)[::-1]
-PDF2 = rv.pdf(x)
+LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
 
-CDF1 = [0]
-CDF2 = [0]
-
-for i in range(len(x)):
-    if i > 0:    
-        CDF1.append(sum(PDF1[:i+1]))
-        CDF2.append(sum(PDF2[:i+1]))
-
-CDF1 /= CDF1[-1]
-CDF2 /= CDF2[-1]
-
-def translate1(rv):
-    return interp1d(CDF1,x)(rv)
-
-def translate2(rv):
-    return interp1d(CDF2,x)(rv)
-
+time_per_bin = np.diff(10**agebins, axis=-1)[:,0]
 
 agelim = Oldest_galaxy(specz)
 
@@ -113,16 +94,13 @@ def tab_prior(u):
     
     a = (agelim - LBT[0])* u[1] + LBT[0]
     
-    t1 = translate1(u[2])
-    t2 = translate1(u[3])
-    t3 = translate2(u[4])
-    t4 = translate2(u[5])
-    t5 = translate2(u[6]) 
-    t6 = translate2(u[7])
-    t7 = translate2(u[8])
-    t8 = translate2(u[9])
-    t9 = translate2(u[10])
-    t10 = translate2(u[11]) 
+    tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9], u[10], u[11]])
+
+    taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
+
+    masses = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = agebins) * 1E9
+
+    t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = np.array(masses / time_per_bin)[::-1]
     
     z = specz + 0.002*(2*u[12] - 1)
     
@@ -215,11 +193,51 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.NestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'balls',
+d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8))  
-d_tsampler.run_nested(print_progress=False)
+d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
 dres = d_tsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_delay_to_tab_delay_prior{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}'.format(runnum), dres) 
+
+sp.params['compute_light_ages'] = True
+ 
+lwa = []
+
+for ii in range(len(dres.samples)):
+    bfZ, bft, bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10,\
+    bfz, bfd, bfm = dres.samples[-1]
+
+    sp.params['dust2'] = bfd
+    sp.params['dust1'] = bfd
+    sp.params['logzsol'] = np.log10(bfZ)
+
+    sp.set_tabular_sfh(LBT,np.array([bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10]))
+
+    lwa.append(sp.get_mags(tage = bft, bands =['sdss_g'])[0])
+       
+sp.params['compute_light_ages'] = False
+
+np.save(out_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_lwa'.format(runnum), lwa) 
+
+
+
+params = ['m', 'a','t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+
+bfm, bfa, bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
+
+np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_bfit'.format(runnum),
+        [bfm, bfa, bft1, bft2, bft3, bft4,bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])
+    
+dres.samples[:,10] = lwa
+m,Pm = Get_posterior(dres, 10)
+np.save(pos_path + 'sim_test_delay_to_tab_continuity_prior_multi_{0}_Plwa'.format(params[i]),[m,Pm])
+
+
+
+

@@ -24,7 +24,8 @@ if hpath == '/home/vestrada78840/':
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
+    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
@@ -34,24 +35,26 @@ else:
     spec_path = '../spec_files/'
     beam_path = '../beams/'
     template_path = '../templates/'
-    out_path = '../data/posteriors/'
+    out_path = '../data/out_dict/'
+    pos_path = '../data/posteriors/'
     phot_path = '../phot/'
 
 if __name__ == '__main__':
     runnum = sys.argv[1] 
     rndseed = int(sys.argv[2])
+    
 specz = 1.25
     
 sim1 = Gen_spec('GND', 21156, 1.25257,
                g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
             phot_errterm = 0.0, decontam = False) 
 
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.8), sfh = 3, dust_type = 1)
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
 
-tab_sfh = np.array([0.7, 0.8, 0.5, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
-tab_Z = np.array([0.2, 0.8, 1.0, 1.0, 0.8, 1.1, 0.7, 0.8, 0.8, 0.8])*0.019
+tab_sfh = np.array([0.9, 0.3, 0.025, 0.001, 0.0001, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
+
 
 #######################
 #######set LBT#########
@@ -68,10 +71,9 @@ agebins = np.array([agelims[:-1], agelims[1:]]).T
 LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
 #########################
 
-sp.set_tabular_sfh(LBT,tab_sfh,
-                   Z = tab_Z )
+sp.set_tabular_sfh(LBT,tab_sfh)
 
-wave1, flux1 = sp.get_spectrum(tage = 3.5, peraa = True)
+wave1, flux1 = sp.get_spectrum(tage = 4.25, peraa = True)
 
 mass_perc1 = sp.stellar_mass
  
@@ -81,7 +83,7 @@ lsol_to_fsol = 3.839E33
 
 mass_transform = (10**11 / mass_perc1) * lsol_to_fsol / (4 * np.pi * (D_l*conv)**2)
     
-sim1.Make_sim(wave1, flux1 * mass_transform, specz, rndstate = rndseed)
+sim1.Make_sim(wave1, flux1 * mass_transform, specz, perturb = False)
    
 sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
 
@@ -213,3 +215,17 @@ for ii in range(len(dres.samples)):
 sp.params['compute_light_ages'] = False
 
 np.save(out_path + 'sim_test_tab_to_delay_multi_{0}_lwa'.format(runnum), lwa) 
+
+params = ['m', 'a','t', 'z', 'd', 'lm']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + 'sim_test_tab_to_delay_multi_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+
+bfm, bfa, bft, bfz, bfd, bflm = dres.samples[-1]
+
+np.save(pos_path + 'sim_test_tab_to_delay_multi_{0}_bfit'.format(runnum),
+        [bfm, bfa, bft, bfz, bfd, bflm, dres.logl[-1]])
+    
+dres.samples[:,1] = lwa
+m,Pm = Get_posterior(dres, 1)
+np.save(pos_path + 'sim_test_tab_to_delay_multi_{0}_Plwa'.format(params[i]),[m,Pm])

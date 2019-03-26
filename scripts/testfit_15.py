@@ -56,8 +56,8 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sf
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
 
-tab_sfh = np.array([0.7, 0.8, 0.5, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
-tab_Z = np.array([0.2, 0.8, 1.0, 1.0, 0.8, 1.1, 0.7, 0.8, 0.8, 0.8])*0.019
+tab_sfh = np.array([0.9, 0.3, 0.025, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
+tab_Z = np.array([0.2, 1.0, 1.1, 1.0, 0.95, 0.9, 1.1, 1.0, 0.9, 0.8])*0.019
 
 #######################
 #######set LBT#########
@@ -77,7 +77,7 @@ LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
 sp.set_tabular_sfh(LBT,tab_sfh,
                    Z = tab_Z )
 
-wave1, flux1 = sp.get_spectrum(tage = 3.5, peraa = True)
+wave1, flux1 = sp.get_spectrum(tage = 4.25, peraa = True)
 
 mass_perc1 = sp.stellar_mass
  
@@ -259,7 +259,7 @@ np.save(pos_path + 'sim_test_tab_to_tab_continuity_prior_multi_{0}_bfit'.format(
     
 dres.samples[:,10] = lwa
 m,Pm = Get_posterior(dres, 10)
-np.save(pos_path + 'sim_test_tab_to_tab_continuity_prior_multi_{0}_Plwa'.format(params[i]),[m,Pm])
+np.save(pos_path + 'sim_test_tab_to_tab_continuity_prior_multi_{0}_Plwa'.format(runnum),[m,Pm])
 
 
 
