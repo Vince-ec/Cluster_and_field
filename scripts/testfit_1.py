@@ -15,6 +15,7 @@ from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
 from prospect.models.transforms import logsfr_ratios_to_masses
+from spec_stats import Get_posterior
 
 hpath = os.environ['HOME'] + '/'
 

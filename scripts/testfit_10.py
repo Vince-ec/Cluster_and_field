@@ -44,10 +44,30 @@ else:
 if __name__ == '__main__':
     runnum = sys.argv[1] 
     rndseed = int(sys.argv[2])
+##############
+def convert_sfh(agebins, mformed, epsilon=1e-4, maxage=None):
+    #### create time vector
+    agebins_yrs = 10**agebins.T
+    dt = agebins_yrs[1, :] - agebins_yrs[0, :]
+    bin_edges = np.unique(agebins_yrs)
+    if maxage is None:
+        maxage = agebins_yrs.max()  # can replace maxage with something else, e.g. tuniv
+    t = np.concatenate((bin_edges * (1.-epsilon), bin_edges * (1+epsilon)))
+    t.sort()
+    t = t[1:-1] # remove older than oldest bin, younger than youngest bin
+    fsps_time = maxage - t
 
+    #### calculate SFR at each t
+    sfr = mformed / dt
+    sfrout = np.zeros_like(t)
+    sfrout[::2] = sfr
+    sfrout[1::2] = sfr  # * (1+epsilon)
+
+    return (fsps_time / 1e9)[::-1], sfrout[::-1], maxage / 1e9
+##############
+    
 #####SET SIM#####
 specz = 1.25
-
 
 sim2 = Gen_spec('GND', 21156, 1.25257,
                g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
@@ -57,7 +77,7 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
 
-tab_sfh = np.array([0.9, 0.3, 0.025, 0.001, 0.0001, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
+tab_masses = np.array([0.9, 0.3, 0.025, 0.001, 0.0001, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
 
 #######################
 #######set LBT#########
@@ -70,13 +90,10 @@ tbinmax = (tuniv * 0.85) * 1e9
 lim1, lim2 = 7.4772, 8.0
 agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(tuniv*1e9)]
 agebins = np.array([agelims[:-1], agelims[1:]]).T
-
-LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
-time_per_bin = np.diff(10**agebins, axis=-1)[:,0]
- 
 #########################
+time, sfr, tmax = convert_sfh(agebins, tab_masses)
 
-sp.set_tabular_sfh(LBT,tab_sfh)
+sp.set_tabular_sfh(time,sfr)
 
 wave1, flux1 = sp.get_spectrum(tage = 4.25, peraa = True)
 
@@ -100,15 +117,13 @@ agelim = Oldest_galaxy(specz)
 def tab_prior(u):
     m = (0.03 * u[0] + 0.001) / 0.019
     
-    a = (agelim - LBT[0])* u[1] + LBT[0]
+    a = (agelim - 1)* u[1] + 1
     
     tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9], u[10], u[11]])
 
     taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
 
-    masses = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = agebins) * 1E9
-
-    t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = np.array(masses / time_per_bin)[::-1]
+    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = agebins) * 1E9
     
     z = stats.norm.ppf(u[12],loc = specz, scale = 0.003)
     
@@ -116,7 +131,7 @@ def tab_prior(u):
     
     lm = stats.norm.ppf(u[14],loc = 10.75, scale = 0.5)
     
-    return [m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm]
+    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, lm]
 
 ############
 #likelihood#
@@ -179,13 +194,15 @@ def Full_fit(spec, Gmfl, Pmfl):
 wvs2, flxs2, errs2, beams2, trans2 = Gather_grism_sim_data(sim2)
 
 def tab_L(X):
-    m, a, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, z, d, lm = X
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, lm = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
     sp.params['logzsol'] = np.log10(m)
 
-    sp.set_tabular_sfh(LBT,np.array([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10]))
+    time, sfr, tmax = convert_sfh(agebins, [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10])
+
+    sp.set_tabular_sfh(time,sfr) 
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
     
@@ -215,14 +232,16 @@ sp.params['compute_light_ages'] = True
 lwa = []
 
 for ii in range(len(dres.samples)):
-    bfZ, bft, bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10,\
+    bfZ, bft, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10,\
     bfz, bfd, bfm = dres.samples[-1]
 
     sp.params['dust2'] = bfd
     sp.params['dust1'] = bfd
     sp.params['logzsol'] = np.log10(bfZ)
 
-    sp.set_tabular_sfh(LBT,np.array([bftau1, bftau2, bftau3, bftau4, bftau5, bftau6, bftau7, bftau8, bftau9, bftau10]))
+    time, sfr, tmax = convert_sfh(agebins, [bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10])
+
+    sp.set_tabular_sfh(time,sfr)
 
     lwa.append(sp.get_mags(tage = bft, bands =['sdss_g'])[0])
        
@@ -230,18 +249,18 @@ sp.params['compute_light_ages'] = False
 
 np.save(out_path + 'sim_test_tab_to_tab_sclspec_{0}_lwa'.format(runnum), lwa) 
 
-params = ['m', 'a','t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 'z', 'd', 'lm']
+params = ['m', 'a','m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'z', 'd', 'lm']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + 'sim_test_tab_to_tab_sclspec_{0}_P{1}'.format(runnum, params[i]),[t,pt])
 
-bfm, bfa, bft1, bft2, bft3, bft4, bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm = dres.samples[-1]
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, bflm = dres.samples[-1]
 
 np.save(pos_path + 'sim_test_tab_to_tab_sclspec_{0}_bfit'.format(runnum),
-        [bfm, bfa, bft1, bft2, bft3, bft4,bft5, bft6, bft7, bft8, bft9, bft10, bfz, bfd, bflm, dres.logl[-1]])
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, bflm, dres.logl[-1]])
     
-dres.samples[:,10] = lwa
-m,Pm = Get_posterior(dres, 10)
+dres.samples[:,1] = lwa
+m,Pm = Get_posterior(dres, 1)
 np.save(pos_path + 'sim_test_tab_to_tab_sclspec_{0}_Plwa'.format(runnum),[m,Pm])
 
 
