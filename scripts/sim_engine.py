@@ -27,6 +27,7 @@ if hpath == '/home/vestrada78840/':
     template_path = '/fdata/scratch/vestrada78840/data/'
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
+    alma_path = '/fdata/scratch/vestrada78840/Alma_files/'
 
 else:
     from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy

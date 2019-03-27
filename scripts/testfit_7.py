@@ -78,7 +78,7 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
 
-tab_masses = np.array([0.9, 0.3, 0.025, 0.001, 0.0001, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
+tab_masses = np.array([0.00, 0.00, 0.000, 0.0000, 0.0001, 0.0001, 0.001, 0.025, 0.3, 0.9])
 
 #######################
 #######set LBT#########
@@ -219,7 +219,7 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'multi',
+d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, nlive_init=2000, ndim = 15, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8))  
 d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 

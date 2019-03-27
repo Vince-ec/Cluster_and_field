@@ -78,23 +78,24 @@ class Gen_spec(object):
         tmp_err - (flag) whether or not we apply a template error function
         """
         
-        # load spec and phot
-        #try:
-        self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec(self.field,
-                            self.galaxy_id, 'g102', self.g102_lims,  self.specz, trim = trim)
-        if decontam:
-            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
-                    self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
-            print('cleaned')
-        self.Bfl = self.Bflx / self.Bflt 
-        self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
-        self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err)
-        self.Ber = self.Berr / self.Bflt
-        self.g102 = True
+         
+        ##load spec and phot
+        try:
+            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec(self.field,
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, trim = trim)
+            if decontam:
+                self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
+                        self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
+                print('cleaned')
+            self.Bfl = self.Bflx / self.Bflt 
+            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
+            self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err)
+            self.Ber = self.Berr / self.Bflt
+            self.g102 = True
 
-        #except:
-        #    print('missing g102')
-        #    self.g102 = False
+        except:
+            print('missing g102')
+            self.g102 = False
         
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec(self.field,
@@ -286,22 +287,22 @@ class Gen_ALMA_spec(object):
         """
         
         # load spec and phot
-        #try:
-        self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_ALMA_spec(self.field,
-                            self.galaxy_id, 'g102', self.g102_lims,  self.specz, trim = trim)
-        if decontam:
-            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
-                    self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
-            print('cleaned')
-        self.Bfl = self.Bflx / self.Bflt 
-        self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
-        self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err)
-        self.Ber = self.Berr / self.Bflt
-        self.g102 = True
+        try:
+            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_ALMA_spec(self.field,
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, trim = trim)
+            if decontam:
+                self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
+                        self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
+                print('cleaned')
+            self.Bfl = self.Bflx / self.Bflt 
+            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
+            self.Berr = apply_tmp_err(self.Bwv, self.Bwv_rf, self.Berr, self.Bflx, 'B', mdl_err = mdl_err)
+            self.Ber = self.Berr / self.Bflt
+            self.g102 = True
 
-        #except:
-        #    print('missing g102')
-        #    self.g102 = False
+        except:
+            print('missing g102')
+            self.g102 = False
         
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_ALMA_spec(self.field,

@@ -44,7 +44,29 @@ else:
 if __name__ == '__main__':
     runnum = sys.argv[1] 
     rndseed = int(sys.argv[2])
-    
+
+##############
+def convert_sfh(agebins, mformed, epsilon=1e-4, maxage=None):
+    #### create time vector
+    agebins_yrs = 10**agebins.T
+    dt = agebins_yrs[1, :] - agebins_yrs[0, :]
+    bin_edges = np.unique(agebins_yrs)
+    if maxage is None:
+        maxage = agebins_yrs.max()  # can replace maxage with something else, e.g. tuniv
+    t = np.concatenate((bin_edges * (1.-epsilon), bin_edges * (1+epsilon)))
+    t.sort()
+    t = t[1:-1] # remove older than oldest bin, younger than youngest bin
+    fsps_time = maxage - t
+
+    #### calculate SFR at each t
+    sfr = mformed / dt
+    sfrout = np.zeros_like(t)
+    sfrout[::2] = sfr
+    sfrout[1::2] = sfr  # * (1+epsilon)
+
+    return (fsps_time / 1e9)[::-1], sfrout[::-1], maxage / 1e9
+##############
+      
 specz = 1.25
     
 sim1 = Gen_spec('GND', 21156, 1.25257,
@@ -55,8 +77,7 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
 
-tab_sfh = np.array([0.9, 0.3, 0.025, 0.001, 0.0001, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
-
+tab_masses = np.array([0.00, 0.00, 0.000, 0.0000, 0.0001, 0.0001, 0.001, 0.025, 0.3, 0.9])
 
 #######################
 #######set LBT#########
@@ -69,11 +90,10 @@ tbinmax = (tuniv * 0.85) * 1e9
 lim1, lim2 = 7.4772, 8.0
 agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(tuniv*1e9)]
 agebins = np.array([agelims[:-1], agelims[1:]]).T
-
-LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
 #########################
+time, sfr, tmax = convert_sfh(agebins, tab_masses)
 
-sp.set_tabular_sfh(LBT,tab_sfh)
+sp.set_tabular_sfh(time,sfr)
 
 wave1, flux1 = sp.get_spectrum(tage = 4.25, peraa = True)
 
@@ -187,7 +207,7 @@ def delay_L(X):
 
 ############
 ####run#####
-t_dsampler = dynesty.DynamicNestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'multi',
+t_dsampler = dynesty.DynamicNestedSampler(delay_L, delay_prior, nlive_init=2000, ndim = 6, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8)) 
 t_dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 

@@ -8,12 +8,14 @@ import sys
 import fsps
 import dynesty
 from scipy.interpolate import interp1d, RegularGridInterpolator
+from scipy import stats
 from sim_engine import forward_model_grism, Salmon
 from spec_id import Scale_model
 from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
 from prospect.models.transforms import logsfr_ratios_to_masses
+from spec_stats import Get_posterior
 
 hpath = os.environ['HOME'] + '/'
 
@@ -24,7 +26,8 @@ if hpath == '/home/vestrada78840/':
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
+    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
@@ -34,57 +37,36 @@ else:
     spec_path = '../spec_files/'
     beam_path = '../beams/'
     template_path = '../templates/'
-    out_path = '../data/posteriors/'
+    out_path = '../data/out_dict/'
+    pos_path = '../data/posteriors/'
     phot_path = '../phot/'
 
 if __name__ == '__main__':
     runnum = sys.argv[1] 
     rndseed = int(sys.argv[2])
+    
 specz = 1.25
     
 sim1 = Gen_spec('GND', 21156, 1.25257,
                g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
             phot_errterm = 0.0, decontam = False) 
 
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 3, sfh = 3, dust_type = 1)
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
 sp.params['dust2'] =0.2
 sp.params['dust1'] =0.2
+sp.params['tau'] =0.3
+sp.params['logzsol'] = np.log10(0.8)
 
-tab_sfh = np.array([0.9, 0.3, 0.025, 0.01, 0.01, 0.001, 0.00001, 0.0002, 0.002, 0.0001])
-tab_Z = np.array([0.2, 1.0, 1.1, 1.0, 0.95, 0.9, 1.1, 1.0, 0.9, 0.8])*0.019
+wave2, flux2 = sp.get_spectrum(tage = 4.25, peraa = True)
 
-#######################
-#######set LBT#########
-lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
+mass_perc2 = sp.stellar_mass
 
-tuniv = Oldest_galaxy(specz)
-nbins = len(lages) - 1
-
-tbinmax = (tuniv * 0.85) * 1e9
-lim1, lim2 = 7.4772, 8.0
-agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(tuniv*1e9)]
-agebins = np.array([agelims[:-1], agelims[1:]]).T
-
-LBT = (10**agebins.T[1][::-1][0] - 10**agebins.T[0][::-1])*1E-9
-#########################
-
-sp.set_tabular_sfh(LBT,tab_sfh,
-                   Z = tab_Z )
-
-wave1, flux1 = sp.get_spectrum(tage = 4.25, peraa = True)
-
-mass_perc1 = sp.stellar_mass
- 
 D_l = cosmo.luminosity_distance(specz).value # in Mpc
 conv = 3.086E24
 lsol_to_fsol = 3.839E33
 
-mass_transform = (10**11 / mass_perc1) * lsol_to_fsol / (4 * np.pi * (D_l*conv)**2)
-    
-sim1.Make_sim(wave1, flux1 * mass_transform, specz, rndstate = rndseed)
-   
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1, dust_type = 1)
-
+sim1.Make_sim(wave2, flux2 * 10**11* lsol_to_fsol / (4 * np.pi * (D_l*conv)**2), specz, rndstate = rndseed)
+      
 ############
 ###priors###
 agelim = Oldest_galaxy(specz)
@@ -93,9 +75,9 @@ def delay_prior(u):
     m = (0.03 * u[0] + 0.001) / 0.019
     a = (agelim - 0.01)* u[1] + 0.01
     t = (1.5 - 0.001)*u[2] + 0.001  
-    z = specz + 0.002*(2*u[3] - 1)
-    d = 1*u[4]
-    lm = 11.0 + 1.25*(2*u[5] - 1)
+    z = stats.norm.ppf(u[3],loc = specz, scale = 0.003)
+    d = u[4]
+    lm = stats.norm.ppf(u[5],loc = 10.75, scale = 0.5)
 
     return [m, a, t, z, d, lm]
 
@@ -183,14 +165,14 @@ def delay_L(X):
 
 ############
 ####run#####
-t_dsampler = dynesty.DynamicNestedSampler(delay_L, delay_prior, ndim = 6, sample = 'rwalk', bound = 'single',
+t_dsampler = dynesty.DynamicNestedSampler(delay_L, delay_prior, nlive_init=2000, ndim = 6, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8)) 
-t_dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
+t_dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
 dres = t_dsampler.results
 ############
 ####save####
-np.save(out_path + 'sim_test_tab_to_delay_single_{0}'.format(runnum), dres) 
+np.save(out_path + 'sim_test_delay_to_delay_multi_{0}'.format(runnum), dres) 
 
 ############# 
 #get lightweighted age
@@ -212,4 +194,18 @@ for ii in range(len(dres.samples)):
         
 sp.params['compute_light_ages'] = False
 
-np.save(out_path + 'sim_test_tab_to_delay_single_{0}_lwa'.format(runnum), lwa) 
+np.save(out_path + 'sim_test_delay_to_delay_multi_{0}_lwa'.format(runnum), lwa) 
+
+params = ['m', 'a','t', 'z', 'd', 'lm']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + 'sim_test_delay_to_delay_multi_{0}_P{1}'.format(runnum, params[i]),[t,pt])
+
+bfm, bfa, bft, bfz, bfd, bflm = dres.samples[-1]
+
+np.save(pos_path + 'sim_test_delay_to_delay_multi_{0}_bfit'.format(runnum),
+        [bfm, bfa, bft, bfz, bfd, bflm, dres.logl[-1]])
+    
+dres.samples[:,1] = lwa
+m,Pm = Get_posterior(dres, 1)
+np.save(pos_path + 'sim_test_delay_to_delay_multi_{0}_Plwa'.format(runnum),[m,Pm])

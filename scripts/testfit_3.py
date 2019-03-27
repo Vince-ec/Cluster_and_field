@@ -211,7 +211,7 @@ def tab_L(X):
 
 ############
 ####run#####
-d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, ndim = 15, sample = 'rwalk', bound = 'multi',
+d_tsampler = dynesty.DynamicNestedSampler(tab_L, tab_prior, nlive_init=2000, ndim = 15, sample = 'rwalk', bound = 'multi',
                                   queue_size = 8, pool = Pool(processes=8))  
 d_tsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
