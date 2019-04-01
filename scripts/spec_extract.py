@@ -59,7 +59,7 @@ class Extract_all(object):
     def __init__(self, galaxy_id, field, grp_list) :
         self.galaxy_id = galaxy_id
         self.field = field
-        self.grp_list = grp_list
+        self.grp = grp_list
     
         if self.field == 'GSD':
             self.ref_cat_loc = Table.read('/Volumes/Vince_CLEAR/CATALOGS/goodss_3dhst.v4.3.cat',format='ascii').to_pandas()
@@ -68,28 +68,26 @@ class Extract_all(object):
             self.ref_cat_loc = Table.read('/Volumes/Vince_CLEAR/CATALOGS/goodsn_3dhst.v4.3.cat',format='ascii').to_pandas()
 
                 
-    def Extract_BeamCutout(self):
-        for grp in self.grp_list:  
-            
-            beams = grp.get_beams(self.galaxy_id)
+    def Extract_BeamCutout(self):            
+        beams = self.grp.get_beams(self.galaxy_id)
 
-            pa = -1
-            for i in beams:
-                if i.grism.filter == 'G102':
-                    if pa != i.get_dispersion_PA():
-                        pa = i.get_dispersion_PA()
-                        i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
-                        fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
-                                value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
+        pa = -1
+        for i in beams:
+            if i.grism.filter == 'G102':
+                if pa != i.get_dispersion_PA():
+                    pa = i.get_dispersion_PA()
+                    i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
+                    fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
+                            value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
 
-            pa = -1            
-            for i in beams:
-                if i.grism.filter == 'G141':
-                    if pa != i.get_dispersion_PA():
-                        pa = i.get_dispersion_PA()
-                        i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
-                        fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
-                                value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
+        pa = -1            
+        for i in beams:
+            if i.grism.filter == 'G141':
+                if pa != i.get_dispersion_PA():
+                    pa = i.get_dispersion_PA()
+                    i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
+                    fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
+                            value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
 
     def Phot_save(self, masterlist = '../phot/master_template_list.pkl'):
         galdf = self.ref_cat_loc[self.ref_cat_loc.id == self.galaxy_id]

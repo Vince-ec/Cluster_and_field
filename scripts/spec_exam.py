@@ -52,7 +52,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                mdl_err = True, phot_errterm = 0, decontam = False, trim = None):
+                mdl_err = True, phot_errterm = 0, irac_err = None, decontam = False, trim = None):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -118,7 +118,7 @@ class Gen_spec(object):
         self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec(self.field,
                                 self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False, trim = trim)
          
-        self.Perr = np.sqrt(self.Perr**2 + (phot_errterm*self.Pflx)**2)
+        self.Perr = apply_phot_err(self.Pflx, self.Perr, self.Pnum, base_err = phot_errterm, irac_err = irac_err)
         # load photmetry precalculated values
         self.model_photDF, self.IDP, self.sens_wv, self.trans, self.b, self.dnu, self.adj, self.mdleffwv = load_phot_precalc(self.Pnum)
                

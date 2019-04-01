@@ -212,6 +212,22 @@ def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
         
     return er
 
+def apply_phot_err(flx, er, num, base_err = 0, irac_err = None):
+    er = np.array(er)
+    irac_nums = [18,19,20,21]
+    
+    if irac_err == None:
+        irac_err = base_err
+        
+    for i in range(len(num)):
+        if num[i] in irac_nums:
+            er[i] = np.sqrt(er[i]**2 + (irac_err*flx[i])**2)
+        else:
+            er[i] = np.sqrt(er[i]**2 + (base_err*flx[i])**2)
+    return er
+    
+    
+
 def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
             btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj, rndstate = 10, perturb = True): 
     # make models
