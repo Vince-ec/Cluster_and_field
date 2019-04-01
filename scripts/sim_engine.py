@@ -3,7 +3,6 @@ __author__ = 'vestrada'
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from astropy import wcs
 from astropy.table import Table
 from scipy.interpolate import interp1d, interp2d
 from scipy import stats
@@ -23,7 +22,7 @@ if hpath == '/home/vestrada78840/':
     model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
     chi_path = '/fdata/scratch/vestrada78840/chidat/'
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/clear_q_beams/'
+    beam_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'

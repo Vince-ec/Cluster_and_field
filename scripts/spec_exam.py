@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from astropy.io import fits
-from astropy import wcs
 from astropy.table import Table
 from scipy.interpolate import interp1d, interp2d
 from glob import glob
