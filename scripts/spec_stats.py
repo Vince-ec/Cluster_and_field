@@ -6,12 +6,12 @@ from scipy.interpolate import interp1d, interp2d
 from dynesty.utils import quantile as _quantile
 from scipy.ndimage import gaussian_filter as norm_kde
 
-import rpy2
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
-from rpy2.robjects import pandas2ri
-R = robjects.r
-pandas2ri.activate()
+#import rpy2
+#import rpy2.robjects as robjects
+#from rpy2.robjects.packages import importr
+#from rpy2.robjects import pandas2ri
+#R = robjects.r
+#pandas2ri.activate()
 
 
 def Median_w_Error(Pofx, x):

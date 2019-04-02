@@ -12,12 +12,12 @@ from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
+from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
 
 
 hpath = os.environ['HOME'] + '/'
 
 if hpath == '/home/vestrada78840/':
-    from C_spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
     data_path = '/fdata/scratch/vestrada78840/data/'
     model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
     chi_path = '/fdata/scratch/vestrada78840/chidat/'
@@ -29,7 +29,6 @@ if hpath == '/home/vestrada78840/':
     alma_path = '/fdata/scratch/vestrada78840/Alma_files/'
 
 else:
-    from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
     data_path = '../data/'
     model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
     chi_path = '../chidat/'

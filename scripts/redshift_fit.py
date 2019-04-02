@@ -15,7 +15,6 @@ if __name__ == '__main__':
 verbose=True
 poolsize = 8
 
-
 def zfit_prior(u):
     m = iCZ(u[0]) / 0.019
     

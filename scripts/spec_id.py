@@ -13,22 +13,21 @@ from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
-from C_full_fit import Scale_model_mult, Stitch_spec
 from time import time
 from sim_engine import *
 from matplotlib import gridspec
-hpath = os.environ['HOME'] + '/'
 from spec_exam import Gen_ALMA_spec
 import sys
-import fsps
 import dynesty
-from scipy.interpolate import interp1d
 from scipy import stats
 from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
 from prospect.models.transforms import logsfr_ratios_to_masses
 from spec_stats import Get_posterior
+from scipy.special import erf, erfinv
+import george
+from george import kernels
 
 hpath = os.environ['HOME'] + '/'
 
@@ -54,29 +53,6 @@ else:
     pos_path = '../data/posteriors/'
     phot_path = '../phot/'
 
-##############################
-###set useful distributions###
-##############################
-
-def Gauss_dist(x, mu, sigma):
-    G = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
-    C = np.trapz(G, x)
-    G /= C
-    return G
-
-rZ = np.arange(0.0019, 0.0302,0.0001)
-r1 = np.arange(0.4999,1.5002,0.0001)
-r2 = np.arange(-0.5001,0.5002,0.0001)
-
-gZ= Gauss_dist(rZ,0.019,0.005)
-g1 = Gauss_dist(r1,1,0.25)
-g2 = Gauss_dist(r2,0,0.25)
-
-iCZ = interp1d(np.cumsum(gZ) / np.cumsum(gZ).max(), rZ,fill_value=1, bounds_error=False)
-iC1 = interp1d(np.cumsum(g1) / np.cumsum(g1).max(), r1,fill_value=1, bounds_error=False)
-iC2 = interp1d(np.cumsum(g2) / np.cumsum(g2).max(), r2,fill_value=0, bounds_error=False)
-
-
 #################################
 ###functiongs needed for prior###
 #################################
@@ -101,7 +77,7 @@ def convert_sfh(agebins, mformed, epsilon=1e-4, maxage=None):
 
     return (fsps_time / 1e9)[::-1], sfrout[::-1], maxage / 1e9
 
-def get_lwa(params, agebins):
+def get_lwa(params, agebins,sp):
     m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = params
 
     sp.params['logzsol'] = np.log10(m)
@@ -132,10 +108,24 @@ def get_agebins(maxage):
 #############
 ####prior####
 #############
+def log_10_prior(value, limits):
+    """ Uniform prior in log_10(x) where x is the parameter. """
+    value = 10**((np.log10(limits[1]/limits[0]))*value
+                 + np.log10(limits[0]))
+    return value
+
+def Gaussian_prior(value, limits, mu, sigma):
+    """ Gaussian prior between limits with specified mu and sigma. """
+    uniform_max = erf((limits[1] - mu)/np.sqrt(2)/sigma)
+    uniform_min = erf((limits[0] - mu)/np.sqrt(2)/sigma)
+    value = (uniform_max-uniform_min)*value + uniform_min
+    value = sigma*np.sqrt(2)*erfinv(value) + mu
+
+    return value
+
 
 def galfit_prior(u):
-#     m = (0.03*u[0] + 0.001) / 0.019
-    m = iCZ(u[0]) / 0.019
+    m = (0.03*u[0] + 0.001) / 0.019
     
     a = (agelim - 1)* u[1] + 1
     
@@ -149,16 +139,24 @@ def galfit_prior(u):
     
     d = u[13]
     
-    bp1 = iC2(u[14])
+    bp1 = Gaussian_prior(u[14], [-0.5,0.5], 0, 0.25)
     
-    rp1 = iC2(u[15])
-    
-    lwa = get_lwa([m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], get_agebins(a))
+    rp1 = Gaussian_prior(u[15], [-0.5,0.5], 0, 0.25)
         
-    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, bp1, rp1, lwa]
+    ba = log_10(u[16], [0.1,10])
+    bb = log_10(u[17], [0.0001,1])
+    bl = log_10(u[18], [0.01,1])
+    
+    ra = log_10(u[19], [0.1,10])
+    rb = log_10(u[20], [0.0001,1])
+    rl = log_10(u[21], [0.01,1])
+        
+    lwa = get_lwa([m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], get_agebins(a))
+
+    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
 
 def zfit_prior(u):
-    m = iCZ(u[0]) / 0.019
+    m = (0.03*u[0] + 0.001) / 0.019
     
     a = (2)* u[1] + 1
     
@@ -170,6 +168,56 @@ def zfit_prior(u):
 ##########################
 #functions for likelihood#
 ##########################
+class noise_model(object):
+    """ A class for modelling the noise properties of spectroscopic
+    data, including correlated noise.
+    Parameters
+    ----------
+    spectrum : array_like
+        The spectral data to which the calibration model is applied.
+    spectral_model : array_like
+        The physical model which is being fitted to the data.
+    """
+
+    def __init__(self, spectrum, spectral_model):
+        self.max_y = np.max(spectrum[:, 1])
+
+        # Normalise the data in y by dividing througy by max value.
+        self.y = spectrum[:, 1]/self.max_y
+        self.y_err = spectrum[:, 2]/self.max_y
+        self.y_model = spectral_model/self.max_y
+
+        self.diff = self.y - self.y_model
+
+        # Normalise the data in x.
+        self.x = spectrum[:, 0] - spectrum[0, 0]
+        self.x /= self.x[-1]
+
+    def GP_exp_squared(self, a, b, l):
+        """ A GP noise model including an exponenetial squared kernel
+        for corellated noise and white noise (jitter term). """
+
+        scaling = a
+
+        norm = b
+        length = l
+
+        kernel = norm**2*kernels.ExpSquaredKernel(length**2)
+        self.gp = george.GP(kernel)
+        self.gp.compute(self.x, self.y_err*scaling)
+
+
+def lnlike_phot(Pflx, Perr, Mpflx):
+    """ Calculates the log-likelihood for photometric data. """
+
+    diff = (Pflx - Mpflx)**2
+    chisq_phot = np.sum(diff*(1 / Perr**2))
+
+    log_error_factors = np.log(2*np.pi*Perr**2)
+    K_phot = -0.5*np.sum(log_error_factors)
+    
+    return K_phot - 0.5*chisq_phot
+
 
 def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
     FL = np.zeros([len(beams),len(in_wv)])
@@ -243,12 +291,25 @@ def Full_fit(spec, Gmfl, Pmfl, wvs, flxs, errs):
     
     return Gchi, Pchi
 
+def Full_fit_2(spec, Gmfl, Pmfl, a, b, l, wvs, flxs, errs): 
+    Gln = 0
+    
+    for i in range(len(wvs)):
+        scale = Scale_model(flxs[i], errs[i], Gmfl[i])
+        noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i] * scale)
+        noise.GP_exp_squared(a[i],b[i],l[i])
+        Gln += noise.gp.lnlikelihood(noise.diff)
+
+    Pln = lnlike_phot(spec.Pflx, spec.Perr, Pmfl)
+    
+    return Gln + Pln
+
 #####################
 #####Likelihoods#####
 #####################
 
 def galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, bp1, rp1, lwa = X
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
@@ -260,15 +321,17 @@ def galfit_L(X):
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
 
-    Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
+    Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z, wvs, flxs, errs, beams, trans)
        
-    Gmfl = Full_calibrate(Gmfl, [bp1, rp1])
+    Gmfl = Full_calibrate(Gmfl, [bp1, rp1], wvs, flxs, errs)
         
     PC= Full_scale(Gs, Pmfl)
 
-    Gchi, Pchi = Full_fit(Gs, Gmfl, PC*Pmfl)
-                  
-    return -0.5 * (Gchi + Pchi)
+    LOGL = Full_fit_2(Gs, Gmfl, PC*Pmfl, [ba,ra], [bb,rb], [bl, rl], wvs, flxs, errs)
+                 
+#     return -0.5 * (Pchi+Gchi)
+
+    return LOGL
 
 def zfit_L(X):
     m, a, z = X
@@ -277,69 +340,10 @@ def zfit_L(X):
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
 
-    Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
+    Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z, wvs, flxs, errs, beams, trans)
               
     PC= Full_scale(Gs, Pmfl)
 
-    Gchi, Pchi = Full_fit(Gs, Gmfl, PC*Pmfl)
+    Gchi, Pchi = Full_fit(Gs, Gmfl, PC*Pmfl, wvs, flxs, errs)
                   
     return -0.5 * (Gchi + Pchi)
-
-#######################
-###Fitting functions###
-#######################
-
-class zfit(object):
-    def __init__(self, field, galaxy, poolsize = 8, verbose = False):
-        #########define fsps#########
-        self.sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1),sfh = 0)
-
-        ###########gen spec##########
-        self.Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-                phot_errterm = 0.02, irac_err = 0.04, decontam = True) 
-
-        ####generate grism items#####
-        self.wvs, self.flxs, self.errs, self.beams, self.trans = Gather_grism_data(self.Gs)
-
-        #######set up dynesty########
-        sampler = dynesty.NestedSampler(self.zfit_L, self.zfit_prior, ndim = 3, sample = 'rwalk', bound = 'multi',
-                                            pool=Pool(processes= poolsize), queue_size = poolsize)
-
-        sampler.run_nested(print_progress = verbose)
-
-        dres = sampler.results
-
-        np.save(out_path + '{0}_{1}_zfit'.format(field, galaxy), dres) 
-
-        ##save out P(z) and bestfit##
-
-        t,pt = Get_posterior(dres,2)
-        np.save(pos_path + '{0}_{1}_zfit_Pz'.format(field, galaxy),[t,pt])
-
-        bfm, bfa, bfz = dres.samples[-1]
-
-        np.save(pos_path + '{0}_{1}_zfit_bfit'.format(field, galaxy), [bfm, bfa,bfz, dres.logl[-1]])
-        
-    def zfit_L(self,X):
-        m, a, z = X
-
-        self.sp.params['logzsol'] = np.log10(m)
-
-        wave, flux = self.sp.get_spectrum(tage = a, peraa = True)
-
-        Gmfl, Pmfl = Full_forward_model(self.Gs, wave, flux, z, self.wvs, self.flxs, self.errs, self.beams, self.trans)
-
-        PC= Full_scale(self.Gs, Pmfl)
-
-        Gchi, Pchi = Full_fit(self.Gs, Gmfl, PC*Pmfl, self.wvs, self.flxs, self.errs)
-
-        return -0.5 * (Gchi + Pchi)
-        
-    def zfit_prior(self,u):
-        m = iCZ(u[0]) / 0.019
-
-        a = (2)* u[1] + 1
-
-        z = 2.5 * u[2]
-
-        return [m, a, z]

@@ -12,8 +12,7 @@ from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
-from C_full_fit import Gen_mflgrid, Analyze_full_fit, Stich_grids,\
-    Stitch_spec, Scale_model_mult, Resize
+from spec_tools import Scale_model, Oldest_galaxy
 from time import time
 from sim_engine import *
 from matplotlib import gridspec
@@ -27,7 +26,6 @@ def:
 """
 
 if hpath == '/home/vestrada78840/':
-    from C_spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
     data_path = '/fdata/scratch/vestrada78840/data/'
     model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
     chi_path = '/fdata/scratch/vestrada78840/chidat/'
@@ -38,7 +36,6 @@ if hpath == '/home/vestrada78840/':
     phot_path = '/fdata/scratch/vestrada78840/phot/'
 
 else:
-    from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
     data_path = '../data/'
     model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
     chi_path = '../chidat/'

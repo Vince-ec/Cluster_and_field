@@ -1,192 +1,113 @@
 #!/home/vestrada78840/miniconda3/envs/astroconda/bin/python
-from spec_exam import Gen_spec
+from spec_id import *
+import fsps
 import numpy as np
 from glob import glob
 import pandas as pd
 import os
 import sys
-import fsps
-import dynesty
-from scipy.interpolate import interp1d, RegularGridInterpolator
-from sim_engine import forward_model_grism, Salmon
-from spec_id import Scale_model
-from spec_tools import Oldest_galaxy
-
 hpath = os.environ['HOME'] + '/'
-
-if hpath == '/home/vestrada78840/':
-    data_path = '/fdata/scratch/vestrada78840/data/'
-    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
-    chi_path = '/fdata/scratch/vestrada78840/chidat/'
-    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/beams/'
-    template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
-    phot_path = '/fdata/scratch/vestrada78840/phot/'
-
-else:
-    data_path = '../data/'
-    model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
-    chi_path = '../chidat/'
-    spec_path = '../spec_files/'
-    beam_path = '../beams/'
-    template_path = '../templates/'
-    out_path = '../data/posteriors/'
-    phot_path = '../phot/'
-    
+  
 if __name__ == '__main__':
-    name = sys.argv[1]
-    tau = sys.argv[2]
-    trim = float(sys.argv[3])
+    field = sys.argv[1] 
+    galaxy = int(sys.argv[2])
+    specz = float(sys.argv[3])
+    runnum = int(sys.argv[4])
     
-if tau == 'tab':
-    sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 3, dust_type = 1)
+verbose=True
+poolsize = 8
 
-if tau == 'delay':
-    sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1, dust_type = 1)
+agelim = Oldest_galaxy(specz)
+
+def Galfit_prior(u):
+    m = (0.03*u[0] + 0.001) / 0.019
     
-Gs = Gen_spec('GND', 21156, 1.253,
-               g102_lims=[8300, 11500], g141_lims=[11100, 16500], mdl_err = True,
-            phot_errterm = 0.03, decontam = True, trim = trim) 
-
-############
-###priors###
-agelim = Oldest_galaxy(1.253 + .1)
-     
-if tau == 'tab':
+    a = (agelim - 1)* u[1] + 1
     
-    def prior_transform(u):
-        m = (0.03 * u[0] + 0.001) / 0.019
-        a = agelim * u[1] + 0.1
+    tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8],u[9], u[10], u[11]])
 
-        t1 = u[2]
-        t2 = u[3]
-        t3 = u[4]
-        t4 = u[5]
-        t5 = u[6]
-        z = 1.253 + 0.1*(2*u[7] - 1)
-        d = u[8]
+    taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
 
-        return [m, a, t1, t2, t3, t4, t5, z, d]
-
-if tau == 'delay':
+    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = get_agebins(a)) * 1E9
     
-    def prior_transform(u):
-        m = (0.03 * u[0] + 0.001) / 0.019
-        a = agelim * u[1] + 0.1
-        t = u[2]
-        z = 1.253 + 0.1*(2*u[3] - 1)
-        d = u[4]
-
-        return [m, a, t, z, d]
+    z = stats.norm.ppf(u[12],loc = specz, scale = 0.005)
     
-############
-#likelihood#
-def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
-    FL = np.zeros([len(beams),len(in_wv)])
-
-    for i in range(len(beams)):
-        mwv, mflx = forward_model_grism(beams[i], model_wave, model_flux)
-        FL[i] = interp1d(mwv, mflx)(in_wv)
-        FL[i] /= trans[i]
-
-    return np.mean(FL.T,axis=1)
-
-def Full_scale(spec, Pmfl):
-    return Scale_model(spec.Pflx, spec.Perr, Pmfl)
-
-def Gather_grism_data(spec):
-    wvs = []
-    flxs = []
-    errs = []
-    beams = []
-    trans = []
+    d = u[13]
     
-    if spec.g102:
-        wvs.append(spec.Bwv)
-        flxs.append(spec.Bfl)
-        errs.append(spec.Ber)
-        beams.append(spec.Bbeam)
-        trans.append(spec.Btrans)
+    bp1 = Gaussian_prior(u[14], [-0.5,0.5], 0, 0.25)
     
-    if spec.g141:
-        wvs.append(spec.Rwv)
-        flxs.append(spec.Rfl)
-        errs.append(spec.Rer)
-        beams.append(spec.Rbeam)
-        trans.append(spec.Rtrans)
-
-    return np.array([wvs, flxs, errs, beams, trans])
-
-def Full_forward_model(spec, wave, flux, specz):
-    Gmfl = []
+    rp1 = Gaussian_prior(u[15], [-0.5,0.5], 0, 0.25)
+        
+    ba = log_10_prior(u[16], [0.1,10])
+    bb = log_10_prior(u[17], [0.0001,1])
+    bl = log_10_prior(u[18], [0.01,1])
     
-    for i in range(len(wvs)):
-        Gmfl.append(forward_model_all_beams(beams[i], trans[i], wvs[i], wave * (1 + specz), flux))
+    ra = log_10_prior(u[19], [0.1,10])
+    rb = log_10_prior(u[20], [0.0001,1])
+    rl = log_10_prior(u[21], [0.01,1])
+        
+    lwa = get_lwa([m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], get_agebins(a), sp)
 
-    Pmfl = spec.Sim_phot_mult(wave * (1 + specz),flux)
+    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
 
-    return np.array(Gmfl), Pmfl
-
-
-def Full_fit(spec, Gmfl, Pmfl):
-    Gchi = 0
+def Galfit_L(X):
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
     
-    for i in range(len(wvs)):
-        scale = Scale_model(flxs[i], errs[i], Gmfl[i])
-        Gchi = Gchi + np.sum(((((flxs[i] / scale) - Gmfl[i]) / (errs[i] / scale))**2))
+    sp.params['dust2'] = d
+    sp.params['dust1'] = d
+    sp.params['logzsol'] = np.log10(m)
+
+    time, sfr, tmax = convert_sfh(get_agebins(a), [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], maxage = a*1E9)
+
+    sp.set_tabular_sfh(time,sfr)    
     
-    Pchi = np.sum((((spec.Pflx - Pmfl) / spec.Perr)**2))
-    
-    return Gchi, Pchi
+    wave, flux = sp.get_spectrum(tage = a, peraa = True)
 
-if tau == 'tab':
-    def loglikelihood(X):
-        m, a, t1, t2, t3, t4, t5, z, d = X
+    Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z, wvs, flxs, errs, beams, trans)
+       
+    Gmfl = Full_calibrate(Gmfl, [bp1, rp1], wvs)
+        
+    PC= Full_scale(Gs, Pmfl)
 
-        sp.params['logzsol'] = np.log10( m )
-        sp.params['dust2'] = d
-        sp.set_tabular_sfh(np.array([0.25, 0.75, 1.5, 3, 7]),np.array([t1, t2, t3, t4, t5]))
-        wave, flux = sp.get_spectrum(tage = a, peraa = True)
+    LOGL = Full_fit_2(Gs, Gmfl, PC*Pmfl, [ba,ra], [bb,rb], [bl, rl], wvs, flxs, errs)
+                 
+#     return -0.5 * (Pchi+Gchi)
 
-        Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
+    return LOGL
 
-        PC= Full_scale(Gs, Pmfl)
+#########define fsps#########
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
-        Gchi, Pchi = Full_fit(Gs, PC * Gmfl, PC * Pmfl)
+###########gen spec##########
+Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
+        phot_errterm = 0.02, irac_err = 0.04, decontam = True) 
 
-        return -0.5 * (Gchi + Pchi)
-    
-if tau == 'delay':
-    def loglikelihood(X):
-        m, a, t, z, d = X
-
-        sp.params['logzsol'] = np.log10( m )
-        sp.params['dust2'] = d
-        sp.params['tau'] = t
-        wave, flux = sp.get_spectrum(tage = a, peraa = True)
-
-        Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z)
-
-        PC= Full_scale(Gs, Pmfl)
-
-        Gchi, Pchi = Full_fit(Gs, PC * Gmfl, PC * Pmfl)
-
-        return -0.5 * (Gchi + Pchi)
-    
-############
-####run#####
+####generate grism items#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
 
-if tau == 'tab':
-    dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 9, sample = 'rwalk', bound = 'balls') 
+#######set up dynesty########
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 23, nlive_points = 4000,
+                                         sample = 'rwalk', bound = 'multi',
+                                         pool=Pool(processes=8), queue_size=8)
 
-if tau == 'delay':
-    dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 5, sample = 'rwalk', bound = 'balls') 
+sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
-dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
+dres = sampler.results
 
-dres = dsampler.results
-############
-####save####
-np.save(out_path + 'GND_21156_{0}_{1}_{2}_testfit.npy'.format(tau, name, trim), dres) 
+np.save(out_path + '{0}_{1}_tabfit_{2}'.format(field, galaxy, runnum), dres) 
+
+##save out P(z) and bestfit##
+
+params = ['m', 'a','m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'z', 'd',
+         'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl', 'lwa']
+
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + '{0}_{1}_tabfit_{2}_P{3}'.format(field, galaxy, runnum, params[i]),[t,pt])
+
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, \
+    bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa= dres.samples[-1]
+
+np.save(pos_path + '{0}_{1}_tabfit_{2}_bfit'.format(field, galaxy, runnum),
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd,
+         bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa, dres.logl[-1]])
