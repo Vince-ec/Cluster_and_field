@@ -12,7 +12,8 @@ if __name__ == '__main__':
     field = sys.argv[1] 
     galaxy = int(sys.argv[2])
     specz = float(sys.argv[3])
-    runnum = int(sys.argv[4])
+    photerr = float(sys.argv[4])
+    runnum = int(sys.argv[5])
     
 verbose=True
 poolsize = 8
@@ -80,7 +81,7 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 
 ###########gen spec##########
 Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.02, irac_err = 0.04, decontam = True) 
+        phot_errterm = photerr, irac_err = photerr*2, decontam = True) 
 
 ####generate grism items#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
