@@ -13,7 +13,7 @@ if __name__ == '__main__':
     galaxy = int(sys.argv[2])
     specz = float(sys.argv[3])
     
-verbose=True
+verbose=False
 poolsize = 8
 
 agelim = Oldest_galaxy(specz)
@@ -79,7 +79,7 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 
 ###########gen spec##########
 Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.02, irac_err = 0.04, decontam = True) 
+        phot_errterm = 0.05, irac_err = 0.1, decontam = True) 
 
 ####generate grism items#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)

@@ -54,7 +54,7 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 ###priors###
 def alma_prior(u):
     m = (0.03 * u[0] + 0.001) / 0.019
-    a = (4.5 - 1)* u[1] + 1
+    a = (2)* u[1] + 1
     z = stats.norm.ppf(u[2],loc = 1.6, scale = 0.1)
     return [m, a, z]
 
