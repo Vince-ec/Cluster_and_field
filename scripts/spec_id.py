@@ -91,6 +91,18 @@ def get_lwa(params, agebins,sp):
     sp.params['compute_light_ages'] = False
     
     return lwa
+ 
+def get_lwa_delay(params, agebins,sp):
+    m, a, t = params
+
+    sp.params['logzsol'] = np.log10(m)
+    sp.params['tau'] = t 
+    
+    sp.params['compute_light_ages'] = True
+    lwa = sp.get_mags(tage = a, bands=['sdss_g'])
+    sp.params['compute_light_ages'] = False
+    
+    return lwa
     
 ####### may change to be agelim
 def get_agebins(maxage):
