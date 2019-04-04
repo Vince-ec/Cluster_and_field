@@ -253,39 +253,26 @@ def Gen_grid(DB,param):
     return np.array(grid)
 
 def Highest_density_region(Px, x, region = 0.68):
-    resample_x = np.linspace(x[0],x[-1],1E6)
-    iPx = interp1d(x,Px)(resample_x)
+    mode = x[Px == max(Px)][0]
 
-    border = max(Px)
+    vals = np.zeros_like(x)
 
-    match = False
+    for i in range(len(x)):
+        top_reg = np.clip(Px,Px[i],Px.max())
+        top_reg[top_reg == top_reg.min()] = 0
 
-    while not match:
-        top = np.array(iPx)
-        top[top < border] = 0
-        bottom = np.array(iPx)
-
-        bottom[bottom >= border] = 0
-
-        integral_size = np.trapz(top,resample_x)
-
-        diff = integral_size - region
-
-        if np.abs(diff) > 0.001:
-            if diff < 0:
-                border *= 0.99
-
-            if diff > 0:
-                border *= 1.01
-        else:
-            match = True
-
-    rng = []
-    for i in range(len(top)):
-        if top[i] > 0:
-            rng.append(resample_x[i])
-
-    return resample_x[top == max(top)][0], resample_x[top == max(top)][0] - rng[0], rng[-1] - resample_x[top == max(top)][0]
+        vals[i] = np.trapz(top_reg,x)
+    try:
+        lowlim = interp1d(vals[x <= mode], x[x <= mode])(0.68)
+    except:
+        lowlim = x.min()
+    
+    try:
+        hilim = interp1d(vals[x >= mode], x[x >= mode])(0.68)
+    except:
+        hilim = x.max()
+            
+    return mode, mode - lowlim, hilim - mode
 
 def Smooth(f,x,bw):
     ksmooth = importr('KernSmooth')
