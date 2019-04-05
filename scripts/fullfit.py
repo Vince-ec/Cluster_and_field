@@ -19,7 +19,7 @@ poolsize = 8
 agelim = Oldest_galaxy(specz)
 
 def Galfit_prior(u):
-    m = (0.03*u[0] + 0.001) / 0.019
+    m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
     
     a = (agelim - 1)* u[1] + 1
     
@@ -44,8 +44,8 @@ def Galfit_prior(u):
     ra = log_10_prior(u[19], [0.1,10])
     rb = log_10_prior(u[20], [0.0001,1])
     rl = log_10_prior(u[21], [0.01,1])
-        
-    lwa = get_lwa([m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], get_agebins(a), sp)
+            
+    lwa = get_lwa([m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], get_agebins(a))[0]
 
     return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
 
@@ -79,7 +79,7 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 
 ###########gen spec##########
 Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.05, irac_err = 0.1, decontam = True) 
+        phot_errterm = 0.03, irac_err = 0.06, decontam = True) 
 
 ####generate grism items#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
