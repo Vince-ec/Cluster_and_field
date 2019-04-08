@@ -10,7 +10,7 @@ import dynesty
 from scipy.interpolate import interp1d, RegularGridInterpolator
 from scipy import stats
 from sim_engine import forward_model_grism, Salmon
-from spec_id import Scale_model
+from spec_id import *
 from spec_tools import Oldest_galaxy
 from astropy.cosmology import Planck13 as cosmo
 from multiprocessing import Pool
@@ -43,8 +43,8 @@ else:
 
 if __name__ == '__main__':
     galaxy_id = int(sys.argv[1])
-    lim1 = int(sys.argv[1])
-    lim2 = int(sys.argv[1])
+    lim1 = int(sys.argv[2])
+    lim2 = int(sys.argv[3])
 
 Gs = Gen_ALMA_spec(galaxy_id, 1, g102_lims=[8750,11300], g141_lims=[lim1,lim2], mdl_err=False)
 
@@ -53,46 +53,23 @@ sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, lo
 ############
 ###priors###
 def alma_prior(u):
-    m = (0.03 * u[0] + 0.001) / 0.019
-    a = (2)* u[1] + 1
-    z = stats.norm.ppf(u[2],loc = 1.6, scale = 0.1)
-    return [m, a, z]
+    m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
+    a = (3 - 1)* u[1] + 1
+    bsc= Gaussian_prior(u[2], [0.8, 1.2], 1, 0.05)
+    rsc= Gaussian_prior(u[3], [0.8, 1.2], 1, 0.05)
+    bp1 = Gaussian_prior(u[4], [-0.1,0.1], 0, 0.05)
+    rp1 = Gaussian_prior(u[5], [-0.05,0.05], 0, 0.025)
+    
+    lm = Gaussian_prior(u[6], [9.5, 12.5], 11, 0.75)
+       
+    z = stats.norm.ppf(u[7],loc = 1.6, scale = 0.1)
+    
+    d = log_10_prior(u[8],[1E-3,2])
+    
+    return [m, a, bsc, rsc, bp1, rp1, lm, z, d]
 
 ############
 #likelihood#
-def Gather_grism_sim_data(spec):
-    wvs = []
-    flxs = []
-    errs = []
-    beams = []
-    trans = []
-    
-    if spec.g102:
-        wvs.append(spec.Bwv)
-        flxs.append(spec.Bfl)
-        errs.append(spec.Ber)
-        beams.append(spec.Bbeam)
-        trans.append(spec.Btrans)
-    
-    if spec.g141:
-        wvs.append(spec.Rwv)
-        flxs.append(spec.Rfl)
-        errs.append(spec.Rer)
-        beams.append(spec.Rbeam)
-        trans.append(spec.Rtrans)
-
-    return np.array([wvs, flxs, errs, beams, trans])
-
-def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
-    FL = np.zeros([len(beams),len(in_wv)])
-
-    for i in range(len(beams)):
-        mwv, mflx = forward_model_grism(beams[i], model_wave, model_flux)
-        FL[i] = interp1d(mwv, mflx)(in_wv)
-        FL[i] /= trans[i]
-
-    return np.mean(FL.T,axis=1)
-
 def Full_forward_model(spec, wave, flux, specz):
     Gmfl = []
     
@@ -103,6 +80,27 @@ def Full_forward_model(spec, wave, flux, specz):
 
     return np.array(Gmfl), Pmfl
 
+def Full_calibrate(Gmfl, p1):
+    for i in range(len(wvs)):
+        Gmfl[i] = Gmfl[i] * ((p1[i] * wvs[i]) / (wvs[i][-1] - wvs[i][0]) + 5)
+    return Gmfl
+
+def Full_calibrate_2(Gmfl, p1, sc):
+    for i in range(len(wvs)):
+        rGmfl= Gmfl[i] * (p1[i] * (wvs[i] -(wvs[i][-1] + wvs[i][0])/2 ) + 1E3)
+        scale = Scale_model(Gmfl[i],np.ones_like(Gmfl[i]),rGmfl)
+        Gmfl[i] = scale * rGmfl * sc[i]
+    return Gmfl
+
+def Calibrate_grism(spec, Gmfl, p1):
+    linecal = []
+    for i in range(len(wvs)):
+        lines = ((p1[i] * wvs[i]) / (wvs[i][-1] - wvs[i][0]) + 5)
+        scale = Scale_model(flxs[i]  / lines, errs[i] / lines, Gmfl[i])    
+        linecal.append(scale * lines)
+        
+    return linecal
+
 
 def Full_fit(spec, Gmfl, Pmfl):
     Gchi = 0
@@ -110,31 +108,56 @@ def Full_fit(spec, Gmfl, Pmfl):
     for i in range(len(wvs)):
         scale = Scale_model(flxs[i], errs[i], Gmfl[i])
         Gchi = Gchi + np.sum(((((flxs[i] / scale) - Gmfl[i]) / (errs[i] / scale))**2))
-
-    Pchi = np.sum((((spec.Pflx - Pmfl) / spec.Perr)**2))
     
+    Pchi = np.sum((((spec.Pflx - Pmfl) / spec.Perr)**2))
+
     return Gchi, Pchi
 
-def Full_scale(spec, Pmfl):
-    return Scale_model(spec.Pflx, spec.Perr, Pmfl)
+def Full_fit_2(spec, Gmfl, Pmfl, a, b, l): 
+    Gln = 0
+    
+    for i in range(len(wvs)):
+        scale = Scale_model(flxs[i], errs[i], Gmfl[i])
+        noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i] * scale)
+        noise.GP_exp_squared(a[i],b[i],l[i])
+        Gln += noise.gp.lnlikelihood(noise.diff)
 
-wvs, flxs, errs, beams, trans = Gather_grism_sim_data(Gs)
+    Pln = lnlike_phot(spec.Pflx, spec.Perr, Pmfl)
+    
+    return Gln + Pln
 
+def Full_fit_3(spec, Gmfl, Pmfl):
+    Gchi = 0
+    
+    for i in range(len(wvs)):
+        Gchi = Gchi + np.sum( ((flxs[i] - Gmfl[i]) / errs[i] )**2 )
+    
+    Pchi = np.sum( ((spec.Pflx - Pmfl) / spec.Perr)**2)
+
+    return Gchi, Pchi
+
+wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
+print(wvs)
 def alma_L(X):
-    m, a, z = X
+    m, a, bsc, rsc, bp1, rp1, lm, z, d = X
     
-    sp.params['logzsol'] = np.log10( m )
+    sp.params['dust2'] = d
+    sp.params['dust1'] = d
+    sp.params['logzsol'] = np.log10(m)
     
-    wave, flux = sp.get_spectrum(tage = a, peraa = True)    
-    Gmfl, Pmfl = Full_forward_model(Gs, wave, flux, z) 
-    PC = Full_scale(Gs, Pmfl)
-    Gchi, Pchi = Full_fit(Gs, PC*Gmfl, PC*Pmfl)
+    wave, flux = sp.get_spectrum(tage = a, peraa = True)
+
+    Gmfl, Pmfl = Full_forward_model(Gs, wave, F_lam_per_M(flux, wave*(1+z) , z, 0, sp.stellar_mass)*10**lm, z)
+       
+    Gmfl = Full_calibrate_2(Gmfl, [bp1, rp1], [bsc, rsc])
+
+    Gchi, Pchi = Full_fit_3(Gs, Gmfl, Pmfl)
                   
     return -0.5 * (Gchi + Pchi)
 
 ############
 ####run#####
-sampler = dynesty.DynamicNestedSampler(alma_L, alma_prior, ndim = 3, sample = 'rwalk', bound = 'single',
+sampler = dynesty.DynamicNestedSampler(alma_L, alma_prior, ndim = 9, sample = 'rwalk', bound = 'single',
                                   queue_size = 8, pool = Pool(processes=8))  
 sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
@@ -147,11 +170,11 @@ np.save(out_path + 'ALMA_{0}'.format(galaxy_id), dres)
 #get lightweighted age
 #############
 
-params = ['m', 'a', 'z']
+params = ['m', 'a', 'bsc', 'rsc', 'bp1', 'rp1', 'lm', 'z', 'd']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + 'ALMA_{0}_P{1}'.format(galaxy_id, params[i]),[t,pt])
 
-bfm, bfa, bfz = dres.samples[-1]
+bfm, bfa, bfbsc, bfrsc, bfbp1, bfrp1, bflm, bfz, bfd = dres.samples[-1]
 
-np.save(pos_path + 'ALMA_{0}_bfit'.format(galaxy_id), [bfm, bfa,bfz, dres.logl[-1]])
+np.save(pos_path + 'ALMA_{0}_bfit'.format(galaxy_id), [bfm, bfa, bfbsc, bfrsc, bfbp1, bfrp1, bflm, bfz, bfd, dres.logl[-1]])
