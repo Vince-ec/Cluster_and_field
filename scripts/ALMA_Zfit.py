@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
 Gs = Gen_ALMA_spec(galaxy_id, 1, g102_lims=[8750,11300], g141_lims=[lim1,lim2], mdl_err=False)
 
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1),sfh = 0)
+sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1),sfh = 0, dust_type = 1)
 
 ############
 ###priors###
