@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
 Gs = Gen_ALMA_spec(galaxy_id, 1, g102_lims=[8750,11300], g141_lims=[lim1,lim2], mdl_err=False)
 
-sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1),sfh = 0, dust_type = 1)
+sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = np.log10(1),sfh = 4, tau = 0.1, dust_type = 1)
 
 ############
 ###priors###
@@ -66,7 +66,9 @@ def alma_prior(u):
     
     d = log_10_prior(u[8],[1E-3,2])
     
-    return [m, a, bsc, rsc, bp1, rp1, lm, z, d]
+    t = log_10_prior(u[9],[0.01, 2])
+
+    return [m, a, bsc, rsc, bp1, rp1, lm, z, d, t]
 
 ############
 #likelihood#
@@ -91,15 +93,6 @@ def Full_calibrate_2(Gmfl, p1, sc):
         scale = Scale_model(Gmfl[i],np.ones_like(Gmfl[i]),rGmfl)
         Gmfl[i] = scale * rGmfl * sc[i]
     return Gmfl
-
-def Calibrate_grism(spec, Gmfl, p1):
-    linecal = []
-    for i in range(len(wvs)):
-        lines = ((p1[i] * wvs[i]) / (wvs[i][-1] - wvs[i][0]) + 5)
-        scale = Scale_model(flxs[i]  / lines, errs[i] / lines, Gmfl[i])    
-        linecal.append(scale * lines)
-        
-    return linecal
 
 
 def Full_fit(spec, Gmfl, Pmfl):
@@ -137,13 +130,14 @@ def Full_fit_3(spec, Gmfl, Pmfl):
     return Gchi, Pchi
 
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
-print(wvs)
+
 def alma_L(X):
-    m, a, bsc, rsc, bp1, rp1, lm, z, d = X
+    m, a, bsc, rsc, bp1, rp1, lm, z, d, t = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
     sp.params['logzsol'] = np.log10(m)
+    sp.params['tau'] = t
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
 
@@ -170,11 +164,11 @@ np.save(out_path + 'ALMA_{0}'.format(galaxy_id), dres)
 #get lightweighted age
 #############
 
-params = ['m', 'a', 'bsc', 'rsc', 'bp1', 'rp1', 'lm', 'z', 'd']
+params = ['m', 'a', 'bsc', 'rsc', 'bp1', 'rp1', 'lm', 'z', 'd', 't']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + 'ALMA_{0}_P{1}'.format(galaxy_id, params[i]),[t,pt])
 
-bfm, bfa, bfbsc, bfrsc, bfbp1, bfrp1, bflm, bfz, bfd = dres.samples[-1]
+bfm, bfa, bfbsc, bfrsc, bfbp1, bfrp1, bflm, bfz, bfd, bft = dres.samples[-1]
 
-np.save(pos_path + 'ALMA_{0}_bfit'.format(galaxy_id), [bfm, bfa, bfbsc, bfrsc, bfbp1, bfrp1, bflm, bfz, bfd, dres.logl[-1]])
+np.save(pos_path + 'ALMA_{0}_bfit'.format(galaxy_id), [bfm, bfa, bfbsc, bfrsc, bfbp1, bfrp1, bflm, bfz, bfd, bft, dres.logl[-1]])
