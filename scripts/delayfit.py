@@ -43,7 +43,7 @@ def Galfit_prior(u):
     rb = log_10_prior(u[14], [0.0001,1])
     rl = log_10_prior(u[15], [0.01,1])
    
-    lwa_delay = get_lwa([m, a, t], get_agebins(a),sp)[0]
+    lwa = get_lwa_delay([m, a, t], get_agebins(a),sp)[0]
     
     return [m, a, t, lm, z, d, bsc, rsc, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
 
