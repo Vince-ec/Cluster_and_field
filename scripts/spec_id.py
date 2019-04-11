@@ -277,9 +277,11 @@ def Full_forward_model(spec, wave, flux, specz, wvs, flxs, errs, beams, trans):
 
     return np.array(Gmfl), Pmfl
 
-def Full_calibrate(Gmfl, p1, wvs):
+def Full_calibrate(Gmfl, p1, sc, wvs):
     for i in range(len(wvs)):
-        Gmfl[i] = Gmfl[i] * ((p1[i] * wvs[i]) / (wvs[i][-1] - wvs[i][0]) + 5)
+        rGmfl= Gmfl[i] * (p1[i] * (wvs[i] -(wvs[i][-1] + wvs[i][0])/2 ) + 1E3)
+        scale = Scale_model(Gmfl[i],np.ones_like(Gmfl[i]),rGmfl)
+        Gmfl[i] = scale * rGmfl * sc[i]
     return Gmfl
 
 def Calibrate_grism(spec, Gmfl, p1, wvs, flxs, errs):
