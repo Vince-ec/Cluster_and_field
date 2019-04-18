@@ -213,7 +213,7 @@ def Source_present(fn,ra,dec):  ### finds source in flt file, returns if present
     return present,pos
     
 def Get_Sensitivity(filter_num):
-    f=open(hpath + 'GitHub/Quiescent_analysis/scripts/vtl/FILTER.RES.latest','r')
+    f=open(hpath + '/eazy-photoz/filters/FILTER.RES.latest','r')
     data=f.readlines()
     rows=[]
     for i in range(len(data)):
@@ -274,7 +274,7 @@ class Photometry(object):
         if filter_num != 0:
             self.filter_number = filter_num
 
-        f = open(hpath + 'GitHub/Quiescent_analysis/scripts/vtl/FILTER.RES.latest', 'r')
+        f = open(hpath + '/eazy-photoz/filters/FILTER.RES.latest', 'r')
         data = f.readlines()
         rows = []
         for i in range(len(data)):
