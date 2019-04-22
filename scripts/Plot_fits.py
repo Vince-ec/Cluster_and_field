@@ -42,12 +42,13 @@ else:
     dpath = hpath + 'Data/' 
 
 
+
 def PLOT(field, galaxy, savefig = True):
-    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, \
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bsc, rsc, \
     bp1, rp1, ba, bb, bl, ra, rb, rl, lwa, logl = np.load(
         '../data/bestfits/{0}_{1}_tabfit_bfit.npy'.format(field, galaxy))
     
-    sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
+    sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
     sp.params['dust2'] = d
     sp.params['dust1'] = d
     sp.params['logzsol'] = np.log10(m)
@@ -59,7 +60,7 @@ def PLOT(field, galaxy, savefig = True):
     wave, flux = sp.get_spectrum(tage = a, peraa = True)    
     
     Gs = Gen_spec(field, galaxy, z, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.03, irac_err = 0.06, decontam = True) 
+        phot_errterm = 0.04, irac_err = 0.08, decontam = True) 
 
     Gs.Sim_all_premade(wave*(1+z),flux)
     
@@ -119,8 +120,8 @@ def PLOT(field, galaxy, savefig = True):
     plt.tick_params(axis='both', which='major', labelsize=10)
     
     ###############plot delay################
-    sp = fsps.StellarPopulation(imf_type = 2, tpagb_norm_type=0, zcontinuous = 1, logzsol = 0, sfh = 4, tau = 0.01, dust_type = 1)
-    m, a, tau, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa, logl = np.load(
+    sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 4, tau = 0.01, dust_type = 1)
+    m, a, tau, lm, z, d, bsc, rsc, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa, logl = np.load(
         '../data/bestfits/{0}_{1}_delayfit_bfit.npy'.format(field, galaxy))
     
     sp.params['dust2'] = d
@@ -131,7 +132,7 @@ def PLOT(field, galaxy, savefig = True):
     wave, flux = sp.get_spectrum(tage = a, peraa = True)    
     
     Gs = Gen_spec(field, galaxy, z, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.05, irac_err = 0.1, decontam = True) 
+        phot_errterm = 0.04, irac_err = 0.08, decontam = True) 
 
     Gs.Sim_all_premade(wave*(1+z),flux)
     
@@ -227,10 +228,8 @@ def PLOT(field, galaxy, savefig = True):
     plt.ylabel('P(Av)', fontsize=15)
     plt.tick_params(axis='both', which='major', labelsize=10)
     
-    
     if savefig:
         plt.savefig('../plots/fullfits/all_data_{0}_{1}.png'.format(field, galaxy),bbox_inches = 'tight')
-        
     
 flist = glob('../data/posteriors/*zfit*')
 

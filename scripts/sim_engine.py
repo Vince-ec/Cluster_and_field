@@ -60,7 +60,7 @@ def:
 -Get_mass
 """  
 
-def load_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = None):
+def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None):
     # if loading photometry FLT stands in for num
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
@@ -77,10 +77,16 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = None):
         L = np.array(L[IDX]) 
         C = np.array(C[IDX]) 
         
-        if trim == None:
-            trim = 0 
+        if select != None:
+            IDT = np.repeat(False, len(Gs.Rwv))
 
-        return W[WRF > trim], WRF[WRF > trim], F[WRF > trim], E[WRF > trim], FLT[WRF > trim], np.array(IDX)[WRF > trim], L[WRF > trim], C[WRF > trim]
+            for i in range(len(IDX)):
+                if select[0] < W[i] < select[1]:
+                    IDT[i] = True
+
+            return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
+        else:
+            return W, WRF, F, E, FLT, np.array(IDX), L, C
 
     else:
         W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
@@ -97,10 +103,7 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = None):
         
         W, WRF, F, E, FLT = W[F > 0], WRF[F > 0], F[F > 0], E[F > 0], FLT[F > 0]
         
-        if trim == None:
-            trim = 0 
-        
-        return W[WRF > trim], WRF[WRF > trim], F[WRF > trim], E[WRF > trim], FLT[WRF > trim]
+        return W, WRF, F, E, FLT
         
 def load_ALMA_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = None):
     # if loading photometry FLT stands in for num

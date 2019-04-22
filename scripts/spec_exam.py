@@ -48,7 +48,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                mdl_err = True, phot_errterm = 0, irac_err = None, decontam = False, trim = None):
+                mdl_err = True, phot_errterm = 0, irac_err = None, decontam = False, Bselect = None, Rselect = None):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -78,7 +78,7 @@ class Gen_spec(object):
         ##load spec and phot
         try:
             self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec(self.field,
-                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, trim = trim)
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, select = Bselect)
             if decontam:
                 self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
                         self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
@@ -95,7 +95,7 @@ class Gen_spec(object):
         
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec(self.field,
-                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, trim = trim)
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, select = select)
 
             if decontam:
                 self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = decontaminate(self.Rwv, 
@@ -112,7 +112,7 @@ class Gen_spec(object):
             self.g141 = False
         
         self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec(self.field,
-                                self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False, trim = trim)
+                                self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False, select = None)
          
         self.Perr = apply_phot_err(self.Pflx, self.Perr, self.Pnum, base_err = phot_errterm, irac_err = irac_err)
         # load photmetry precalculated values
