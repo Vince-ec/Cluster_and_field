@@ -48,7 +48,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                mdl_err = True, phot_errterm = 0, irac_err = None, decontam = False, Bselect = None, Rselect = None):
+                mdl_err = True, phot_errterm = 0, irac_err = None, decontam = False, Bselect = None, Rselect = None, auto_select = True):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -58,8 +58,7 @@ class Gen_spec(object):
         self.set_scale = False
         self.g102_beam = glob(beam_path + '*{0}*g102*'.format(galaxy_id))
         self.g141_beam = glob(beam_path + '*{0}*g141*'.format(galaxy_id))
-        self.sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), 
-                                sfh = 4, tau = 0.1, dust_type = 1)
+        self.sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1, dust_type = 1)
 
         """
         B - prefix refers to g102
@@ -78,7 +77,7 @@ class Gen_spec(object):
         ##load spec and phot
         try:
             self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec(self.field,
-                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, select = Bselect)
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, select = Bselect, auto_select = auto_select)
             if decontam:
                 self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = decontaminate(self.Bwv, 
                         self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont)
@@ -95,7 +94,7 @@ class Gen_spec(object):
         
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec(self.field,
-                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, select = select)
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, select = Rselect, auto_select = auto_select)
 
             if decontam:
                 self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = decontaminate(self.Rwv, 

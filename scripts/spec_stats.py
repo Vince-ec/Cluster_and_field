@@ -288,7 +288,7 @@ def Smooth(f,x,bw):
     iFX = np.array(fx[1])
     return interp1d(X,iFX)(x)
 
-def Get_posterior(results, entry,logwt,logz):
+def Get_posterior(results, entry):
     sample = results.samples[:, entry]
     logwt = results.logwt
     logz = results.logz

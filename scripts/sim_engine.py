@@ -60,12 +60,14 @@ def:
 -Get_mass
 """  
 
-def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None):
+def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None, auto_select = False):
     # if loading photometry FLT stands in for num
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
     if grism:
         W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+    
+        section_db = pd.read_pickle(spec_path + 'section.pkl')
     
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
@@ -77,16 +79,33 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None)
         L = np.array(L[IDX]) 
         C = np.array(C[IDX]) 
         
-        if select != None:
-            IDT = np.repeat(False, len(Gs.Rwv))
+        if auto_select:
+            if instr == 'g102':
+                srange = [section_db.query('id == {0}'.format(galaxy_id)).bllim.values[0],
+                          section_db.query('id == {0}'.format(galaxy_id)).bhlim.values[0]]
+            if instr == 'g141':           
+                srange = [section_db.query('id == {0}'.format(galaxy_id)).rllim.values[0],
+                          section_db.query('id == {0}'.format(galaxy_id)).rhlim.values[0]]
+            
+            IDT = np.repeat(False, len(W))
 
             for i in range(len(IDX)):
-                if select[0] < W[i] < select[1]:
+                if srange[0] < W[i] < srange[1]:
                     IDT[i] = True
 
             return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
+        
         else:
-            return W, WRF, F, E, FLT, np.array(IDX), L, C
+            if select != None:
+                IDT = np.repeat(False, len(W))
+
+                for i in range(len(IDX)):
+                    if select[0] < W[i] < select[1]:
+                        IDT[i] = True
+
+                return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
+            else:
+                return W, WRF, F, E, FLT, np.array(IDX), L, C
 
     else:
         W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))

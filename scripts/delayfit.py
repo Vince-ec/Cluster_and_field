@@ -20,16 +20,15 @@ agelim = Oldest_galaxy(specz)
 
 def Galfit_prior(u):
     m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
+    
     a = (agelim - 1)* u[1] + 1
 
     t = Gaussian_prior(u[2], [0.01,2],0,.5)
 
     lm = Gaussian_prior(u[3], [9.5, 12.5], 11, 0.75)
-  
-    #z = stats.norm.ppf(u[4],loc = specz, scale = 0.005)
-    
-    z =  3 * u[4]
-    
+     
+    z = stats.norm.ppf(u[4],loc = specz, scale = 0.005)
+
     d = log_10_prior(u[5],[1E-3,2])
     
     bsc= Gaussian_prior(u[6], [0.8, 1.2], 1, 0.05)
