@@ -28,7 +28,7 @@ def Galfit_prior(u):
     lm = Gaussian_prior(u[3], [9.5, 12.5], 11, 0.75)
      
     z = stats.norm.ppf(u[4],loc = specz, scale = 0.005)
-
+   
     d = log_10_prior(u[5],[1E-3,2])
     
     bsc= Gaussian_prior(u[6], [0.8, 1.2], 1, 0.05)
