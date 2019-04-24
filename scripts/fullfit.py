@@ -17,6 +17,7 @@ verbose=False
 poolsize = 8
 
 agelim = Oldest_galaxy(specz)
+zscale = 0.035 * (1 + specz)
 
 def Galfit_prior(u):
     m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
@@ -28,7 +29,7 @@ def Galfit_prior(u):
     
     lm = Gaussian_prior(u[12], [9.5, 12.5], 11, 0.75)
   
-    z = stats.norm.ppf(u[13],loc = specz, scale = 0.005)
+    z = stats.norm.ppf(u[13],loc = specz, scale = zscale)
     
     d = log_10_prior(u[14],[1E-3,2])
     
