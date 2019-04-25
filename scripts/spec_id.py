@@ -305,8 +305,9 @@ def Full_fit_2(spec, Gmfl, Pmfl, a, b, l, wvs, flxs, errs):
     Gln = 0
     
     for i in range(len(wvs)):
-        scale = Scale_model(flxs[i], errs[i], Gmfl[i])
-        noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i] * scale)
+        #scale = Scale_model(flxs[i], errs[i], Gmfl[i])
+        #noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i] * scale)
+        noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i])
         noise.GP_exp_squared(a[i],b[i],l[i])
         Gln += noise.gp.lnlikelihood(noise.diff)
 
