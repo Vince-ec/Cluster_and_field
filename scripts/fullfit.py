@@ -33,25 +33,27 @@ def Galfit_prior(u):
     
     d = log_10_prior(u[14],[1E-3,2])
     
-    bsc= Gaussian_prior(u[15], [0.8, 1.2], 1, 0.05)
-    rsc= Gaussian_prior(u[16], [0.8, 1.2], 1, 0.05)
-    bp1 = Gaussian_prior(u[17], [-0.1,0.1], 0, 0.05)
-    rp1 = Gaussian_prior(u[18], [-0.05,0.05], 0, 0.025)
+    #bsc= Gaussian_prior(u[15], [0.8, 1.2], 1, 0.05)
+    #rsc= Gaussian_prior(u[16], [0.8, 1.2], 1, 0.05)
+    bp1 = Gaussian_prior(u[15], [-0.1,0.1], 0, 0.05)
+    rp1 = Gaussian_prior(u[16], [-0.05,0.05], 0, 0.025)
     
-    ba = log_10_prior(u[19], [0.1,10])
-    bb = log_10_prior(u[20], [0.0001,1])
-    bl = log_10_prior(u[21], [0.01,1])
+    ba = log_10_prior(u[17], [0.1,10])
+    bb = log_10_prior(u[18], [0.0001,1])
+    bl = log_10_prior(u[19], [0.01,1])
     
-    ra = log_10_prior(u[22], [0.1,10])
-    rb = log_10_prior(u[23], [0.0001,1])
-    rl = log_10_prior(u[24], [0.01,1])
+    ra = log_10_prior(u[20], [0.1,10])
+    rb = log_10_prior(u[21], [0.0001,1])
+    rl = log_10_prior(u[22], [0.01,1])
    
     lwa = get_lwa([m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], get_agebins(a),sp)[0]
     
-    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bsc, rsc, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
+    #return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bsc, rsc, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
+    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
 
 def Galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bsc, rsc, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
+    #m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bsc, rsc, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
@@ -66,7 +68,8 @@ def Galfit_L(X):
     Gmfl, Pmfl = Full_forward_model(Gs, wave, F_lam_per_M(flux,wave*(1+z),z,0,sp.stellar_mass)*10**lm, z, 
                                     wvs, flxs, errs, beams, trans)
        
-    Gmfl = Full_calibrate(Gmfl, [bp1, rp1], [bsc, rsc], wvs)
+    #Gmfl = Full_calibrate(Gmfl, [bp1, rp1], [bsc, rsc], wvs)
+    Gmfl = Full_calibrate_2(Gmfl, [bp1, rp1], wvs, flxs, errs)
    
     return Full_fit_2(Gs, Gmfl, Pmfl, [ba,ra], [bb,rb], [bl, rl], wvs, flxs, errs)
 
@@ -81,7 +84,7 @@ Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
 
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 26, nlive_points = 4000,
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 24, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=8), queue_size=8)
 
@@ -93,16 +96,24 @@ np.save(out_path + '{0}_{1}_tabfit'.format(field, galaxy), dres)
 
 ##save out P(z) and bestfit##
 
+#params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm',
+#          'z', 'd', 'bsc', 'rsc', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl', 'lwa']
 params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm',
-          'z', 'd', 'bsc', 'rsc', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl', 'lwa']
-
+          'z', 'd', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl', 'lwa']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + '{0}_{1}_tabfit_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
+#bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bflm, bfz, bfd,\
+#    bfbsc, bfrsc, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa= dres.samples[-1]
+
+#np.save(pos_path + '{0}_{1}_tabfit_bfit'.format(field, galaxy),
+#        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bflm, bfz, bfd,
+#         bfbsc, bfrsc, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa, dres.logl[-1]])
+
 bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bflm, bfz, bfd,\
-    bfbsc, bfrsc, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa= dres.samples[-1]
+    bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa= dres.samples[-1]
 
 np.save(pos_path + '{0}_{1}_tabfit_bfit'.format(field, galaxy),
         [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bflm, bfz, bfd,
-         bfbsc, bfrsc, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa, dres.logl[-1]])
+         bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, bflwa, dres.logl[-1]])

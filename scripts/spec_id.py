@@ -284,6 +284,13 @@ def Full_calibrate(Gmfl, p1, sc, wvs):
         Gmfl[i] = scale * rGmfl * sc[i]
     return Gmfl
 
+def Full_calibrate_2(Gmfl, p1, wvs, flxs, errs):
+    for i in range(len(wvs)):
+        rGmfl= Gmfl[i] * (p1[i] * (wvs[i] -(wvs[i][-1] + wvs[i][0])/2 ) + 1E3)
+        scale = Scale_model(flxs[i], errs[i], rGmfl)
+        Gmfl[i] = scale * rGmfl
+    return Gmfl
+
 def Calibrate_grism(spec, Gmfl, p1):
     lines = (p1 * (spec[0] -(spec[0][-1] + spec[0][0])/2 ) + 1E3)
     scale = Scale_model(spec[1]  / lines, spec[2] / lines, Gmfl)    
