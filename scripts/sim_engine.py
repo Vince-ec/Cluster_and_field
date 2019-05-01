@@ -27,6 +27,10 @@ if hpath == '/home/vestrada78840/':
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
     alma_path = '/fdata/scratch/vestrada78840/Alma_files/'
+    cbeam_path = '/fdata/scratch/vestrada78840/Casey_data/beams/'
+    cphot_path = '/fdata/scratch/vestrada78840/Casey_data/phot/'
+    cspec_path = '/fdata/scratch/vestrada78840/Casey_data/spec/'
+    
 
 else:
     data_path = '../data/'
@@ -38,6 +42,9 @@ else:
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
     alma_path = '../Alma_files/'
+    cbeam_path = '../Casey_data/beams/'
+    cphot_path = '../Casey_data/phot/'
+    cspec_path = '../Casey_data/spec/'
 """
 def:
 -load_spec
@@ -411,3 +418,48 @@ def Get_mass(gwv, gfl, ger, Z, t, z, Av):
     IDX = [U for U in range(len(gwv)) if 8000 < gwv[U] < 11300]
     return np.log10(Scale_model(gfl[IDX],ger[IDX],interp1d(wv,fl_m)(gwv[IDX])))
 
+def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = None):
+    # if loading photometry FLT stands in for num
+    bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
+
+    if grism:
+        W, F, E, FLT, L, C = np.load(cspec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        
+        IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
+
+        W = np.array(W[IDX])
+        WRF = np.array(W / (1 + specz))
+        FLT = np.array(FLT[IDX])
+        F = np.array(F[IDX]) 
+        E = np.array(E[IDX]) 
+        L = np.array(L[IDX]) 
+        C = np.array(C[IDX]) 
+        
+        if mask != None:
+            IDT = np.repeat(False, len(W))
+
+            for i in range(len(IDX)):
+                if srange[0] < W[i] < srange[1]:
+                    IDT[i] = True
+
+            return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
+        
+        else:
+            return W, WRF, F, E, FLT, np.array(IDX), L, C
+
+    else:
+        W, F, E, FLT = np.load(cphot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        
+        WRF = W / (1 + specz)
+        
+        IDX = []
+        
+        for i in range(len(FLT)):
+            if FLT[i] not in bfilters and F[i] / E[i] > 0.5:
+                IDX.append(i)
+        
+        W, WRF, F, E, FLT = W[IDX], WRF[IDX], F[IDX], E[IDX], FLT[IDX]
+        
+        W, WRF, F, E, FLT = W[F > 0], WRF[F > 0], F[F > 0], E[F > 0], FLT[F > 0]
+        
+        return W, WRF, F, E, FLT

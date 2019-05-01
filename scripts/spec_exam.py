@@ -34,16 +34,22 @@ if hpath == '/home/vestrada78840/':
     template_path = '/fdata/scratch/vestrada78840/data/'
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
-
+    cbeam_path = '/fdata/scratch/vestrada78840/Casey_data/beams/'
+    cphot_path = '/fdata/scratch/vestrada78840/Casey_data/phot/'
+    cspec_path = '/fdata/scratch/vestrada78840/Casey_data/spec/'
 else:
     data_path = '../data/'
     model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
     chi_path = '../chidat/'
     spec_path = '../spec_files/'
     beam_path = '../beams/'
+    cbeam_path = '../Casey_data/beams/'
     template_path = '../templates/'
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
+    cbeam_path = '../Casey_data/beams/'
+    cphot_path = '../Casey_data/phot/'
+    cspec_path = '../Casey_data/spec/'
 
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
@@ -448,6 +454,109 @@ class Gen_ALMA_spec(object):
             self.Bfl, self.Rfl, self.Pflx, self.Ber, self.Rer, self.Perr, 0, 
             self.Btrans, self.Rtrans, self.Bbeam, self.Rbeam, 
             self.IDP, self.sens_wv, self.b, self.dnu, self.adj , rndstate = rndstate, perturb = perturb)
+        
+    def Forward_model_all_beams(self, beams, in_wv, model_wave, model_flux):
+        return forward_model_all_beams(beams, in_wv, model_wave, model_flux)
+    
+    def Forward_model_all_beams_flatted(self, beams, trans, in_wv, model_wave, model_flux):
+        return forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux)
+    
+    def Sim_all_premade(self, model_wave, model_flux, scale = True):
+        self.Sim_phot_premade(model_wave, model_flux, scale = scale)
+        self.Sim_spec_premade(model_wave, model_flux)
+        
+class Gen_SF_spec(object):
+    def __init__(self, field, galaxy_id, specz,
+                 g102_lims = [7900, 11300], g141_lims = [11100, 16000],
+                phot_errterm = 0, irac_err = None, mask = 'none'):
+        self.field = field
+        self.galaxy_id = galaxy_id
+        self.specz = specz
+        self.c = 3E18          # speed of light angstrom s^-1
+        self.g102_lims = g102_lims
+        self.g141_lims = g141_lims
+        self.g102_beam = glob(cbeam_path + '*{0}*g102*'.format(galaxy_id))
+        self.g141_beam = glob(cbeam_path + '*{0}*g141*'.format(galaxy_id))
+        self.sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1, dust_type = 1)
+
+        """
+        B - prefix refers to g102
+        R - prefix refers to g141
+        P - prefix refers to photometry
+        
+        field - GND/GSD/UDS
+        galaxy_id - ID number from 3D-HST
+        specz - z_grism
+        g102_lims - window for g102
+        g141_lims - window for g141
+        tmp_err - (flag) whether or not we apply a template error function
+        """
+         
+        ##load spec and phot
+        try:
+            self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec_SF(self.field,
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz)
+
+            
+            self.Bfl = self.Bflx / self.Bflt 
+            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
+            self.Ber = self.Berr / self.Bflt
+            self.g102 = True
+
+        except:
+            print('missing g102')
+            self.g102 = False
+        
+        try:
+            self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec_SF(self.field,
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz)
+
+            self.Rfl = self.Rflx / self.Rflt 
+            self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
+            self.Rer = self.Rerr / self.Rflt
+            self.g141 = True
+
+        except:
+            print('missing g141')
+            self.g141 = False
+        
+        self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec_SF(self.field,
+                                self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False)
+         
+        self.Perr = apply_phot_err(self.Pflx, self.Perr, self.Pnum, base_err = phot_errterm, irac_err = irac_err)
+        # load photmetry precalculated values
+        self.model_photDF, self.IDP, self.sens_wv, self.trans, self.b, self.dnu, self.adj, self.mdleffwv = load_phot_precalc(self.Pnum)
+    
+    def Sim_spec_premade(self, model_wave, model_flux):
+        if self.g102:
+            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
+            self.Bmfl *= self.PC
+
+            if not self.set_scale:
+                Bscale = Scale_model(self.Bfl, self.Ber, self.Bmfl)
+
+                self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
+                
+        if self.g141: 
+            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
+            self.Rmfl *= self.PC
+
+            if not self.set_scale:
+                Rscale = Scale_model(self.Rfl, self.Rer, self.Rmfl)
+
+                self.Rfl = self.Rfl / Rscale ; self.Rer = self.Rer / Rscale 
+    
+    def Sim_phot_mult(self, model_wave, model_flux):
+        return forward_model_phot(model_wave, model_flux, self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
+
+    def Sim_phot_premade(self, model_wave, model_flux, scale = True):
+        self.Pmfl = self.Sim_phot_mult(model_wave, model_flux)
+        self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)
+        
+        if scale == False:
+            self.PC = 1
+            
+        self.Pmfl = self.Pmfl * self.PC
         
     def Forward_model_all_beams(self, beams, in_wv, model_wave, model_flux):
         return forward_model_all_beams(beams, in_wv, model_wave, model_flux)
