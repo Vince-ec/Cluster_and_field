@@ -418,7 +418,7 @@ def Get_mass(gwv, gfl, ger, Z, t, z, Av):
     IDX = [U for U in range(len(gwv)) if 8000 < gwv[U] < 11300]
     return np.log10(Scale_model(gfl[IDX],ger[IDX],interp1d(wv,fl_m)(gwv[IDX])))
 
-def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = None):
+def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True):
     # if loading photometry FLT stands in for num
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
@@ -435,12 +435,16 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = None
         L = np.array(L[IDX]) 
         C = np.array(C[IDX]) 
         
-        if mask != None:
-            IDT = np.repeat(False, len(W))
+        if mask:
+            
+            MASK = np.load(cspec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
+            
+            IDT = np.repeat(True, len(W))
 
-            for i in range(len(IDX)):
-                if srange[0] < W[i] < srange[1]:
-                    IDT[i] = True
+            for m in MASK:
+                for i in range(len(W)):
+                    if m[0] < W[i] < m[1]:
+                        IDT[i] = False
 
             return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
         

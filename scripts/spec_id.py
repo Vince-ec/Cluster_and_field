@@ -8,7 +8,6 @@ from astropy.table import Table
 from scipy.interpolate import interp1d, interp2d
 from glob import glob
 import os
-from spec_exam import Gen_spec
 from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
@@ -16,7 +15,7 @@ import fsps
 from time import time
 from sim_engine import *
 from matplotlib import gridspec
-from spec_exam import Gen_ALMA_spec
+from spec_exam import *
 import sys
 import dynesty
 from scipy import stats

@@ -468,7 +468,7 @@ class Gen_ALMA_spec(object):
 class Gen_SF_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
-                phot_errterm = 0, irac_err = None, mask = 'none'):
+                phot_errterm = 0, irac_err = None, mask = True):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -495,8 +495,7 @@ class Gen_SF_spec(object):
         ##load spec and phot
         try:
             self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec_SF(self.field,
-                                self.galaxy_id, 'g102', self.g102_lims,  self.specz)
-
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, mask = mask)
             
             self.Bfl = self.Bflx / self.Bflt 
             self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
@@ -509,7 +508,7 @@ class Gen_SF_spec(object):
         
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec_SF(self.field,
-                                self.galaxy_id, 'g141', self.g141_lims,  self.specz)
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, mask = mask)
 
             self.Rfl = self.Rflx / self.Rflt 
             self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
