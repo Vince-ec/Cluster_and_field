@@ -21,6 +21,8 @@ hpath = os.environ['HOME'] + '/'
 """
 class:
 Gen_spec
+Gen_ALMA_spec
+Gen_SF_spec
 
 def:
 """
@@ -257,6 +259,9 @@ class Gen_spec(object):
     def Sim_all_premade(self, model_wave, model_flux, scale = True):
         self.Sim_phot_premade(model_wave, model_flux, scale = scale)
         self.Sim_spec_premade(model_wave, model_flux)
+
+###########
+###########
         
 class Gen_ALMA_spec(object):
     def __init__(self, galaxy_id, specz,
@@ -464,7 +469,10 @@ class Gen_ALMA_spec(object):
     def Sim_all_premade(self, model_wave, model_flux, scale = True):
         self.Sim_phot_premade(model_wave, model_flux, scale = scale)
         self.Sim_spec_premade(model_wave, model_flux)
-        
+
+###########
+###########
+
 class Gen_SF_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims = [7900, 11300], g141_lims = [11100, 16000],
@@ -478,7 +486,7 @@ class Gen_SF_spec(object):
         self.g102_beam = glob(cbeam_path + '*{0}*g102*'.format(galaxy_id))
         self.g141_beam = glob(cbeam_path + '*{0}*g141*'.format(galaxy_id))
         self.sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1, dust_type = 1)
-
+        self.mask = mask
         """
         B - prefix refers to g102
         R - prefix refers to g141
@@ -489,31 +497,34 @@ class Gen_SF_spec(object):
         specz - z_grism
         g102_lims - window for g102
         g141_lims - window for g141
-        tmp_err - (flag) whether or not we apply a template error function
         """
          
         ##load spec and phot
         try:
             self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec_SF(self.field,
-                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, mask = mask)
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, mask = self.mask)
             
             self.Bfl = self.Bflx / self.Bflt 
             self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
-
+            if self.mask == False:
+                self.BMASK = get_mask(self.field, self.galaxy_id, self.Bwv, 'g102')
+                
         except:
             print('missing g102')
             self.g102 = False
         
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec_SF(self.field,
-                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, mask = mask)
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, mask = self.mask)
 
             self.Rfl = self.Rflx / self.Rflt 
             self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
+            if self.mask == False:
+                self.RMASK = get_mask(self.field, self.galaxy_id, self.Rwv, 'g141')
 
         except:
             print('missing g141')
@@ -571,13 +582,21 @@ class Gen_SF_spec(object):
 
         if self.g102:
             self.bcal = Calibrate_grism([self.Bwv, self.Bfl, self.Ber], self.Bmfl, bp1)[0]
-            self.bscale = Scale_model(self.Bfl / self.bcal, self.Ber/ self.bcal, self.Bmfl)
+            if self.mask == False:
+                self.bscale = Scale_model(self.Bfl[self.Bmask] / self.bcal[self.Bmask], self.Ber[self.Bmask]/ self.bcal[self.Bmask], self.Bmfl[self.Bmask])
+
+            else:
+                self.bscale = Scale_model(self.Bfl / self.bcal, self.Ber/ self.bcal, self.Bmfl)
             self.Bfl =  self.Bfl/ self.bcal/ self.bscale
             self.Ber =  self.Ber/ self.bcal/ self.bscale
             
         if self.g141:
             self.rcal = Calibrate_grism([self.Rwv, self.Rfl, self.Rer], self.Rmfl, rp1)[0]
-            self.rscale = Scale_model(self.Rfl / self.rcal, self.Rer/ self.rcal, self.Rmfl)
+            if self.mask == False:
+                self.rscale = Scale_model(self.Rfl[self.Rmask] / self.rcal[self.Rmask], self.Rer[self.Rmask]/ self.rcal[self.Rmask], self.Rmfl[self.Rmask])
+                
+            else:
+                self.rscale = Scale_model(self.Rfl / self.rcal, self.Rer/ self.rcal, self.Rmfl)
             self.Rfl =  self.Rfl/ self.rcal/ self.rscale
             self.Rer =  self.Rer/ self.rcal/ self.rscale
             

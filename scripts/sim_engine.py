@@ -235,8 +235,6 @@ def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
             iIEF = 0
     
         er = np.sqrt(er**2 + (0.5 * iMEF*flx)**2 + (0.5 * iIEF*flx)**2)
-
-        
     return er
 
 def apply_phot_err(flx, er, num, base_err = 0, irac_err = None):
@@ -252,8 +250,6 @@ def apply_phot_err(flx, er, num, base_err = 0, irac_err = None):
         else:
             er[i] = np.sqrt(er[i]**2 + (base_err*flx[i])**2)
     return er
-    
-    
 
 def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr, perr, phot_err,
             btrans, rtrans, bbeam, rbeam, IDP, sens_wv, b, dnu, adj, rndstate = 10, perturb = True): 
@@ -327,6 +323,16 @@ def decontaminate(W, WRF, F, E, FLT, IDX, L, C):
     
     return W, WRF, F, E, FLT, IDX, L, C
 
+def get_mask(field, galaxy_id, W, instr):
+    MASK = np.load(cspec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
+            
+    IDT = np.repeat(True, len(W))
+
+    for m in MASK:
+        for i in range(len(W)):
+            if m[0] < W[i] < m[1]:
+                IDT[i] = False
+    return IDT
 
 def Calzetti_low(Av,lam):
     lam = lam * 1E-4
@@ -429,16 +435,7 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True
         C = np.array(C[IDX]) 
         
         if mask:
-            
-            MASK = np.load(cspec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
-            
-            IDT = np.repeat(True, len(W))
-
-            for m in MASK:
-                for i in range(len(W)):
-                    if m[0] < W[i] < m[1]:
-                        IDT[i] = False
-
+            IDT = get_mask(field, galaxy_id, W, instr)
             return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
         
         else:
