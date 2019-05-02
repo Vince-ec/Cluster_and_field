@@ -556,13 +556,37 @@ class Gen_SF_spec(object):
             self.PC = 1
             
         self.Pmfl = self.Pmfl * self.PC
-        
-    def Forward_model_all_beams(self, beams, in_wv, model_wave, model_flux):
-        return forward_model_all_beams(beams, in_wv, model_wave, model_flux)
     
-    def Forward_model_all_beams_flatted(self, beams, trans, in_wv, model_wave, model_flux):
-        return forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux)
+    @staticmethod
+    def Forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
+        return forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux)
     
     def Sim_all_premade(self, model_wave, model_flux, scale = True):
         self.Sim_phot_premade(model_wave, model_flux, scale = scale)
         self.Sim_spec_premade(model_wave, model_flux)
+        
+    def Best_fit_scale(self, model_wave, model_flux, specz, bp1, rp1, massperc,logmass):
+        self.Full_forward_model(model_wave, F_lam_per_M(model_flux, model_wave * (1 + specz),
+                            specz, 0, massperc)*10**logmass)
+
+        if self.g102:
+            self.bcal = Calibrate_grism([self.Bwv, self.Bfl, self.Ber], self.Bmfl, bp1)[0]
+            self.bscale = Scale_model(self.Bfl / self.bcal, self.Ber/ self.bcal, self.Bmfl)
+            self.Bfl =  self.Bfl/ self.bcal/ self.bscale
+            self.Ber =  self.Ber/ self.bcal/ self.bscale
+            
+        if self.g141:
+            self.rcal = Calibrate_grism([self.Rwv, self.Rfl, self.Rer], self.Rmfl, rp1)[0]
+            self.rscale = Scale_model(self.Rfl / self.rcal, self.Rer/ self.rcal, self.Rmfl)
+            self.Rfl =  self.Rfl/ self.rcal/ self.rscale
+            self.Rer =  self.Rer/ self.rcal/ self.rscale
+            
+    def Full_forward_model(self, model_wave, model_flux, specz):
+        
+        if self.g102:
+            self.Bmfl = self.Forward_model_all_beams(self.Bbeam , self.Btrans, self.Bwv, model_wave * (1 + specz), model_flux)
+
+        if self.g141:
+            self.Rmfl = self.Forward_model_all_beams(self.Rbeam , self.Rtrans, self.Rwv, model_wave * (1 + specz), model_flux)
+            
+        self.Pmfl = self.Sim_phot_mult(model_wave * (1 + specz), model_flux)

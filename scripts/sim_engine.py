@@ -297,16 +297,8 @@ def forward_model_phot(model_wave, model_flux, IDP, sens_wv, b, dnu, adj):
                       * b[IDP], dnu[IDP])/np.trapz(b[IDP], dnu[IDP])) * adj[IDP]
     return np.array(mphot)
 
-def forward_model_all_beams(beams, in_wv, model_wave, model_flux):
-    FL = np.zeros([len(beams),len(in_wv)])
 
-    for i in range(len(beams)):
-        mwv, mflx = forward_model_grism(beams[i], model_wave, model_flux)
-        FL[i] = interp1d(mwv, mflx)(in_wv)
-
-    return np.mean(FL.T,axis=1)
-
-def forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux):
+def forward_model_all_beams(beams, trans, in_wv, model_wave, model_flux):
     FL = np.zeros([len(beams),len(in_wv)])
 
     for i in range(len(beams)):
@@ -315,6 +307,7 @@ def forward_model_all_beams_flatted(beams, trans, in_wv, model_wave, model_flux)
         FL[i] /= trans[i]
 
     return np.mean(FL.T,axis=1)
+
 
 def decontaminate(W, WRF, F, E, FLT, IDX, L, C):
     IDC = []
