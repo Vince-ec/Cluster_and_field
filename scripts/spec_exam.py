@@ -509,7 +509,7 @@ class Gen_SF_spec(object):
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
             if self.mask == False:
-                self.BMASK = get_mask(self.field, self.galaxy_id, self.Bwv, 'g102')
+                self.Bmask = get_mask(self.field, self.galaxy_id, self.Bwv, 'g102')
                 
         except:
             print('missing g102')
@@ -524,7 +524,7 @@ class Gen_SF_spec(object):
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
             if self.mask == False:
-                self.RMASK = get_mask(self.field, self.galaxy_id, self.Rwv, 'g141')
+                self.Rmask = get_mask(self.field, self.galaxy_id, self.Rwv, 'g141')
 
         except:
             print('missing g141')
@@ -578,12 +578,13 @@ class Gen_SF_spec(object):
         
     def Best_fit_scale(self, model_wave, model_flux, specz, bp1, rp1, massperc,logmass):
         self.Full_forward_model(model_wave, F_lam_per_M(model_flux, model_wave * (1 + specz),
-                            specz, 0, massperc)*10**logmass)
+                            specz, 0, massperc)*10**logmass, specz)
 
         if self.g102:
-            self.bcal = Calibrate_grism([self.Bwv, self.Bfl, self.Ber], self.Bmfl, bp1)[0]
+            self.bcal = Calibrate_grism([self.Bwv, self.Bfl, self.Ber], self.Bmfl, bp1)
             if self.mask == False:
-                self.bscale = Scale_model(self.Bfl[self.Bmask] / self.bcal[self.Bmask], self.Ber[self.Bmask]/ self.bcal[self.Bmask], self.Bmfl[self.Bmask])
+                self.bscale = Scale_model(self.Bfl[self.Bmask] / self.bcal[self.Bmask], 
+                                          self.Ber[self.Bmask]/ self.bcal[self.Bmask], self.Bmfl[self.Bmask])
 
             else:
                 self.bscale = Scale_model(self.Bfl / self.bcal, self.Ber/ self.bcal, self.Bmfl)
@@ -591,9 +592,10 @@ class Gen_SF_spec(object):
             self.Ber =  self.Ber/ self.bcal/ self.bscale
             
         if self.g141:
-            self.rcal = Calibrate_grism([self.Rwv, self.Rfl, self.Rer], self.Rmfl, rp1)[0]
+            self.rcal = Calibrate_grism([self.Rwv, self.Rfl, self.Rer], self.Rmfl, rp1)
             if self.mask == False:
-                self.rscale = Scale_model(self.Rfl[self.Rmask] / self.rcal[self.Rmask], self.Rer[self.Rmask]/ self.rcal[self.Rmask], self.Rmfl[self.Rmask])
+                self.rscale = Scale_model(self.Rfl[self.Rmask] / self.rcal[self.Rmask], 
+                                          self.Rer[self.Rmask]/ self.rcal[self.Rmask], self.Rmfl[self.Rmask])
                 
             else:
                 self.rscale = Scale_model(self.Rfl / self.rcal, self.Rer/ self.rcal, self.Rmfl)
@@ -609,3 +611,8 @@ class Gen_SF_spec(object):
             self.Rmfl = self.Forward_model_all_beams(self.Rbeam , self.Rtrans, self.Rwv, model_wave * (1 + specz), model_flux)
             
         self.Pmfl = self.Sim_phot_mult(model_wave * (1 + specz), model_flux)
+
+def Calibrate_grism(spec, Gmfl, p1):
+    lines = (p1 * (spec[0] -(spec[0][-1] + spec[0][0])/2 ) + 1E3)
+    scale = Scale_model(spec[1]  / lines, spec[2] / lines, Gmfl)    
+    return scale * lines

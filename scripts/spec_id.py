@@ -104,8 +104,8 @@ def get_lwa_delay(params, agebins,sp):
     return lwa
     
 ####### may change to be agelim
-def get_agebins(maxage):
-    lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9]
+def get_agebins(maxage, binnum = 10):
+    lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9][: binnum + 1]
     
     nbins = len(lages) - 1
 
