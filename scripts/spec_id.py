@@ -91,6 +91,21 @@ def get_lwa(params, agebins,sp):
     
     return lwa
  
+def get_lwa_SF(params, agebins,sp):
+    m, a, m1, m2, m3, m4, m5, m6 = params
+
+    sp.params['logzsol'] = np.log10(m)
+
+    time, sfr, tmax = convert_sfh(agebins, [m1, m2, m3, m4, m5, m6])
+
+    sp.set_tabular_sfh(time,sfr)    
+    
+    sp.params['compute_light_ages'] = True
+    lwa = sp.get_mags(tage = a, bands=['sdss_g'])
+    sp.params['compute_light_ages'] = False
+    
+    return lwa
+    
 def get_lwa_delay(params, agebins,sp):
     m, a, t = params
 
