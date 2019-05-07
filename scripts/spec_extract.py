@@ -76,18 +76,18 @@ class Extract_all(object):
             if i.grism.filter == 'G102':
                 if pa != i.get_dispersion_PA():
                     pa = i.get_dispersion_PA()
-                    i.write_fits(root='../Casey_data/beams/o{0}'.format(pa), clobber=True)
-                    fits.setval('../Casey_data/beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
-                            value=fits.open('../Casey_data/beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
+                    i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
+                    fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
+                            value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
 
         pa = -1            
         for i in beams:
             if i.grism.filter == 'G141':
                 if pa != i.get_dispersion_PA():
                     pa = i.get_dispersion_PA()
-                    i.write_fits(root='../Casey_data/beams/o{0}'.format(pa), clobber=True)
-                    fits.setval('../Casey_data/beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
-                            value=fits.open('../Casey_data/beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
+                    i.write_fits(root='../beams/o{0}'.format(pa), clobber=True)
+                    fits.setval('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter), 'EXPTIME', ext=0,
+                            value=fits.open('../beams/o{0}_{1}.{2}.A.fits'.format(pa, self.galaxy_id, i.grism.filter))[1].header['EXPTIME'])   
 
     def Phot_save(self, masterlist = '../phot/master_template_list.pkl'):
         galdf = self.ref_cat_loc[self.ref_cat_loc.id == self.galaxy_id]
