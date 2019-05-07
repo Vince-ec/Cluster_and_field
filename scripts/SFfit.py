@@ -25,21 +25,21 @@ def Z_prior_mu(lmass):
 
 onesig = (0.04 + 0.47)/2
 
-if (Z_prior_mu(logmass) - 2*onesig) < np.log10(0.001 / 0.019):
-    mllim = np.log10(0.001 / 0.019)
-else:
-    mllim = Z_prior_mu(logmass) - 2*onesig
+#if (Z_prior_mu(logmass) - 2*onesig) < np.log10(0.001 / 0.019):
+mllim = np.log10(0.001 / 0.019)
+#else:
+#    mllim = Z_prior_mu(logmass) - 2*onesig
     
-if (Z_prior_mu(logmass) + 2*onesig) > np.log10(0.03 / 0.019):
-    mhlim = np.log10(0.031 / 0.019)
-else:
-    mhlim = Z_prior_mu(logmass) + 2*onesig
+#if (Z_prior_mu(logmass) + 2*onesig) > np.log10(0.03 / 0.019):
+mhlim = np.log10(0.031 / 0.019)
+#else:
+#    mhlim = Z_prior_mu(logmass) + 2*onesig
 
 #a = Oldest_galaxy(specz)
 a = 3
 
 def Galfit_prior(u):
-    m = 10**Gaussian_prior(u[0], [mllim, mhlim], Z_prior_mu(logmass), onesig)
+    m = 10**Gaussian_prior(u[0], [mllim, mhlim], Z_prior_mu(logmass), 2*onesig)
     #a = (agelim - 1)* u[1] + 1
     #t = Gaussian_prior(u[2], [0.01,3],1,.5)
     
