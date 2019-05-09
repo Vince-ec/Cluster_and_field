@@ -74,7 +74,7 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None,
     if grism:
         W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
     
-        section_db = pd.read_pickle(spec_path + 'section.pkl')
+        section_db = pd.read_pickle(spec_path + 'all_section.pkl')
     
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
