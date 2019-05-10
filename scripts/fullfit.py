@@ -77,8 +77,7 @@ def Galfit_L(X):
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
 ###########gen spec##########
-Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.04, irac_err = 0.08, decontam = True) 
+Gs = Gen_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
 
 ####generate grism items#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)

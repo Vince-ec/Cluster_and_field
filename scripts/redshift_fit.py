@@ -25,7 +25,7 @@ def zfit_prior(u):
 
     lm = Gaussian_prior(u[3], [9.5, 12.5], 11, 0.75)
      
-    z = Gaussian_prior(u[4], [photz - 0.3, photz + 0.3], photz, 0.1)
+    z = Gaussian_prior(u[4], [photz - 0.3, photz + 0.3], photz, 0.15)
       
     bsc= Gaussian_prior(u[5], [0.8, 1.2], 1, 0.05)
     rsc= Gaussian_prior(u[6], [0.8, 1.2], 1, 0.05)
@@ -56,8 +56,7 @@ def zfit_L(X):
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau=0.1)
 
 ###########gen spec##########
-Gs = Gen_spec(field, galaxy, 1, g102_lims=[8300, 11288], g141_lims=[11288, 16500], mdl_err = False,
-        phot_errterm = 0.02, irac_err = 0.04, decontam = True) 
+Gs = Gen_spec(field, galaxy, 1, phot_errterm = 0.02, irac_err = 0.04) 
 
 ####generate grism items#####
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)

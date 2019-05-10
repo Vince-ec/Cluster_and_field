@@ -67,7 +67,7 @@ def:
 -Get_mass
 """  
 
-def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None, auto_select = False):
+def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None, auto_select = False, decontam = True):
     # if loading photometry FLT stands in for num
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
@@ -99,8 +99,6 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None,
             for i in range(len(IDX)):
                 if srange[0] < W[i] < srange[1]:
                     IDT[i] = True
-
-            return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
         
         else:
             if select != None:
@@ -109,11 +107,20 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None,
                 for i in range(len(IDX)):
                     if select[0] < W[i] < select[1]:
                         IDT[i] = True
-
-                return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
             else:
-                return W, WRF, F, E, FLT, np.array(IDX), L, C
+                IDT = np.repeat(True, len(W))
 
+        if decontam and os.path.isfile(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id)):
+            MASK = np.load(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
+            
+            for m in MASK:
+                for i in range(len(W)):
+                    if m[0] < W[i] < m[1]:
+                        IDT[i] = False
+                
+                
+        return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
+            
     else:
         W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
         
