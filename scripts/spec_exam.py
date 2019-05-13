@@ -45,6 +45,8 @@ else:
     chi_path = '../chidat/'
     spec_path = '../spec_files/'
     beam_path = '../beams/'
+    #beam_path = '../beams_v2/'
+
     cbeam_path = '../Casey_data/beams/'
     template_path = '../templates/'
     out_path = '../data/posteriors/'
@@ -68,6 +70,10 @@ class Gen_spec(object):
         self.g141_beam = glob(beam_path + '*{0}*g141*'.format(galaxy_id))
         self.sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1, dust_type = 1)
 
+        if len(self.g102_beam) < 1 :
+            self.g102_beam = glob(beam_path + '*{0}*g102*'.format(39170))
+        if len(self.g141_beam) < 1 :
+            self.g141_beam = glob(beam_path + '*{0}*g141*'.format(39170))
         """
         B - prefix refers to g102
         R - prefix refers to g141

@@ -5,6 +5,7 @@ from scipy.interpolate import interp1d, interp2d
 from astropy.cosmology import Planck13 as cosmo
 from astropy.io import fits
 from astropy import wcs
+from spec_stats import Highest_density_region
 import os
 
 import rpy2
@@ -396,3 +397,86 @@ class Photometry(object):
         sigma = np.sqrt(top/bot)
 
         self.fwhm = np.sqrt(8*np.log(2))*sigma * self.eff_wv
+
+
+def convert_sfh(agebins, mformed, epsilon=1e-4, maxage=None):
+    #### create time vector
+    agebins_yrs = 10**agebins.T
+    dt = agebins_yrs[1, :] - agebins_yrs[0, :]
+    bin_edges = np.unique(agebins_yrs)
+    if maxage is None:
+        maxage = agebins_yrs.max()  # can replace maxage with something else, e.g. tuniv
+    t = np.concatenate((bin_edges * (1.-epsilon), bin_edges * (1+epsilon)))
+    t.sort()
+    t = t[1:-1] # remove older than oldest bin, younger than youngest bin
+    fsps_time = maxage - t
+
+    #### calculate SFR at each t
+    sfr = mformed / dt
+    sfrout = np.zeros_like(t)
+    sfrout[::2] = sfr
+    sfrout[1::2] = sfr  # * (1+epsilon)
+
+    return (fsps_time / 1e9)[::-1], sfrout[::-1], maxage / 1e9
+
+def get_agebins(maxage, binnum = 10):
+    lages = [0,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9][: binnum + 1]
+    
+    nbins = len(lages) - 1
+
+    tbinmax = (maxage * 0.85) * 1e9
+    lim1, lim2 = 7.4772, 8.0
+    agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(maxage*1e9)]
+    return np.array([agelims[:-1], agelims[1:]]).T
+
+class Rescale_sfh(object):
+    def __init__(self, field, galaxy):
+    
+        rshifts = np.arange(0,14,0.01)
+        age_at_z = cosmo.age(rshifts).value
+        age_to_z = interp1d(age_at_z, rshifts)
+    
+    
+        med,le,he = np.zeros([3,10])
+        for i in range(10):
+            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pm{2}.npy'.format(field, galaxy, i+1))
+            med[i],le[i],he[i] = Highest_density_region(px,x)
+
+        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pa.npy'.format(field, galaxy))
+        self.a,ale,ahe = Highest_density_region(px,x)
+
+        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Plm.npy'.format(field, galaxy))
+        self.m,mle,mhe = Highest_density_region(px,x)
+
+        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
+        self.z,zle,zhe = Highest_density_region(px,x)
+        
+        self.time, sfr, tmax = convert_sfh(get_agebins(self.a), med, maxage = self.a*1E9)
+        self.time, sfr_l, tmax = convert_sfh(get_agebins(self.a), med - le, maxage = self.a*1E9)
+        self.time, sfr_h, tmax = convert_sfh(get_agebins(self.a), med + he, maxage = self.a*1E9)
+
+        self.T=[0]
+        self.M=[0]
+        for i in range(len(self.time)//2):
+            mass = sfr[i*2+1] * (self.time[i*2+1] - self.time[i*2])
+            self.M.append(self.M[i] + mass)
+            self.T.append(self.time[i*2+1])
+
+        self.t_50 = interp1d(self.M/ self.M[-1], self.T)(0.5)
+        
+        
+        self.sfr = sfr/ self.M[-1] * 10**self.m / 1E9
+        self.sfr_l = sfr_l/ self.M[-1] * 10**self.m / 1E9
+        self.sfr_h = sfr_h/ self.M[-1] * 10**self.m / 1E9
+        self.M = self.M/ self.M[-1] * 10**self.m
+
+        
+        for i in range(len(self.sfr)):
+            if self.sfr[i] < max(self.sfr) * 0.1:
+                self.t_q = self.time[i]
+                break
+                
+        self.ssfr = self.sfr[-1] / 10**self.m
+        
+        self.z_q = age_to_z(Oldest_galaxy(self.z) - self.a + self.t_q)
+        self.z_50 = age_to_z(Oldest_galaxy(self.z) - self.a + self.t_50)

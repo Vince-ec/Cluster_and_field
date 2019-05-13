@@ -78,7 +78,7 @@ Gs = Gen_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08)
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
 
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 24, nlive_points = 4000,
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 23, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=8), queue_size=8)
 
