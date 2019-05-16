@@ -429,54 +429,151 @@ def get_agebins(maxage, binnum = 10):
     agelims = [0,lim1] + np.linspace(lim2,np.log10(tbinmax),nbins-2).tolist() + [np.log10(maxage*1e9)]
     return np.array([agelims[:-1], agelims[1:]]).T
 
-class Rescale_sfh(object):
-    def __init__(self, field, galaxy):
+from dynesty.utils import quantile as _quantile
+from scipy.ndimage import gaussian_filter as norm_kde
+
+def Gen_PPF(x,px):
+    return interp1d(np.cumsum(px) / np.cumsum(px).max(),x)
+
+def boot_to_posterior(values, weights):
+    q = [0.5 - 0.5 * 0.999999426697, 0.5 + 0.5 * 0.999999426697]
+    span = _quantile(values, q, weights=weights)
+
+    s = 0.02
+
+    bins = int(round(10. / 0.02))
+    n, b = np.histogram(values, bins=bins, weights=weights,range=np.sort(span))
+    n = norm_kde(n, 20.)
+    x0 = 0.5 * (b[1:] + b[:-1])
+    y0 = n
     
+    return x0, y0 / np.trapz(y0,x0)
+
+def Derive_SFH_weights(SFH, grid):
+    Y = np.array(SFH)
+
+    weights = np.zeros(len(grid))
+    for i in range(len(grid)):
+        weights[i] = np.sum((grid[i][0:len(Y)] - Y) ** 2) ** -1
+    return weights
+
+rshifts = np.arange(0,14,0.01)
+age_at_z = cosmo.age(rshifts).value
+age_to_z = interp1d(age_at_z, rshifts)
+lbt_at_z = cosmo.lookback_time(rshifts).value
+lbt_to_z = interp1d(lbt_at_z, rshifts)
+
+class Rescale_sfh(object):
+    def __init__(self, field, galaxy, trials = 1000):
+
         rshifts = np.arange(0,14,0.01)
         age_at_z = cosmo.age(rshifts).value
         age_to_z = interp1d(age_at_z, rshifts)
-    
-    
-        med,le,he = np.zeros([3,10])
-        for i in range(10):
-            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pm{2}.npy'.format(field, galaxy, i+1))
-            med[i],le[i],he[i] = Highest_density_region(px,x)
 
-        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pa.npy'.format(field, galaxy))
-        self.a,ale,ahe = Highest_density_region(px,x)
+        ppf_dict = {}
+        params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm']
 
-        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Plm.npy'.format(field, galaxy))
-        self.m,mle,mhe = Highest_density_region(px,x)
+        for i in params:
+            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, i))
+            ppf_dict[i] = Gen_PPF(x,px)
 
-        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
-        self.z,zle,zhe = Highest_density_region(px,x)
-        
-        self.time, sfr, tmax = convert_sfh(get_agebins(self.a), med, maxage = self.a*1E9)
-        self.time, sfr_l, tmax = convert_sfh(get_agebins(self.a), med - le, maxage = self.a*1E9)
-        self.time, sfr_h, tmax = convert_sfh(get_agebins(self.a), med + he, maxage = self.a*1E9)
+            idx = 0
+            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
+            rshift = x[px == max(px)][0]
+            self.fulltimes = np.arange(0.01,Oldest_galaxy(rshift),0.01)
+            sfr_grid = []
+            ssfr_grid = []
+            t_50_grid = []
+            t_q_grid = []
 
-        self.T=[0]
-        self.M=[0]
-        for i in range(len(self.time)//2):
-            mass = sfr[i*2+1] * (self.time[i*2+1] - self.time[i*2])
-            self.M.append(self.M[i] + mass)
-            self.T.append(self.time[i*2+1])
+        while idx < trials:
+            try:
+                draw = np.zeros(len(params))
 
-        self.t_50 = interp1d(self.M/ self.M[-1], self.T)(0.5)
-        
-        
-        self.sfr = sfr/ self.M[-1] * 10**self.m / 1E9
-        self.sfr_l = sfr_l/ self.M[-1] * 10**self.m / 1E9
-        self.sfr_h = sfr_h/ self.M[-1] * 10**self.m / 1E9
-        self.M = self.M/ self.M[-1] * 10**self.m
+                for i in range(len(draw)):
+                    draw[i] = ppf_dict[params[i]](np.random.rand(1))[0]
 
-        
-        for i in range(len(self.sfr)):
-            if self.sfr[i] < max(self.sfr) * 0.1:
-                self.t_q = self.time[i]
+                time, sfr, tmax = convert_sfh(get_agebins(draw[0]), draw[1:11], maxage = draw[0]*1E9)
+
+                T=[0]
+                M=[0]
+                for i in range(len(time)//2):
+                    mass = sfr[i*2+1] * (time[i*2+1] - time[i*2])
+                    M.append(M[i] + mass)
+                    T.append(time[i*2+1])
+
+                sfr = sfr/ M[-1] * 10**draw[11] / 1E9
+
+                lbt = np.abs(time - time[-1])[::-1]
+                lbsfr = sfr[::-1]
+
+                T=[0]
+                M=[0]
+                for i in range(len(lbt)//2):
+                    mass = lbsfr[i*2+1] * (lbt[i*2+1] - lbt[i*2])
+                    M.append(M[i] + mass)
+                    T.append(lbt[i*2+1])
+
+                t_50_grid.append(interp1d(M/ M[-1], T)(0.5))
+
+                sfrmax = np.argmax(lbsfr) 
+
+                for i in range(len(lbsfr[0:sfrmax+1])):
+                    if int(lbsfr[0:sfrmax+1][-(i+1)]) <= int(max(lbsfr[0:sfrmax+1]) * 0.1):
+                        t_q_grid.append(lbt[0:sfrmax+1][-(i+1)])
+                        break
+
+                sfr_grid.append(interp1d(lbt,lbsfr,bounds_error=False,fill_value=0)(self.fulltimes))
+
+                ssfr_grid.append(lbsfr[0] / 10**draw[11])
+                idx +=1
+            except:
+                pass
+
+        SFH = []
+        SFH_16 = []
+        SFH_84 = []
+        ftimes = []
+        for i in range(len(np.array(sfr_grid).T)):
+            adat = np.array(np.array(sfr_grid).T[i])
+            gdat = adat[adat>0]
+            if len(gdat) < trials * 0.1:
                 break
-                
-        self.ssfr = self.sfr[-1] / 10**self.m
+            else:
+                SFH.append(np.percentile(gdat,50))
+                SFH_16.append(np.percentile(gdat,16))
+                SFH_84.append(np.percentile(gdat,84))
+
+                ftimes.append(self.fulltimes[i])
+
+        self.SFH = np.array(SFH)
+        self.SFH_16 = np.array(SFH_16)
+        self.SFH_84 = np.array(SFH_84)
+        self.LBT = np.array(ftimes)
         
-        self.z_q = age_to_z(Oldest_galaxy(self.z) - self.a + self.t_q)
-        self.z_50 = age_to_z(Oldest_galaxy(self.z) - self.a + self.t_50)
+        self.sfr_grid = np.ma.masked_less_equal(sfr_grid,1E-10)
+
+        weights = Derive_SFH_weights(self.SFH, sfr_grid[0:trials])
+       
+        x,y = boot_to_posterior(t_50_grid[0:trials], weights)
+        self.t_50,t_50_l,t_50_h = Highest_density_region(y,x)
+        self.t_50_16 = self.t_50 - t_50_l
+        self.t_50_84 = self.t_50 + t_50_h
+
+        x,y = boot_to_posterior(t_q_grid[0:trials], weights)
+        self.t_q,t_q_l,t_q_h = Highest_density_region(y,x)
+        self.t_q_16 = self.t_q - t_q_l
+        self.t_q_84 = self.t_q + t_q_h  
+
+        self.z_50 = age_to_z(Oldest_galaxy(rshift) - self.t_50)
+        self.z_50_16 = age_to_z(Oldest_galaxy(rshift) - self.t_50_16)
+        self.z_50_84 = age_to_z(Oldest_galaxy(rshift) - self.t_50_84)
+
+        self.z_q = age_to_z(Oldest_galaxy(rshift) - self.t_q)
+        self.z_q_16 = age_to_z(Oldest_galaxy(rshift) - self.t_q_16)
+        self.z_q_84 = age_to_z(Oldest_galaxy(rshift) - self.t_q_84)
+
+        x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
+        self.lssfr,lssfr_l,lssfr_h = Highest_density_region(y,x)
+        self.lssfr_16 = self.lssfr - lssfr_l
+        self.lssfr_84 = self.lssfr + lssfr_h     

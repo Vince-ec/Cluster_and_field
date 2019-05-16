@@ -54,31 +54,58 @@ tabfits['field'] = select.field.values
 tabfits['id'] = select.id.values
 
 #add SFH values
-z_50 = np.repeat(-99.0,len(tabfits))
-z_q = np.repeat(-99.0,len(tabfits))
-t_50 = np.repeat(-99.0,len(tabfits))
-t_q = np.repeat(-99.0,len(tabfits))
-log_ssfr = np.repeat(-99.0,len(tabfits))
+z_50= np.repeat(-99.0,len(tabfits)); z_50_16= np.repeat(-99.0,len(tabfits)); z_50_84 = np.repeat(-99.0,len(tabfits))
+z_q= np.repeat(-99.0,len(tabfits)); z_q_16= np.repeat(-99.0,len(tabfits)); z_q_84 = np.repeat(-99.0,len(tabfits))
+t_50= np.repeat(-99.0,len(tabfits)); t_50_16= np.repeat(-99.0,len(tabfits)); t_50_84 = np.repeat(-99.0,len(tabfits))
+t_q= np.repeat(-99.0,len(tabfits)); t_q_16= np.repeat(-99.0,len(tabfits)); t_q_84 = np.repeat(-99.0,len(tabfits))
+log_ssfr= np.repeat(-99.0,len(tabfits)); log_ssfr_16= np.repeat(-99.0,len(tabfits)); log_ssfr_84 = np.repeat(-99.0,len(tabfits))
 
 for i in range(len(tabfits.index)):
     try:
         sfh = Rescale_sfh(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]])
 
         z_50[i] = sfh.z_50
+        z_50_16[i] = sfh.z_50_16
+        z_50_84[i] = sfh.z_50_84
+        
         z_q[i] = sfh.z_q
+        z_q_16[i] = sfh.z_q_16
+        z_q_84[i] = sfh.z_q_84
+        
         t_50[i] = sfh.t_50
+        t_50_16[i] = sfh.t_50_16
+        t_50_84[i] = sfh.t_50_84
+        
         t_q[i] = sfh.t_q
-        log_ssfr[i] = np.log10(sfh.ssfr)
+        t_q_16[i] = sfh.t_q_16
+        t_q_84[i] = sfh.t_q_84
+        
+        log_ssfr[i] = sfh.lssfr
+        log_ssfr_16[i] = sfh.lssfr_16
+        log_ssfr_84[i] = sfh.lssfr_84
         
     except:
         pass
 
 tabfits['z_50'] = z_50
+tabfits['z_50_16'] = z_50_16
+tabfits['z_50_84'] = z_50_84
+
 tabfits['z_q'] = z_q
+tabfits['z_q_16'] = z_q_16
+tabfits['z_q_84'] = z_q_84
+
 tabfits['t_50'] = t_50
+tabfits['t_50_16'] = t_50_16
+tabfits['t_50_84'] = t_50_84
+
 tabfits['t_q'] = t_q
+tabfits['t_q_16'] = t_q_16
+tabfits['t_q_84'] = t_q_84
+
 tabfits['log_ssfr'] = log_ssfr
-    
+tabfits['log_ssfr_16'] = log_ssfr_16
+tabfits['log_ssfr_84'] = log_ssfr_84
     
 #add Reff values
 Reff = []
