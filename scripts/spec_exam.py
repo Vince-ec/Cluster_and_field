@@ -269,24 +269,27 @@ class Gen_spec(object):
 
         if self.g102:
             self.bcal = Calibrate_grism([self.Bwv, self.Bfl, self.Ber], self.Bmfl, bp1)
-            #if self.mask == False:
-            #    self.bscale = Scale_model(self.Bfl[self.Bmask] / self.bcal[self.Bmask], 
-            #                              self.Ber[self.Bmask]/ self.bcal[self.Bmask], self.Bmfl[self.Bmask])
-
-            #else:
             self.bscale = Scale_model(self.Bfl / self.bcal, self.Ber/ self.bcal, self.Bmfl)
-            
             self.Bfl =  self.Bfl/ self.bcal/ self.bscale
             self.Ber =  self.Ber/ self.bcal/ self.bscale
             
         if self.g141:
-            self.rcal = Calibrate_grism([self.Rwv, self.Rfl, self.Rer], self.Rmfl, rp1)
-            #if self.mask == False:
-            #    self.rscale = Scale_model(self.Rfl[self.Rmask] / self.rcal[self.Rmask], 
-            #                              self.Rer[self.Rmask]/ self.rcal[self.Rmask], self.Rmfl[self.Rmask])
-                
-            #else:
-                
+            self.rcal = Calibrate_grism([self.Rwv, self.Rfl, self.Rer], self.Rmfl, rp1)               
+            self.rscale = Scale_model(self.Rfl / self.rcal, self.Rer/ self.rcal, self.Rmfl)
+            self.Rfl =  self.Rfl/ self.rcal/ self.rscale
+            self.Rer =  self.Rer/ self.rcal/ self.rscale
+        
+    def Best_fit_scale_flam(self, model_wave, model_flam, specz, bp1, rp1):
+        self.Full_forward_model(model_wave, model_flam, specz)
+
+        if self.g102:
+            self.bcal = Calibrate_grism([self.Bwv, self.Bfl, self.Ber], self.Bmfl, bp1)
+            self.bscale = Scale_model(self.Bfl / self.bcal, self.Ber/ self.bcal, self.Bmfl)
+            self.Bfl =  self.Bfl/ self.bcal/ self.bscale
+            self.Ber =  self.Ber/ self.bcal/ self.bscale
+            
+        if self.g141:
+            self.rcal = Calibrate_grism([self.Rwv, self.Rfl, self.Rer], self.Rmfl, rp1)               
             self.rscale = Scale_model(self.Rfl / self.rcal, self.Rer/ self.rcal, self.Rmfl)
             self.Rfl =  self.Rfl/ self.rcal/ self.rscale
             self.Rer =  self.Rer/ self.rcal/ self.rscale
