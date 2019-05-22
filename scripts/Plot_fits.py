@@ -95,8 +95,6 @@ def PLOT(field, galaxy, savefig = True):
     ###############sfh plot################
     isfhl = interp1d(sfh.LBT,sfh.SFH_16)
     isfhh = interp1d(sfh.LBT,sfh.SFH_84)
-    hdr = np.linspace(grow.t_50_16.values[0], grow.t_50_84.values[0])
-    hdrq = np.linspace(grow.t_q_16.values[0], grow.t_q_84.values[0])
 
     ax1 = plt.subplot(gs[0,3])
     ax2 = ax1.twiny()
@@ -116,27 +114,37 @@ def PLOT(field, galaxy, savefig = True):
     ax2.set_xlabel('Redshift (z)', fontsize=15) 
     ax1.tick_params(axis='both', which='major', labelsize=10)
 
-    ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = '#4E7577', alpha=0.75, zorder = 9)
-    ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = '#4E7577', linewidth = 2, zorder = 12)
-    ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = 'k', linewidth = 3, zorder = 11)
-    ax1.vlines(grow.t_50_16.values[0],isfhl(grow.t_50_16.values[0]),isfhh(grow.t_50_16.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
-    ax1.vlines(grow.t_50_84.values[0],isfhl(grow.t_50_84.values[0]),isfhh(grow.t_50_84.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
+    ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = '#4E7577', linewidth = 2, zorder = 11)
 
-    ax1.fill_between(hdrq, isfhh(hdrq), isfhl(hdrq), color = '#4E7577', alpha=0.75, zorder = 9)
-    ax1.vlines(grow.t_q.values[0],isfhl(grow.t_q.values[0]),isfhh(grow.t_q.values[0]), color = '#4E7577', linewidth = 2, zorder = 12)
-    ax1.vlines(grow.t_q.values[0],isfhl(grow.t_q.values[0]),isfhh(grow.t_q.values[0]), color = 'k', linewidth = 3, zorder = 11)
-    ax1.vlines(grow.t_q_16.values[0],isfhl(grow.t_q_16.values[0]),isfhh(grow.t_q_16.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
-    ax1.vlines(grow.t_q_84.values[0],isfhl(grow.t_q_84.values[0]),isfhh(grow.t_q_84.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
+    for i in range(len(grow.t_50_hci.values[0])//2):
+        hdr = np.linspace(grow.t_50_hci.values[0][2*i],grow.t_50_hci.values[0][2*i+1])
 
+        ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = '#4E7577', alpha=0.75, zorder = 9)
+        ax1.vlines(grow.t_50_hci.values[0][2*i],isfhl(grow.t_50_hci.values[0][2*i]),isfhh(grow.t_50_hci.values[0][2*i]), 
+                   color = 'k', linewidth = 0.5, zorder = 9)
+        ax1.vlines(grow.t_50_hci.values[0][2*i+1],isfhl(grow.t_50_hci.values[0][2*i+1]),isfhh(grow.t_50_hci.values[0][2*i+1]), 
+                   color = 'k', linewidth = 0.5, zorder = 9)
+
+    ax1.vlines(grow.t_q.values[0],isfhl(grow.t_q.values[0]),isfhh(grow.t_q.values[0]), color = '#4E7577', linewidth = 2, zorder = 11)
+    for i in range(len(grow.t_q_hci.values[0])//2):
+        hdr = np.linspace(grow.t_q_hci.values[0][2*i],grow.t_q_hci.values[0][2*i+1])
+
+        ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = '#4E7577', alpha=0.75, zorder = 9)
+        ax1.vlines(grow.t_q_hci.values[0][2*i],isfhl(grow.t_q_hci.values[0][2*i]),isfhh(grow.t_q_hci.values[0][2*i]), 
+                   color = 'k', linewidth = 0.5, zorder = 9)
+        ax1.vlines(grow.t_q_hci.values[0][2*i+1],isfhl(grow.t_q_hci.values[0][2*i+1]),isfhh(grow.t_q_hci.values[0][2*i+1]), 
+                   color = 'k', linewidth = 0.5, zorder = 9)
     ###############P(Z)################
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Pm.npy'.format(field, galaxy))
 
     ipz = interp1d(np.round(z,5),pz)
-    hdr = np.linspace(grow.Z_16.values[0], grow.Z_84.values[0])
 
     plt.subplot(gs[1,0])
     plt.plot(z,pz,'k')
-    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    
+    for i in range(len(grow.Z_hci.values[0])//2):
+        hdr = np.linspace(grow.Z_hci.values[0][2*i],grow.Z_hci.values[0][2*i+1])
+        plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
     plt.vlines(grow.Z.values[0],0, ipz(grow.Z.values[0]), color = '#C1253C')
     plt.xlabel('Z / Z$_\odot$', fontsize=15)
     plt.ylabel('P(Z)', fontsize=15)
@@ -146,11 +154,12 @@ def PLOT(field, galaxy, savefig = True):
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Plwa.npy'.format(field, galaxy))
 
     ipz = interp1d(np.round(z,5),pz)
-    hdr = np.linspace(grow.lwa_16.values[0], grow.lwa_84.values[0])
 
     plt.subplot(gs[1,1])
     plt.plot(z,pz,'k')
-    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    for i in range(len(grow.lwa_hci.values[0])//2):
+        hdr = np.linspace(grow.lwa_hci.values[0][2*i],grow.lwa_hci.values[0][2*i+1])
+        plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
     plt.vlines(grow.lwa.values[0],0, ipz(grow.lwa.values[0]), color = '#C1253C')
     plt.xlabel('Light-Weighted Age', fontsize=15)
     plt.ylabel('P(lwa)', fontsize=15)
@@ -159,11 +168,12 @@ def PLOT(field, galaxy, savefig = True):
     ###############P(z)################
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
     ipz = interp1d(np.round(z,5),pz)
-    hdr = np.linspace(grow.zgrism_16.values[0], grow.zgrism_84.values[0])
 
     plt.subplot(gs[1,2])
     plt.plot(z,pz,'k')
-    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    for i in range(len(grow.zgrism_hci.values[0])//2):
+        hdr = np.linspace(grow.zgrism_hci.values[0][2*i],grow.zgrism_hci.values[0][2*i+1])
+        plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
     plt.vlines(grow.zgrism.values[0],0, ipz(grow.zgrism.values[0]), color = '#C1253C')
     plt.xlabel('redshift', fontsize=15)
     plt.ylabel('P(z)', fontsize=15)
@@ -171,11 +181,12 @@ def PLOT(field, galaxy, savefig = True):
 
     ###############P(d)################
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Pd.npy'.format(field, galaxy))
-    ipz = interp1d(np.round(z,5),pz)
-    hdr = np.linspace(grow.Av_16.values[0], grow.Av_84.values[0])
+    ipz = interp1d(z,pz)
     plt.subplot(gs[1,3])
     plt.plot(z,pz,'k')
-    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    for i in range(len(grow.Av_hci.values[0])//2):
+        hdr = np.linspace(grow.Av_hci.values[0][2*i],grow.Av_hci.values[0][2*i+1])
+        plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
     plt.vlines(grow.Av.values[0],0, ipz(grow.Av.values[0]), color = '#C1253C')
     plt.xlabel('Av', fontsize=15)
     plt.ylabel('P(Av)', fontsize=15)
