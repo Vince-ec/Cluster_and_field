@@ -12,7 +12,6 @@ from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
-from spec_tools import Source_present, Photometry, Scale_model, Oldest_galaxy
 
 
 hpath = os.environ['HOME'] + '/'
@@ -66,6 +65,12 @@ def:
 -F_lam_per_M
 -Get_mass
 """  
+
+def Oldest_galaxy(z):
+    return cosmo.age(z).value
+
+def Scale_model(D, sig, M):
+    return np.sum(((D * M) / sig ** 2)) / np.sum((M ** 2 / sig ** 2))
 
 def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None, auto_select = False, decontam = True):
     # if loading photometry FLT stands in for num

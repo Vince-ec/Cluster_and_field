@@ -4,7 +4,6 @@ from astropy.cosmology import Planck13 as cosmo
 from astropy.io import fits
 import fsps
 from matplotlib.gridspec import GridSpec
-from spec_tools import Source_present, Scale_model, Oldest_galaxy, Sig_int,Likelihood_contours, Median_w_Error_cont
 from spec_exam import Gen_spec
 from spec_id import *
 from sim_engine import *
@@ -22,6 +21,7 @@ import dynesty
 from dynesty import plotting as dyplot
 from dynesty.utils import quantile as _quantile
 from scipy.ndimage import gaussian_filter as norm_kde
+from spec_tools import Rescale_sfh, lbt_to_z, Posterior_spec
 
 from time import time
 sea.set(style='white')
@@ -41,58 +41,51 @@ if hpath == '/Users/Vince.ec/':
 else:
     dpath = hpath + 'Data/' 
 
-
-
 def PLOT(field, galaxy, savefig = True):
-    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bsc, rsc, \
-    bp1, rp1, ba, bb, bl, ra, rb, rl, lwa, logl = np.load(
-        '../data/bestfits/{0}_{1}_tabfit_bfit.npy'.format(field, galaxy))
-    
-    sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
-    sp.params['dust2'] = d
-    sp.params['dust1'] = d
-    sp.params['logzsol'] = np.log10(m)
+    grow = morph_db.query('id == {0}'.format(galaxy))
 
-    time, sfr, tmax = convert_sfh(get_agebins(a), [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], maxage = a*1E9)
+    Gs = Gen_spec(field, galaxy, grow.zgrism.values[0], phot_errterm = 0.04, irac_err = 0.08) 
+    Flam = Posterior_spec(field, galaxy)
+    
+    x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pbp1.npy'.format(field, galaxy))
+    bp1 = x[px == max(px)][0]
+    x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Prp1.npy'.format(field, galaxy))
+    rp1 = x[px == max(px)][0]
+    
+    Gs.Best_fit_scale_flam(Flam.wave, Flam.SPEC, Flam.rshift, bp1, rp1)
 
-    sp.set_tabular_sfh(time,sfr)    
-    
-    wave, flux = sp.get_spectrum(tage = a, peraa = True)    
-    
-    Gs = Gen_spec(field, galaxy, z, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.04, irac_err = 0.08, decontam = True) 
+    sfh = Rescale_sfh(field, galaxy)
 
-    Gs.Sim_all_premade(wave*(1+z),flux)
-    
-    if Gs.g102 and Gs.g141:
-        bcal, rcal = Calibrate_grism(Gs, [Gs.Bmfl,Gs.Rmfl], [bp1,rp1], [Gs.Bwv,Gs.Rwv], [Gs.Bfl,Gs.Rfl], [Gs.Ber,Gs.Rer])
-    
-    if Gs.g102 and not Gs.g141:
-        bcal = Calibrate_grism(Gs, [Gs.Bmfl], [bp1], [Gs.Bwv], [Gs.Bfl], [Gs.Ber])[0]
-    
-    if not Gs.g102 and Gs.g141:
-        rcal = Calibrate_grism(Gs, [Gs.Rmfl], [rp1], [Gs.Rwv], [Gs.Rfl], [Gs.Rer])[0]
-    
-    
-    gs = GridSpec(3,4, hspace=0.3, wspace = 0.3)   
+    gs = GridSpec(2,4, hspace=0.3, wspace = 0.3)   
 
-    plt.figure(figsize=[16,15])
+    plt.figure(figsize=[15,10])
     ###############plot tab##################
     plt.subplot(gs[0,:3])
 
     if Gs.g102:
-        plt.errorbar(np.log10(Gs.Bwv_rf),Gs.Bfl*1E18 / bcal,Gs.Ber*1E18 / bcal,
-                linestyle='None', marker='o', markersize=3, color='#377eb8', zorder = 2)
-        plt.plot(np.log10(Gs.Bwv_rf),Gs.Bmfl*1E18,'k', zorder = 4)
-
+        plt.errorbar(np.log10(Gs.Bwv_rf),Gs.Bfl *1E18,Gs.Ber *1E18,
+                linestyle='None', marker='o', markersize=3, color='#36787A', zorder = 2)
+        plt.plot(np.log10(Gs.Bwv_rf),Gs.Bmfl *1E18,'k', zorder = 4)
+        IDB = [U for U in range(len(Flam.wave)) if Flam.wave[U] < Gs.Bwv_rf[0]]
+    else:
+        IDB = [U for U in range(len(Flam.wave)) if Flam.wave[U] < Gs.Rwv_rf[0]]
+        
     if Gs.g141:
-        plt.errorbar(np.log10(Gs.Rwv_rf),Gs.Rfl*1E18 /  rcal,Gs.Rer*1E18 / rcal,
-                linestyle='None', marker='o', markersize=3, color='#e41a1c', zorder = 2)
-        plt.plot(np.log10(Gs.Rwv_rf),Gs.Rmfl*1E18,'k', zorder = 4)
-    
+        plt.errorbar(np.log10(Gs.Rwv_rf),Gs.Rfl *1E18,Gs.Rer *1E18,
+                linestyle='None', marker='o', markersize=3, color='#EA2E3B', zorder = 2)
+        plt.plot(np.log10(Gs.Rwv_rf),Gs.Rmfl *1E18,'k', zorder = 4)
+        IDR = [U for U in range(len(Flam.wave)) if Flam.wave[U] > Gs.Rwv_rf[-1]]
+    else:
+        IDR = [U for U in range(len(Flam.wave)) if Flam.wave[U] > Gs.Bwv_rf[-1]]
+
     plt.errorbar(np.log10(Gs.Pwv_rf),Gs.Pflx*1E18,Gs.Perr*1E18,
-            linestyle='None', marker='p', markersize=15, color='#984ea3', zorder = 1)
-    plt.plot(np.log10(Gs.Pwv_rf),Gs.Pmfl*1E18,'ko', zorder = 3)
+            linestyle='None', marker='o', markersize=10, markerfacecolor='#B5677D', zorder = 1,
+                 markeredgecolor = '#685877',markeredgewidth = 1)
+
+    plt.plot(np.log10(Flam.wave)[IDB],Flam.SPEC[IDB]*1E18,'k', alpha = 1, label = 'Model', zorder=5)
+    plt.plot(np.log10(Flam.wave)[IDR],Flam.SPEC[IDR]*1E18,'k', alpha = 1)
+    plt.xlim(np.log10(1500),np.log10(50000))
+
     plt.xticks(np.log10([2500,5000,7500,10000,25000]),[2500,5000,7500,10000,25000])
     plt.title(galaxy, fontsize=25)
     plt.xlabel('Wavelength ($\AA$)', fontsize=20)
@@ -100,141 +93,98 @@ def PLOT(field, galaxy, savefig = True):
     plt.tick_params(axis='both', which='major', labelsize=15)
 
     ###############sfh plot################
-    med,le,he = np.zeros([3,10])
-    for i in range(10):
-        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pm{2}.npy'.format(field, galaxy,i+1))
-        med[i],le[i],he[i] = Highest_density_region(px,x)
+    isfhl = interp1d(sfh.LBT,sfh.SFH_16)
+    isfhh = interp1d(sfh.LBT,sfh.SFH_84)
+    hdr = np.linspace(grow.t_50_16.values[0], grow.t_50_84.values[0])
+    hdrq = np.linspace(grow.t_q_16.values[0], grow.t_q_84.values[0])
 
-    x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pa.npy'.format(field, galaxy))
-    a,ale,ahe = Highest_density_region(px,x)
+    ax1 = plt.subplot(gs[0,3])
+    ax2 = ax1.twiny()
 
-    time, sfr, tmax = convert_sfh(get_agebins(a), med, maxage = a*1E9)
-    time, sfr_l, tmax = convert_sfh(get_agebins(a), med - le, maxage = a*1E9)
-    time, sfr_h, tmax = convert_sfh(get_agebins(a), med + he, maxage = a*1E9) 
-    
-    plt.subplot(gs[0,3])
-    plt.plot(time,sfr, 'r')
-    plt.fill_between(time,sfr_l, sfr_h, alpha = 0.3)
-    plt.xlabel('Age', fontsize=15)
-    plt.ylabel('SFR', fontsize=15)
-    plt.tick_params(axis='both', which='major', labelsize=10)
-    
-    ###############plot delay################
-    sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 4, tau = 0.01, dust_type = 1)
-    m, a, tau, lm, z, d, bsc, rsc, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa, logl = np.load(
-        '../data/bestfits/{0}_{1}_delayfit_bfit.npy'.format(field, galaxy))
-    
-    sp.params['dust2'] = d
-    sp.params['dust1'] = d
-    sp.params['logzsol'] = np.log10(m)
-    sp.params['tau'] = tau
-    
-    wave, flux = sp.get_spectrum(tage = a, peraa = True)    
-    
-    Gs = Gen_spec(field, galaxy, z, g102_lims=[8300, 11288], g141_lims=[11288, 16500],mdl_err = False,
-        phot_errterm = 0.04, irac_err = 0.08, decontam = True) 
+    ax1.plot(sfh.fulltimes, sfh.sfr_grid.T, color = '#532436', alpha=.075, linewidth = 0.5)
+    ax1.plot(sfh.LBT,sfh.SFH, color = '#C1253C', linewidth = 2, zorder = 10)
+    ax1.plot(sfh.LBT,sfh.SFH_16, 'k', linewidth = 2)
+    ax1.plot(sfh.LBT,sfh.SFH_84, 'k', linewidth = 2)
 
-    Gs.Sim_all_premade(wave*(1+z),flux)
-    
-    if Gs.g102 and Gs.g141:
-        bcal, rcal = Calibrate_grism(Gs, [Gs.Bmfl,Gs.Rmfl], [bp1,rp1], [Gs.Bwv,Gs.Rwv], [Gs.Bfl,Gs.Rfl], [Gs.Ber,Gs.Rer])
-    
-    if Gs.g102 and not Gs.g141:
-        bcal = Calibrate_grism(Gs, [Gs.Bmfl], [bp1], [Gs.Bwv], [Gs.Bfl], [Gs.Ber])[0]
-    
-    if not Gs.g102 and Gs.g141:
-        rcal = Calibrate_grism(Gs, [Gs.Rmfl], [rp1], [Gs.Rwv], [Gs.Rfl], [Gs.Rer])[0]
-        
-    plt.subplot(gs[1,:3])
+    ax2.set_xlim(ax1.get_xlim())
+    ax2.set_xticks(np.arange(0,int(sfh.fulltimes[-1])))
+    ax2.set_xticklabels(np.round(lbt_to_z(np.arange(0,int(sfh.fulltimes[-1])) + cosmo.lookback_time(grow.zgrism.values[0]).value),2))
+    ax2.xaxis.set_ticks_position('top')
 
-    if Gs.g102:
-        plt.errorbar(np.log10(Gs.Bwv_rf),Gs.Bfl*1E18 / bcal,Gs.Ber*1E18 / bcal,
-                linestyle='None', marker='o', markersize=3, color='#377eb8', zorder = 2)
-        plt.plot(np.log10(Gs.Bwv_rf),Gs.Bmfl*1E18,'k', zorder = 4)
+    ax1.set_xlabel('Look-back time (Gyr)', fontsize=15)
+    ax1.set_ylabel('SFR ($M_\odot$ / yr)', fontsize=15)
+    ax2.set_xlabel('Redshift (z)', fontsize=15) 
+    ax1.tick_params(axis='both', which='major', labelsize=10)
 
-    if Gs.g141:
-        plt.errorbar(np.log10(Gs.Rwv_rf),Gs.Rfl*1E18 /  rcal,Gs.Rer*1E18 / rcal,
-                linestyle='None', marker='o', markersize=3, color='#e41a1c', zorder = 2)
-        plt.plot(np.log10(Gs.Rwv_rf),Gs.Rmfl*1E18,'k', zorder = 4)
-    
-    plt.errorbar(np.log10(Gs.Pwv_rf),Gs.Pflx*1E18,Gs.Perr*1E18,
-            linestyle='None', marker='p', markersize=15, color='#984ea3', zorder = 1)
-    plt.plot(np.log10(Gs.Pwv_rf),Gs.Pmfl*1E18,'ko', zorder = 3)
-    plt.xticks(np.log10([2500,5000,7500,10000,25000]),[2500,5000,7500,10000,25000])
-    plt.xlabel('Wavelength ($\AA$)', fontsize=20)
-    plt.ylabel('F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/\AA $)', fontsize=20)
-    plt.tick_params(axis='both', which='major', labelsize=15)
+    ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = '#4E7577', alpha=0.75, zorder = 9)
+    ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = '#4E7577', linewidth = 2, zorder = 12)
+    ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = 'k', linewidth = 3, zorder = 11)
+    ax1.vlines(grow.t_50_16.values[0],isfhl(grow.t_50_16.values[0]),isfhh(grow.t_50_16.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
+    ax1.vlines(grow.t_50_84.values[0],isfhl(grow.t_50_84.values[0]),isfhh(grow.t_50_84.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
 
-    ###############sfh plot################
-    x,px = np.load('../data/posteriors/{0}_{1}_delayfit_Pt.npy'.format(field, galaxy))
-    tau, taul, tauh = Highest_density_region(px,x)
+    ax1.fill_between(hdrq, isfhh(hdrq), isfhl(hdrq), color = '#4E7577', alpha=0.75, zorder = 9)
+    ax1.vlines(grow.t_q.values[0],isfhl(grow.t_q.values[0]),isfhh(grow.t_q.values[0]), color = '#4E7577', linewidth = 2, zorder = 12)
+    ax1.vlines(grow.t_q.values[0],isfhl(grow.t_q.values[0]),isfhh(grow.t_q.values[0]), color = 'k', linewidth = 3, zorder = 11)
+    ax1.vlines(grow.t_q_16.values[0],isfhl(grow.t_q_16.values[0]),isfhh(grow.t_q_16.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
+    ax1.vlines(grow.t_q_84.values[0],isfhl(grow.t_q_84.values[0]),isfhh(grow.t_q_84.values[0]), color = 'k', linewidth = 0.5, zorder = 9)
 
-    x,px = np.load('../data/posteriors/{0}_{1}_delayfit_Pa.npy'.format(field, galaxy))
-    a,ale,ahe = Highest_density_region(px,x)
-
-    t = np.arange(0,a,0.01)
-    sfr = t*np.exp( -t / tau) / np.trapz(t*np.exp( -t / tau),t)
-    sfrl = t*np.exp( -t /(tau - taul)) / np.trapz(t*np.exp( -t /(tau - taul)),t)
-    sfrh = t*np.exp( -t / (tau + tauh)) /  np.trapz(t*np.exp( -t / (tau + tauh)),t)
-   
-    plt.subplot(gs[1,3])
-    plt.plot(t,sfr,'b')
-    plt.fill_between(t,sfrl, sfrh, alpha = 0.3)
-    plt.xlabel('Age', fontsize=15)
-    plt.ylabel('SFR', fontsize=15)
-    plt.tick_params(axis='both', which='major', labelsize=10)
-    
     ###############P(Z)################
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Pm.npy'.format(field, galaxy))
-    d,pd = np.load('../data/posteriors/{0}_{1}_delayfit_Pm.npy'.format(field, galaxy))
-    
-    plt.subplot(gs[2,0])
-    plt.plot(z,pz,'r')
-    plt.plot(d,pd,'b')
+
+    ipz = interp1d(np.round(z,5),pz)
+    hdr = np.linspace(grow.Z_16.values[0], grow.Z_84.values[0])
+
+    plt.subplot(gs[1,0])
+    plt.plot(z,pz,'k')
+    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    plt.vlines(grow.Z.values[0],0, ipz(grow.Z.values[0]), color = '#C1253C')
     plt.xlabel('Z / Z$_\odot$', fontsize=15)
     plt.ylabel('P(Z)', fontsize=15)
     plt.tick_params(axis='both', which='major', labelsize=10)
-    
+
     ###############P(lwa)################
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Plwa.npy'.format(field, galaxy))
-    d,pd = np.load('../data/posteriors/{0}_{1}_delayfit_Plwa.npy'.format(field, galaxy))
 
-    plt.subplot(gs[2,1])
-    plt.plot(z,pz,'r')
-    plt.plot(d,pd,'b')
-    plt.xlabel('Age', fontsize=15)
+    ipz = interp1d(np.round(z,5),pz)
+    hdr = np.linspace(grow.lwa_16.values[0], grow.lwa_84.values[0])
+
+    plt.subplot(gs[1,1])
+    plt.plot(z,pz,'k')
+    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    plt.vlines(grow.lwa.values[0],0, ipz(grow.lwa.values[0]), color = '#C1253C')
+    plt.xlabel('Light-Weighted Age', fontsize=15)
     plt.ylabel('P(lwa)', fontsize=15)
     plt.tick_params(axis='both', which='major', labelsize=10)
-    
+
     ###############P(z)################
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
-    d,pd = np.load('../data/posteriors/{0}_{1}_delayfit_Pz.npy'.format(field, galaxy))
-    
-    plt.subplot(gs[2,2])
-    plt.plot(z,pz,'r')
-    plt.plot(d,pd,'b')
+    ipz = interp1d(np.round(z,5),pz)
+    hdr = np.linspace(grow.zgrism_16.values[0], grow.zgrism_84.values[0])
+
+    plt.subplot(gs[1,2])
+    plt.plot(z,pz,'k')
+    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    plt.vlines(grow.zgrism.values[0],0, ipz(grow.zgrism.values[0]), color = '#C1253C')
     plt.xlabel('redshift', fontsize=15)
     plt.ylabel('P(z)', fontsize=15)
     plt.tick_params(axis='both', which='major', labelsize=10)
-    
+
     ###############P(d)################
     z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_Pd.npy'.format(field, galaxy))
-    d,pd = np.load('../data/posteriors/{0}_{1}_delayfit_Pd.npy'.format(field, galaxy))
-    
-    plt.subplot(gs[2,3])
-    plt.plot(z,pz,'r')
-    plt.plot(d,pd,'b')
+    ipz = interp1d(np.round(z,5),pz)
+    hdr = np.linspace(grow.Av_16.values[0], grow.Av_84.values[0])
+    plt.subplot(gs[1,3])
+    plt.plot(z,pz,'k')
+    plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
+    plt.vlines(grow.Av.values[0],0, ipz(grow.Av.values[0]), color = '#C1253C')
     plt.xlabel('Av', fontsize=15)
     plt.ylabel('P(Av)', fontsize=15)
     plt.tick_params(axis='both', which='major', labelsize=10)
-    
+
     if savefig:
-        plt.savefig('../plots/fullfits/all_data_{0}_{1}.png'.format(field, galaxy),bbox_inches = 'tight')
+        plt.savefig('../plots/fullfits/tab_fit_{0}_{1}.png'.format(field, galaxy),bbox_inches = 'tight')
+
+morph_db = pd.read_pickle('../dataframes/fitdb/tabfitdb.pkl')
     
-flist = glob('../data/posteriors/*zfit*')
-
-fld = [os.path.basename(U).split('_')[0] for U in flist] 
-ids = np.array([os.path.basename(U).split('_')[1] for U in flist]).astype(int)
-
-for i in range(len(flist)):
-    PLOT(fld[i], ids[i])
+for i in morph_db.index:
+    PLOT(morph_db.field[i], morph_db.id[i])

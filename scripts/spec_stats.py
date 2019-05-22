@@ -252,27 +252,35 @@ def Gen_grid(DB,param):
         grid.append(Px)
     return np.array(grid)
 
-def Highest_density_region(Px, x, region = 0.68):
+def Highest_density_region(Px, x, region = 0.683):
     mode = x[Px == max(Px)][0]
 
-    vals = np.zeros_like(x)
+    pbin = np.linspace(0, max(Px), 1000)
+    pbin = pbin[::-1]
 
+    prob_int = np.zeros(len(pbin))
+
+    for i in range(len(pbin)):
+        p = np.array(Px)
+        p[p <= pbin[i]] = 0
+        prob_int[i] = np.trapz(p, x)
+        if prob_int[i] > region:
+            break
+
+    HCI = []
+    flip = False
     for i in range(len(x)):
-        top_reg = np.clip(Px,Px[i],Px.max())
-        top_reg[top_reg == top_reg.min()] = 0
-
-        vals[i] = np.trapz(top_reg,x)
-    try:
-        lowlim = interp1d(vals[x <= mode], x[x <= mode])(0.68)
-    except:
-        lowlim = x.min()
-    
-    try:
-        hilim = interp1d(vals[x >= mode], x[x >= mode])(0.68)
-    except:
-        hilim = x.max()
-            
-    return mode, mode - lowlim, hilim - mode
+        if flip == False:
+            if p[i] != 0:
+                HCI.append(x[i])
+                flip = True
+        else:
+            if p[i] == 0:
+                HCI.append(x[i-1])
+                flip = False
+            if x[i] == x[-1]:
+                HCI.append(x[i])                
+    return mode, HCI
 
 def Smooth(f,x,bw):
     ksmooth = importr('KernSmooth')

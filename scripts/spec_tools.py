@@ -6,7 +6,9 @@ from astropy.cosmology import Planck13 as cosmo
 from astropy.io import fits
 from astropy import wcs
 from spec_stats import Highest_density_region
+import fsps
 import os
+from sim_engine import F_lam_per_M
 
 import rpy2
 import rpy2.robjects as robjects
@@ -480,7 +482,7 @@ class Rescale_sfh(object):
             idx = 0
             x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
             rshift = x[px == max(px)][0]
-            self.fulltimes = np.arange(0.01,Oldest_galaxy(rshift),0.01)
+            self.fulltimes = np.arange(0.0,Oldest_galaxy(rshift),0.01)
             sfr_grid = []
             ssfr_grid = []
             t_50_grid = []
@@ -518,10 +520,13 @@ class Rescale_sfh(object):
 
                 sfrmax = np.argmax(lbsfr) 
 
+                check = False
                 for i in range(len(lbsfr[0:sfrmax+1])):
                     if int(lbsfr[0:sfrmax+1][-(i+1)]) <= int(max(lbsfr[0:sfrmax+1]) * 0.1):
                         t_q_grid.append(lbt[0:sfrmax+1][-(i+1)])
                         break
+                if not check:
+                    t_q_grid.append(lbt[0:sfrmax+1][-(i+1)])
 
                 sfr_grid.append(interp1d(lbt,lbsfr,bounds_error=False,fill_value=0)(self.fulltimes))
 
@@ -545,7 +550,7 @@ class Rescale_sfh(object):
                 SFH_84.append(np.percentile(gdat,84))
 
                 ftimes.append(self.fulltimes[i])
-
+                
         self.SFH = np.array(SFH)
         self.SFH_16 = np.array(SFH_16)
         self.SFH_84 = np.array(SFH_84)
@@ -556,24 +561,68 @@ class Rescale_sfh(object):
         weights = Derive_SFH_weights(self.SFH, sfr_grid[0:trials])
        
         x,y = boot_to_posterior(t_50_grid[0:trials], weights)
-        self.t_50,t_50_l,t_50_h = Highest_density_region(y,x)
-        self.t_50_16 = self.t_50 - t_50_l
-        self.t_50_84 = self.t_50 + t_50_h
+        self.t_50, self.t_50_hci = Highest_density_region(y,x)
 
         x,y = boot_to_posterior(t_q_grid[0:trials], weights)
-        self.t_q,t_q_l,t_q_h = Highest_density_region(y,x)
-        self.t_q_16 = self.t_q - t_q_l
-        self.t_q_84 = self.t_q + t_q_h  
+        self.t_q, self.t_q_hci = Highest_density_region(y,x) 
 
         self.z_50 = age_to_z(Oldest_galaxy(rshift) - self.t_50)
-        self.z_50_16 = age_to_z(Oldest_galaxy(rshift) - self.t_50_16)
-        self.z_50_84 = age_to_z(Oldest_galaxy(rshift) - self.t_50_84)
+        hci=[]
+        for lims in self.t_50_hci:
+            hci.append(age_to_z(Oldest_galaxy(rshift) - lims))
+        self.z_50_hci = np.array(hci)
 
         self.z_q = age_to_z(Oldest_galaxy(rshift) - self.t_q)
-        self.z_q_16 = age_to_z(Oldest_galaxy(rshift) - self.t_q_16)
-        self.z_q_84 = age_to_z(Oldest_galaxy(rshift) - self.t_q_84)
-
+        hci=[]
+        for lims in self.t_q_hci:
+            hci.append(age_to_z(Oldest_galaxy(rshift) - lims))
+        self.z_q_hci = np.array(hci)
+        
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
-        self.lssfr,lssfr_l,lssfr_h = Highest_density_region(y,x)
-        self.lssfr_16 = self.lssfr - lssfr_l
-        self.lssfr_84 = self.lssfr + lssfr_h     
+        self.lssfr, self.lssfr_hci = Highest_density_region(y,x)
+        
+class Posterior_spec(object):
+    def __init__(self, field, galaxy, trials = 1000):
+
+        sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
+
+        ppf_dict = {}
+        params = ['m','a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm','d']
+
+        for i in params:
+            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, i))
+            ppf_dict[i] = Gen_PPF(x,px)
+
+        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
+        self.rshift = x[px == max(px)][0]
+
+        idx = 0
+
+        flam_grid=[]
+
+        while idx < trials:
+            try:
+                draw = np.zeros(len(params))
+
+                for i in range(len(draw)):
+                    draw[i] = ppf_dict[params[i]](np.random.rand(1))[0]
+
+                sp.params['dust2'] = draw[13]
+                sp.params['dust1'] = draw[13]
+                sp.params['logzsol'] = np.log10(draw[0])
+
+                time, sfr, tmax = convert_sfh(get_agebins(draw[1]), draw[2:12], maxage = draw[1]*1E9)
+
+                sp.set_tabular_sfh(time,sfr)    
+
+                self.wave, flux = sp.get_spectrum(tage = draw[1], peraa = True)   
+
+                flam_grid.append(F_lam_per_M(flux, self.wave * (1 + self.rshift), self.rshift, 0, sp.stellar_mass)*10**draw[12])
+
+                idx +=1
+            except:
+                pass
+            
+        self.SPEC = np.percentile(flam_grid,50, axis = 0)
+        self.SPEC_16 = np.percentile(flam_grid,16, axis = 0)
+        self.SPEC_84 = np.percentile(flam_grid,84, axis = 0)

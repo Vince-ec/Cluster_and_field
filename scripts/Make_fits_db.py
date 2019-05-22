@@ -33,20 +33,19 @@ k = ['Z', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lmass', 
 
 for p in range(len(params)):
     m = np.repeat(-99.0,len(select))
-    l = np.repeat(0.0,len(select))
-    h = np.repeat(0.0,len(select))
+    hci = []
     
     for i in range(len(select.index)):
         try:
             x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(select.field[select.index[i]], select.id[select.index[i]], params[p]))
-            m[i], l[i], h[i] = Highest_density_region(px,x)
+            m[i], dummy = Highest_density_region(px,x)
+            hci.append(dummy)
 
         except:
-            pass
+            hci.append([0])
     
     fitvals['{0}'.format(k[p])] = np.round(m,5)
-    fitvals['{0}_16'.format(k[p])] = np.round(m-l,5)
-    fitvals['{0}_84'.format(k[p])] = np.round(m+h,5)
+    fitvals['{0}_hci'.format(k[p])] = hci
     
 #make db
 tabfits = pd.DataFrame(fitvals)
@@ -54,58 +53,57 @@ tabfits['field'] = select.field.values
 tabfits['id'] = select.id.values
 
 #add SFH values
-z_50= np.repeat(-99.0,len(tabfits)); z_50_16= np.repeat(-99.0,len(tabfits)); z_50_84 = np.repeat(-99.0,len(tabfits))
-z_q= np.repeat(-99.0,len(tabfits)); z_q_16= np.repeat(-99.0,len(tabfits)); z_q_84 = np.repeat(-99.0,len(tabfits))
-t_50= np.repeat(-99.0,len(tabfits)); t_50_16= np.repeat(-99.0,len(tabfits)); t_50_84 = np.repeat(-99.0,len(tabfits))
-t_q= np.repeat(-99.0,len(tabfits)); t_q_16= np.repeat(-99.0,len(tabfits)); t_q_84 = np.repeat(-99.0,len(tabfits))
-log_ssfr= np.repeat(-99.0,len(tabfits)); log_ssfr_16= np.repeat(-99.0,len(tabfits)); log_ssfr_84 = np.repeat(-99.0,len(tabfits))
-
+z_50= np.repeat(-99.0,len(tabfits))
+z_50_hci = []
+z_q= np.repeat(-99.0,len(tabfits)) 
+z_q_hci = []
+t_50= np.repeat(-99.0,len(tabfits))
+t_50_hci = []
+t_q= np.repeat(-99.0,len(tabfits))
+t_q_hci = []
+log_ssfr= np.repeat(-99.0,len(tabfits))
+log_ssfr_hci = []
 for i in range(len(tabfits.index)):
     try:
         sfh = Rescale_sfh(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]])
 
         z_50[i] = sfh.z_50
-        z_50_16[i] = sfh.z_50_16
-        z_50_84[i] = sfh.z_50_84
+        z_50_hci.append(sfh.z_50_hci)
         
         z_q[i] = sfh.z_q
-        z_q_16[i] = sfh.z_q_16
-        z_q_84[i] = sfh.z_q_84
+        z_q_hci.append(sfh.z_q_hci)
         
         t_50[i] = sfh.t_50
-        t_50_16[i] = sfh.t_50_16
-        t_50_84[i] = sfh.t_50_84
+        t_50_hci.append(sfh.t_50_hci)
         
         t_q[i] = sfh.t_q
-        t_q_16[i] = sfh.t_q_16
-        t_q_84[i] = sfh.t_q_84
+        t_q_hci.append(sfh.t_q_hci)
         
         log_ssfr[i] = sfh.lssfr
-        log_ssfr_16[i] = sfh.lssfr_16
-        log_ssfr_84[i] = sfh.lssfr_84
+        log_ssfr_hci.append(sfh.lssfr_hci)
         
     except:
-        pass
-
+        z_50_hci.append(np.array([0]))
+        z_q_hci.append(np.array([0]))
+        t_50_hci.append([0])
+        t_q_hci.append([0])
+        log_ssfr_hci.append([0])
+        
+print(z_50_hci)
 tabfits['z_50'] = z_50
-tabfits['z_50_16'] = z_50_16
-tabfits['z_50_84'] = z_50_84
+tabfits['z_50_hci'] = z_50_hci
 
 tabfits['z_q'] = z_q
-tabfits['z_q_16'] = z_q_16
-tabfits['z_q_84'] = z_q_84
+tabfits['z_q_hci'] = z_q_hci
 
 tabfits['t_50'] = t_50
-tabfits['t_50_16'] = t_50_16
-tabfits['t_50_84'] = t_50_84
+tabfits['t_50_hci'] = t_50_hci
 
 tabfits['t_q'] = t_q
-tabfits['t_q_16'] = t_q_16
-tabfits['t_q_84'] = t_q_84
+tabfits['t_q_hci'] = t_q_hci
 
 tabfits['log_ssfr'] = log_ssfr
-tabfits['log_ssfr_16'] = log_ssfr_16
-tabfits['log_ssfr_84'] = log_ssfr_84
+tabfits['log_ssfr_hci'] = log_ssfr_hci
     
 #add Reff values
 Reff = []
