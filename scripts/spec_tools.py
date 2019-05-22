@@ -479,14 +479,14 @@ class Rescale_sfh(object):
             x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, i))
             ppf_dict[i] = Gen_PPF(x,px)
 
-            idx = 0
-            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
-            rshift = x[px == max(px)][0]
-            self.fulltimes = np.arange(0.0,Oldest_galaxy(rshift),0.01)
-            sfr_grid = []
-            ssfr_grid = []
-            t_50_grid = []
-            t_q_grid = []
+        idx = 0
+        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
+        rshift = x[px == max(px)][0]
+        self.fulltimes = np.arange(0.0,Oldest_galaxy(rshift),0.01)
+        sfr_grid = []
+        ssfr_grid = []
+        t_50_grid = []
+        t_q_grid = []
 
         while idx < trials:
             try:
@@ -618,6 +618,149 @@ class Posterior_spec(object):
                 self.wave, flux = sp.get_spectrum(tage = draw[1], peraa = True)   
 
                 flam_grid.append(F_lam_per_M(flux, self.wave * (1 + self.rshift), self.rshift, 0, sp.stellar_mass)*10**draw[12])
+
+                idx +=1
+            except:
+                pass
+            
+        self.SPEC = np.percentile(flam_grid,50, axis = 0)
+        self.SPEC_16 = np.percentile(flam_grid,16, axis = 0)
+        self.SPEC_84 = np.percentile(flam_grid,84, axis = 0)
+        
+class Rescale_SF_sfh(object):
+    def __init__(self, field, galaxy, rshift, trials = 1000):
+
+        rshifts = np.arange(0,14,0.01)
+        age_at_z = cosmo.age(rshifts).value
+        age_to_z = interp1d(age_at_z, rshifts)
+
+        ppf_dict = {}
+        params = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm']
+
+        AGE = 3
+        
+        for i in params:
+            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_P{2}.npy'.format(field, galaxy, i))
+            ppf_dict[i] = Gen_PPF(x,px)
+
+        idx = 0
+        self.fulltimes = np.arange(0.0,Oldest_galaxy(rshift),0.01)
+        sfr_grid = []
+        ssfr_grid = []
+        t_50_grid = []
+
+        while idx < trials:
+            try:
+                draw = np.zeros(len(params))
+
+                for i in range(len(draw)):
+                    draw[i] = ppf_dict[params[i]](np.random.rand(1))[0]
+
+                time, sfr, tmax = convert_sfh(get_agebins(AGE, binnum = 6 ), draw[0:6], maxage = AGE*1E9)
+
+                T=[0]
+                M=[0]
+                for i in range(len(time)//2):
+                    mass = sfr[i*2+1] * (time[i*2+1] - time[i*2])
+                    M.append(M[i] + mass)
+                    T.append(time[i*2+1])
+
+                sfr = sfr/ M[-1] * 10**draw[6] / 1E9
+
+                lbt = np.abs(time - time[-1])[::-1]
+                lbsfr = sfr[::-1]
+
+                T=[0]
+                M=[0]
+                for i in range(len(lbt)//2):
+                    mass = lbsfr[i*2+1] * (lbt[i*2+1] - lbt[i*2])
+                    M.append(M[i] + mass)
+                    T.append(lbt[i*2+1])
+
+                t_50_grid.append(interp1d(M/ M[-1], T)(0.5))
+
+                sfr_grid.append(interp1d(lbt,lbsfr,bounds_error=False,fill_value=0)(self.fulltimes))
+
+                ssfr_grid.append(lbsfr[0] / 10**draw[6])
+                idx +=1
+            except:
+                pass
+
+        SFH = []
+        SFH_16 = []
+        SFH_84 = []
+        ftimes = []
+        for i in range(len(np.array(sfr_grid).T)):
+            adat = np.array(np.array(sfr_grid).T[i])
+            gdat = adat[adat>0]
+            if len(gdat) < trials * 0.1:
+                break
+            else:
+                SFH.append(np.percentile(gdat,50))
+                SFH_16.append(np.percentile(gdat,16))
+                SFH_84.append(np.percentile(gdat,84))
+
+                ftimes.append(self.fulltimes[i])
+                
+        self.SFH = np.array(SFH)
+        self.SFH_16 = np.array(SFH_16)
+        self.SFH_84 = np.array(SFH_84)
+        self.LBT = np.array(ftimes)
+        
+        self.sfr_grid = np.ma.masked_less_equal(sfr_grid,1E-10)
+
+        weights = Derive_SFH_weights(self.SFH, sfr_grid[0:trials])
+       
+        x,y = boot_to_posterior(t_50_grid[0:trials], weights)
+        self.t_50, self.t_50_hci = Highest_density_region(y,x)
+
+        self.z_50 = age_to_z(Oldest_galaxy(rshift) - self.t_50)
+        hci=[]
+        for lims in self.t_50_hci:
+            hci.append(age_to_z(Oldest_galaxy(rshift) - lims))
+        self.z_50_hci = np.array(hci)
+        
+        x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
+        self.lssfr, self.lssfr_hci = Highest_density_region(y,x)
+            
+class Posterior_SF_spec(object):
+    def __init__(self, field, galaxy, rshift, trials = 1000):
+
+        self.rshift = rshift
+        
+        AGE = 3
+        
+        sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
+        sp.params['dust1'] = 0
+        
+        ppf_dict = {}
+        params = ['m', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm','d']
+
+        for i in params:
+            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_P{2}.npy'.format(field, galaxy, i))
+            ppf_dict[i] = Gen_PPF(x,px)
+
+        idx = 0
+
+        flam_grid=[]
+
+        while idx < trials:
+            try:
+                draw = np.zeros(len(params))
+
+                for i in range(len(draw)):
+                    draw[i] = ppf_dict[params[i]](np.random.rand(1))[0]
+
+                sp.params['dust2'] = draw[8]
+                sp.params['logzsol'] = np.log10(draw[0])
+
+                time, sfr, tmax = convert_sfh(get_agebins(AGE, binnum = 6), draw[1:7], maxage = AGE*1E9)
+
+                sp.set_tabular_sfh(time,sfr)    
+
+                self.wave, flux = sp.get_spectrum(tage = AGE, peraa = True)   
+
+                flam_grid.append(F_lam_per_M(flux, self.wave * (1 + self.rshift), self.rshift, 0, sp.stellar_mass)*10**draw[7])
 
                 idx +=1
             except:
