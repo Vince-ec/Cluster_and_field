@@ -49,7 +49,7 @@ for p in range(len(params)):
 tabfits = pd.DataFrame(fitvals)
 tabfits['field'] = select.field.values
 tabfits['id'] = select.id.values
-tabfits['zgrism'] = select.z.values
+tabfits['zgrism'] = select.zgrism.values
 tabfits['AGN'] = select.AGN.values
 
 #add SFH values

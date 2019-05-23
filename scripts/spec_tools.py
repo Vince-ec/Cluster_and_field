@@ -9,6 +9,7 @@ from spec_stats import Highest_density_region
 import fsps
 import os
 from sim_engine import F_lam_per_M
+import img_scale
 
 import rpy2
 import rpy2.robjects as robjects
@@ -635,10 +636,8 @@ class Rescale_SF_sfh(object):
         age_to_z = interp1d(age_at_z, rshifts)
 
         ppf_dict = {}
-        params = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm']
-
-        AGE = 3
-        
+        params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm']
+       
         for i in params:
             x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_P{2}.npy'.format(field, galaxy, i))
             ppf_dict[i] = Gen_PPF(x,px)
@@ -656,7 +655,7 @@ class Rescale_SF_sfh(object):
                 for i in range(len(draw)):
                     draw[i] = ppf_dict[params[i]](np.random.rand(1))[0]
 
-                time, sfr, tmax = convert_sfh(get_agebins(AGE, binnum = 6 ), draw[0:6], maxage = AGE*1E9)
+                time, sfr, tmax = convert_sfh(get_agebins(draw[0], binnum = 6 ), draw[1:7], maxage = draw[0]*1E9)
 
                 T=[0]
                 M=[0]
@@ -665,7 +664,7 @@ class Rescale_SF_sfh(object):
                     M.append(M[i] + mass)
                     T.append(time[i*2+1])
 
-                sfr = sfr/ M[-1] * 10**draw[6] / 1E9
+                sfr = sfr/ M[-1] * 10**draw[7] / 1E9
 
                 lbt = np.abs(time - time[-1])[::-1]
                 lbsfr = sfr[::-1]
@@ -681,7 +680,7 @@ class Rescale_SF_sfh(object):
 
                 sfr_grid.append(interp1d(lbt,lbsfr,bounds_error=False,fill_value=0)(self.fulltimes))
 
-                ssfr_grid.append(lbsfr[0] / 10**draw[6])
+                ssfr_grid.append(lbsfr[0] / 10**draw[7])
                 idx +=1
             except:
                 pass
@@ -727,14 +726,12 @@ class Posterior_SF_spec(object):
     def __init__(self, field, galaxy, rshift, trials = 1000):
 
         self.rshift = rshift
-        
-        AGE = 3
-        
+           
         sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
         sp.params['dust1'] = 0
         
         ppf_dict = {}
-        params = ['m', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm','d']
+        params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm','d']
 
         for i in params:
             x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_P{2}.npy'.format(field, galaxy, i))
@@ -751,16 +748,16 @@ class Posterior_SF_spec(object):
                 for i in range(len(draw)):
                     draw[i] = ppf_dict[params[i]](np.random.rand(1))[0]
 
-                sp.params['dust2'] = draw[8]
+                sp.params['dust2'] = draw[9]
                 sp.params['logzsol'] = np.log10(draw[0])
 
-                time, sfr, tmax = convert_sfh(get_agebins(AGE, binnum = 6), draw[1:7], maxage = AGE*1E9)
+                time, sfr, tmax = convert_sfh(get_agebins(draw[1], binnum = 6), draw[2:8], maxage = draw[1]*1E9)
 
                 sp.set_tabular_sfh(time,sfr)    
 
-                self.wave, flux = sp.get_spectrum(tage = AGE, peraa = True)   
+                self.wave, flux = sp.get_spectrum(tage = draw[1], peraa = True)   
 
-                flam_grid.append(F_lam_per_M(flux, self.wave * (1 + self.rshift), self.rshift, 0, sp.stellar_mass)*10**draw[7])
+                flam_grid.append(F_lam_per_M(flux, self.wave * (1 + self.rshift), self.rshift, 0, sp.stellar_mass)*10**draw[8])
 
                 idx +=1
             except:
@@ -769,3 +766,40 @@ class Posterior_SF_spec(object):
         self.SPEC = np.percentile(flam_grid,50, axis = 0)
         self.SPEC_16 = np.percentile(flam_grid,16, axis = 0)
         self.SPEC_84 = np.percentile(flam_grid,84, axis = 0)
+        
+def IMG_pull(field, galaxy, smin = -0.1, smax = 0.3):
+    if field[1] == 'S':
+        seg = fits.open('/Volumes/Vince_CLEAR/gsd_img/goodss_3dhst.v4.0.F160W_seg.fits')[0].data
+        f160 = fits.open('/Volumes/Vince_CLEAR/gsd_img/goodss_3dhst.v4.0.F160W_orig_sci.fits')[0].data
+        f125 = fits.open('/Volumes/Vince_CLEAR/gsd_img/goodss_3dhst.v4.0.F125W_orig_sci.fits')[0].data
+        f105 = fits.open('/Volumes/Vince_CLEAR/gsd_img/goodss-F105W-astrodrizzle-v4.4_drz_sci.fits')[0].data
+
+    if field[1] == 'N':
+        seg = fits.open('/Volumes/Vince_CLEAR/gnd_img/goodsn_3dhst.v4.0.F160W_seg.fits')[0].data
+        f160 = fits.open('/Volumes/Vince_CLEAR/gnd_img/goodsn_3dhst.v4.0.F160W_orig_sci.fits')[0].data
+        f125 = fits.open('/Volumes/Vince_CLEAR/gnd_img/goodsn_3dhst.v4.0.F125W_orig_sci.fits')[0].data
+        f105 = fits.open('/Volumes/Vince_CLEAR/gnd_img/goodsn-F105W-astrodrizzle-v4.4_drz_sci.fits')[0].data
+        
+    ###############img plot################
+    idx = np.argwhere(seg == galaxy)
+
+    ylist = np.arange(min(idx.T[0]), max(idx.T[0]) + 1, 1)
+    xlist = np.arange(min(idx.T[1]), max(idx.T[1]) + 1, 1)
+
+    segimg = seg[min(idx.T[0]): max(idx.T[0]), min(idx.T[1]): max(idx.T[1])]
+    f105img = f105[min(idx.T[0]): max(idx.T[0]), min(idx.T[1]): max(idx.T[1])]
+    f105img[segimg != galaxy] = 0
+    maxloc = np.argwhere(f105img == np.max(f105img))[0]
+
+    ycnt = ylist[maxloc[0]]
+    xcnt = xlist[maxloc[1]]
+
+    f105img = f105[ycnt - 40: ycnt + 41, xcnt - 40: xcnt + 41]
+    f125img = f125[ycnt - 40: ycnt + 41, xcnt - 40: xcnt + 41]
+    f160img = f160[ycnt - 40: ycnt + 41, xcnt - 40: xcnt + 41]
+
+    img = np.zeros((f125img.shape[0], f125img.shape[1], 3), dtype=float)
+    img[:,:,0] = img_scale.asinh(f160img, scale_min = smin, scale_max = smax)
+    img[:,:,1] = img_scale.asinh(f125img, scale_min = smin, scale_max = smax)
+    img[:,:,2] = img_scale.asinh(f105img, scale_min = smin, scale_max = smax)
+    return img
