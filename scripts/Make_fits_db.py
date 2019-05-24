@@ -120,26 +120,22 @@ for i in tabfits.index:
 tabfits['Reff'] = np.array(Reff)
 
 #add compactness
-
-gamma = [0.46, 0.3, 0.21, 0.04]
-beta = [0.59, 0.62, 0.63, 0.69]
-
-masses = np.linspace(9,11.5)
 compactness =[]
 
+def A_value(Reff, mass):
+    return (Reff) / (mass / 1E11)**0.75
+
 for i in tabfits.index:
-    if 0.4 < tabfits.zgrism[i] < 1.0:
-        idx = 0
-    if 1.0 < tabfits.zgrism[i] < 1.5:
-        idx = 1
-    if 1.5 < tabfits.zgrism[i] < 2.0:
-        idx = 2
-    if 2.0 < tabfits.zgrism[i] < 2.5:
-        idx = 3
-    if np.log10(tabfits.Reff[i]) >  gamma[idx] + beta[idx]*(tabfits.lmass[i] - 11):
-        compactness.append('e')
-    else:
+    A = A_value(tabfits.Reff[i], 10**tabfits.lmass[i])
+    if A <= 1.5:
+        compactness.append('u')
+        
+    if 1.5 < A <= 2.5:
         compactness.append('c')
+        
+    if A > 2.5:
+        compactness.append('e')
+
 tabfits['compact'] = compactness
 
 tabfits.to_pickle('../dataframes/fitdb/tabfitdb.pkl')
