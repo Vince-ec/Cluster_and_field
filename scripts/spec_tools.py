@@ -581,6 +581,9 @@ class Rescale_sfh(object):
         
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
         self.lssfr, self.lssfr_hci = Highest_density_region(y,x)
+            
+        self.weights = weights
+        self.t_50_grid = t_50_grid
         
 class Posterior_spec(object):
     def __init__(self, field, galaxy, trials = 1000):
@@ -721,6 +724,8 @@ class Rescale_SF_sfh(object):
         
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
         self.lssfr, self.lssfr_hci = Highest_density_region(y,x)
+
+            
             
 class Posterior_SF_spec(object):
     def __init__(self, field, galaxy, rshift, trials = 1000):
