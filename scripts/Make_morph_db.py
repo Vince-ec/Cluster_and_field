@@ -29,23 +29,33 @@ tabfits = pd.read_pickle('../dataframes/fitdb/tabfitdb.pkl')
 n125 = []
 n160 = []
 
+n125_f = []
+n160_f = []
+
 for i in tabfits.index:
     if tabfits.field[i][1] == 'S':
         n = goodss_125.n[goodss_125.NUMBER == tabfits.id[i]].values        
         n125.append(n)
+        n125_f.append(goodss_125.f[goodss_125.NUMBER == tabfits.id[i]].values)
         
         n = goodss_160.n[goodss_160.NUMBER == tabfits.id[i]].values        
         n160.append(n)
+        n160_f.append(goodss_160.f[goodss_160.NUMBER == tabfits.id[i]].values)
         
     if tabfits.field[i][1] == 'N':
         n = goodsn_125.n[goodsn_125.NUMBER == tabfits.id[i]].values
         n125.append(n)
+        n125_f.append(goodsn_125.f[goodsn_125.NUMBER == tabfits.id[i]].values)
 
         n = goodsn_160.n[goodsn_160.NUMBER == tabfits.id[i]].values
         n160.append(n)
+        n160_f.append(goodsn_160.f[goodsn_160.NUMBER == tabfits.id[i]].values)
 
 tabfits['n_f125'] = np.array(n125)
 tabfits['n_f160'] = np.array(n160)
+
+tabfits['n_f125_f'] = np.array(n125_f)
+tabfits['n_f160_f'] = np.array(n160_f)
 
 #add Reff values
 Reff125 = []
@@ -210,7 +220,8 @@ S1 = []
 c_a = []
 c_b = []
 c_S1 = []
-
+n = []
+n_f = [] 
 for i in tabfits.index:
     if tabfits.zgrism[i] <= 1.5:
         Re.append(tabfits.Re_f125[i])
@@ -220,6 +231,8 @@ for i in tabfits.index:
         c_a.append(tabfits.compact_A_f125[i])
         c_b.append(tabfits.compact_B_f125[i])
         c_S1.append(tabfits.compact_Sigma1_f125[i])
+        n.append(tabfits.n_f125[i])
+        n_f.append(tabfits.n_f125_f[i])
         
     else:
         Re.append(tabfits.Re_f160[i])
@@ -229,7 +242,9 @@ for i in tabfits.index:
         c_a.append(tabfits.compact_A_f160[i])
         c_b.append(tabfits.compact_B_f160[i])
         c_S1.append(tabfits.compact_Sigma1_f160[i])
-
+        n.append(tabfits.n_f160[i])
+        n_f.append(tabfits.n_f160_f[i])
+        
 tabfits['Re'] = np.array(Re)
 tabfits['A'] = np.array(A)
 tabfits['B'] = np.array(B)
@@ -237,5 +252,7 @@ tabfits['Sigma1'] = np.array(S1)
 tabfits['compact_A'] = np.array(c_a)
 tabfits['compact_B'] = np.array(c_b)
 tabfits['compact_Sigma1'] = np.array(c_S1)
+tabfits['n'] = np.array(n)
+tabfits['n_f'] = np.array(n_f)
 
 tabfits.to_pickle('../dataframes/fitdb/tabfitdb.pkl')
