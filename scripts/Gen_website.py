@@ -81,8 +81,9 @@ for field in fields:
     plt.imshow(img,aspect='equal')
     plt.xticks([])
     plt.yticks([])
-    plt.savefig('../data/website_data/{0}_img.pdf'.format(field))#, bbox_inches = 'tight')
+    plt.savefig('../data/website_data/{0}_img.jpg'.format(field))#, bbox_inches = 'tight')
 
+"""
     xarray = np.arange(1,img.shape[1] + 1)
     yarray = np.arange(1,img.shape[0] + 1)
 
@@ -127,7 +128,7 @@ for field in fields:
 
     np.savetxt('../data/website_data/{0}_RA_posistion.dat'.format(field), pr_p,fmt ='%s')
     np.savetxt('../data/website_data/{0}_DEC_posistion.dat'.format(field), pd_p,fmt ='%s')
-
+"""
 
 field_dir = 'n'
 
@@ -185,7 +186,8 @@ for field in fields:
     plt.imshow(img,aspect='equal')
     plt.xticks([])
     plt.yticks([])
-    plt.savefig('../data/website_data/{0}_img.pdf'.format(field))#, bbox_inches = 'tight')
+    plt.savefig('../data/website_data/{0}_img.jpg'.format(field))#, bbox_inches = 'tight')
+"""
 
     xarray = np.arange(1,img.shape[1] + 1)
     yarray = np.arange(1,img.shape[0] + 1)
@@ -231,3 +233,4 @@ for field in fields:
 
     np.savetxt('../data/website_data/{0}_RA_posistion.dat'.format(field), pr_p,fmt ='%s')
     np.savetxt('../data/website_data/{0}_DEC_posistion.dat'.format(field), pd_p,fmt ='%s')
+"""
