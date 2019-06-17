@@ -61,6 +61,9 @@ tabfits['n_f160_f'] = np.array(n160_f)
 Reff125 = []
 Reff160 = []
 
+Reff125_sig = []
+Reff160_sig = []
+
 for i in tabfits.index:
 
     if tabfits.field[i][1] == 'S':
@@ -70,6 +73,13 @@ for i in tabfits.index:
         r = goodss_160.re[goodss_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_160.q[goodss_160.NUMBER == tabfits.id[i]].values)
         Reff160.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
             
+        r_s = goodss_125.dre[goodss_125.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_125.q[goodss_125.NUMBER == tabfits.id[i]].values)
+        Reff125_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+         
+        r_s = goodss_160.dre[goodss_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_160.q[goodss_160.NUMBER == tabfits.id[i]].values)
+        Reff160_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+            
+            
     if tabfits.field[i][1] == 'N':
         r = goodsn_125.re[goodsn_125.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_125.q[goodsn_125.NUMBER == tabfits.id[i]].values)
         Reff125.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
@@ -77,8 +87,17 @@ for i in tabfits.index:
         r = goodsn_160.re[goodsn_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_160.q[goodsn_160.NUMBER == tabfits.id[i]].values)
         Reff160.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
         
+        rs = goodsn_125.dre[goodsn_125.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_125.q[goodsn_125.NUMBER == tabfits.id[i]].values)
+        Reff125_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+
+        rs = goodsn_160.dre[goodsn_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_160.q[goodsn_160.NUMBER == tabfits.id[i]].values)
+        Reff160_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        
+        
 tabfits['Re_f125'] = np.array(Reff125)
 tabfits['Re_f160'] = np.array(Reff160)
+tabfits['Re_f125_sig'] = np.array(Reff125_sig)
+tabfits['Re_f160_sig'] = np.array(Reff160_sig)
 
 #add compactness
 def A_value(Reff, mass):
@@ -214,6 +233,7 @@ tabfits['compact_Sigma1_f125'] = np.array(c_S1f125)
 tabfits['compact_Sigma1_f160'] = np.array(c_S1f160)
 
 Re = []
+Re_sig = []
 A = []
 B = []
 S1 = []
@@ -225,6 +245,7 @@ n_f = []
 for i in tabfits.index:
     if tabfits.zgrism[i] <= 1.5:
         Re.append(tabfits.Re_f125[i])
+        Re_sig.append(tabfits.Re_f125_sig[i])
         A.append(tabfits.A_f125[i])
         B.append(tabfits.B_f125[i])
         S1.append(tabfits.Sigma1_f125[i])
@@ -236,6 +257,7 @@ for i in tabfits.index:
         
     else:
         Re.append(tabfits.Re_f160[i])
+        Re_sig.append(tabfits.Re_f160_sig[i])
         A.append(tabfits.A_f160[i])
         B.append(tabfits.B_f160[i])
         S1.append(tabfits.Sigma1_f160[i])
@@ -246,6 +268,7 @@ for i in tabfits.index:
         n_f.append(tabfits.n_f160_f[i])
         
 tabfits['Re'] = np.array(Re)
+tabfits['Re_sig'] = np.array(Re_sig)
 tabfits['A'] = np.array(A)
 tabfits['B'] = np.array(B)
 tabfits['Sigma1'] = np.array(S1)
