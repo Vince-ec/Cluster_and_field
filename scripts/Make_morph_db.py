@@ -66,32 +66,39 @@ Reff160_sig = []
 
 for i in tabfits.index:
 
-    if tabfits.field[i][1] == 'S':
-        r = goodss_125.re[goodss_125.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_125.q[goodss_125.NUMBER == tabfits.id[i]].values)
-        Reff125.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-         
-        r = goodss_160.re[goodss_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_160.q[goodss_160.NUMBER == tabfits.id[i]].values)
-        Reff160.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-            
-        r_s = goodss_125.dre[goodss_125.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_125.q[goodss_125.NUMBER == tabfits.id[i]].values)
-        Reff125_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-         
-        r_s = goodss_160.dre[goodss_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_160.q[goodss_160.NUMBER == tabfits.id[i]].values)
-        Reff160_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-            
+    if tabfits.field[i][1] == 'S':   
+        r = goodss_125.re[goodss_125.NUMBER == tabfits.id[i]].values
+        q = goodss_125.q[goodss_125.NUMBER == tabfits.id[i]].values
+        rs = goodss_125.dre[goodss_125.NUMBER == tabfits.id[i]].values
+        qs = goodss_125.dq[goodss_125.NUMBER == tabfits.id[i]].values
+        
+        Reff125.append((r * np.sqrt(q)) / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        Reff125_sig.append(np.sqrt(q*qs**2 + r**2/(4*q)*qs**2)/ cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        
+        r = goodss_160.re[goodss_160.NUMBER == tabfits.id[i]].values
+        q = goodss_160.q[goodss_160.NUMBER == tabfits.id[i]].values
+        rs = goodss_160.dre[goodss_160.NUMBER == tabfits.id[i]].values
+        qs = goodss_160.dq[goodss_160.NUMBER == tabfits.id[i]].values
+        
+        Reff160.append((r * np.sqrt(q)) / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        Reff160_sig.append(np.sqrt(q*qs**2 + r**2/(4*q)*qs**2)/ cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
             
     if tabfits.field[i][1] == 'N':
-        r = goodsn_125.re[goodsn_125.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_125.q[goodsn_125.NUMBER == tabfits.id[i]].values)
-        Reff125.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-
-        r = goodsn_160.re[goodsn_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_160.q[goodsn_160.NUMBER == tabfits.id[i]].values)
-        Reff160.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        r = goodsn_125.re[goodsn_125.NUMBER == tabfits.id[i]].values
+        q = goodsn_125.q[goodsn_125.NUMBER == tabfits.id[i]].values
+        rs = goodsn_125.dre[goodsn_125.NUMBER == tabfits.id[i]].values
+        qs = goodsn_125.dq[goodsn_125.NUMBER == tabfits.id[i]].values
         
-        rs = goodsn_125.dre[goodsn_125.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_125.q[goodsn_125.NUMBER == tabfits.id[i]].values)
-        Reff125_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-
-        rs = goodsn_160.dre[goodsn_160.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_160.q[goodsn_160.NUMBER == tabfits.id[i]].values)
-        Reff160_sig.append(rs[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        Reff125.append((r * np.sqrt(q)) / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        Reff125_sig.append(np.sqrt(q*qs**2 + r**2/(4*q)*qs**2)/ cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        
+        r = goodsn_160.re[goodsn_160.NUMBER == tabfits.id[i]].values
+        q = goodsn_160.q[goodsn_160.NUMBER == tabfits.id[i]].values
+        rs = goodsn_160.dre[goodsn_160.NUMBER == tabfits.id[i]].values
+        qs = goodsn_160.dq[goodsn_160.NUMBER == tabfits.id[i]].values
+        
+        Reff160.append((r * np.sqrt(q)) / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
+        Reff160_sig.append(np.sqrt(q*qs**2 + r**2/(4*q)*qs**2)/ cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
         
         
 tabfits['Re_f125'] = np.array(Reff125)
