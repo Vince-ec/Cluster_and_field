@@ -469,3 +469,45 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True
         W, WRF, F, E, FLT = W[F > 0], WRF[F > 0], F[F > 0], E[F > 0], FLT[F > 0]
         
         return W, WRF, F, E, FLT
+    
+    
+def load_spec_SF_2(field, galaxy_id, instr, lims, specz, grism = True, mask = True):
+    # if loading photometry FLT stands in for num
+    bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
+
+    if grism:
+        W, F, E, FLT, L, C = np.load('../CLEAR_show_and_tell/{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        
+        IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
+
+        W = np.array(W[IDX])
+        WRF = np.array(W / (1 + specz))
+        FLT = np.array(FLT[IDX])
+        F = np.array(F[IDX]) 
+        E = np.array(E[IDX]) 
+        L = np.array(L[IDX]) 
+        C = np.array(C[IDX]) 
+        
+        if mask:
+            IDT = get_mask(field, galaxy_id, W, instr)
+            return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
+        
+        else:
+            return W, WRF, F, E, FLT, np.array(IDX), L, C
+
+    else:
+        W, F, E, FLT = np.load('../CLEAR_show_and_tell/{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        
+        WRF = W / (1 + specz)
+        
+        IDX = []
+        
+        for i in range(len(FLT)):
+            if FLT[i] not in bfilters and F[i] / E[i] > 0.5:
+                IDX.append(i)
+        
+        W, WRF, F, E, FLT = W[IDX], WRF[IDX], F[IDX], E[IDX], FLT[IDX]
+        
+        W, WRF, F, E, FLT = W[F > 0], WRF[F > 0], F[F > 0], E[F > 0], FLT[F > 0]
+        
+        return W, WRF, F, E, FLT

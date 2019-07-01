@@ -99,12 +99,16 @@ def Median_w_Error_cont(Pofx, x):
     return med, med - lerr, herr - np.abs(med)
 
 
-def Smooth(f,x):
+def Smooth(f,x,bw):
     ksmooth = importr('KernSmooth')
 
     ### select bandwidth
     H = ksmooth.dpik(x)
-    fx = ksmooth.locpoly(x,f,bandwidth = H)
+    
+    if bw == 'none':
+        bw = H
+    
+    fx = ksmooth.locpoly(x,f,bandwidth = bw)
     X = np.array(fx[0])
     iFX = np.array(fx[1])
     return interp1d(X,iFX)(x)
