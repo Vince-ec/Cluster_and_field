@@ -23,7 +23,7 @@ else:
     goodss_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodss_3dhst.v4.1_f125w.60lfit',format='ascii').to_pandas()
     goodsn_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodsn_3dhst.v4.1_f125w.60lfit',format='ascii').to_pandas()
 
-tabfits = pd.read_pickle('../dataframes/fitdb/tabfitdb.pkl')
+tabfits = pd.read_pickle('../dataframes/fitdb/fullfitdb.pkl')
     
 #add n values
 n125 = []
@@ -285,4 +285,4 @@ tabfits['compact_Sigma1'] = np.array(c_S1)
 tabfits['n'] = np.array(n)
 tabfits['n_f'] = np.array(n_f)
 
-tabfits.to_pickle('../dataframes/fitdb/tabfitdb.pkl')
+tabfits.to_pickle('../dataframes/fitdb/fullfitdb.pkl')

@@ -3,6 +3,8 @@ __author__ = 'vestrada'
 import numpy as np
 from scipy.interpolate import interp1d, interp2d
 from astropy.cosmology import Planck13 as cosmo
+from astropy.cosmology import z_at_value
+import astropy.units as u
 from astropy.io import fits
 from astropy import wcs
 from spec_stats import Highest_density_region
@@ -473,10 +475,6 @@ lbt_to_z = interp1d(lbt_at_z, rshifts)
 class Rescale_sfh(object):
     def __init__(self, field, galaxy, trials = 1000):
 
-        rshifts = np.arange(0,14,0.01)
-        age_at_z = cosmo.age(rshifts).value
-        age_to_z = interp1d(age_at_z, rshifts)
-
         ppf_dict = {}
         params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm']
 
@@ -491,6 +489,8 @@ class Rescale_sfh(object):
         sfr_grid = []
         ssfr_grid = []
         t_50_grid = []
+        t_80_grid = []
+        t_90_grid = []
         t_q_grid = []
 
         while idx < trials:
@@ -522,6 +522,8 @@ class Rescale_sfh(object):
                     T.append(lbt[i*2+1])
 
                 t_50_grid.append(interp1d(M/ M[-1], T)(0.5))
+                t_80_grid.append(interp1d(M/ M[-1], T)(0.2))
+                t_90_grid.append(interp1d(M/ M[-1], T)(0.1))
 
                 sfrmax = np.argmax(lbsfr) 
 
@@ -565,26 +567,54 @@ class Rescale_sfh(object):
 
         weights = Derive_SFH_weights(self.SFH, sfr_grid[0:trials])
        
+        ####### t values
         x,y = boot_to_posterior(t_50_grid[0:trials], weights)
-        self.t_50, self.t_50_hci = Highest_density_region(y,x)
-
+        self.t_50, self.t_50_hci, self.t_50_offreg = Highest_density_region(y,x)
+        
+        x,y = boot_to_posterior(t_80_grid[0:trials], weights)
+        self.t_80, self.t_80_hci, self.t_80_offreg = Highest_density_region(y,x)
+        
+        x,y = boot_to_posterior(t_90_grid[0:trials], weights)
+        self.t_90, self.t_90_hci, self.t_90_offreg = Highest_density_region(y,x)
+        
+        self.t_50 = interp1d(np.cumsum(self.SFH[::-1]) / np.cumsum(self.SFH[::-1])[-1],self.LBT[::-1])(0.5)
+        self.t_80 = interp1d(np.cumsum(self.SFH[::-1]) / np.cumsum(self.SFH[::-1])[-1],self.LBT[::-1])(0.8)
+        self.t_90 = interp1d(np.cumsum(self.SFH[::-1]) / np.cumsum(self.SFH[::-1])[-1],self.LBT[::-1])(0.9)
+        
         x,y = boot_to_posterior(t_q_grid[0:trials], weights)
-        self.t_q, self.t_q_hci = Highest_density_region(y,x) 
+        self.t_q, self.t_q_hci, self.t_q_offreg = Highest_density_region(y,x) 
 
-        self.z_50 = age_to_z(Oldest_galaxy(rshift) - self.t_50)
+        ####### z values
+        self.z_50 = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_50)*u.Gyr)
         hci=[]
         for lims in self.t_50_hci:
-            hci.append(age_to_z(Oldest_galaxy(rshift) - lims))
+            hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
         self.z_50_hci = np.array(hci)
+        self.z_50_offreg = np.array(self.t_50_offreg)
 
-        self.z_q = age_to_z(Oldest_galaxy(rshift) - self.t_q)
+        self.z_80 = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_80)*u.Gyr)
+        hci=[]
+        for lims in self.t_80_hci:
+            hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
+        self.z_80_hci = np.array(hci)
+        self.z_80_offreg = np.array(self.t_80_offreg)
+                       
+        self.z_90 = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_90)*u.Gyr)
+        hci=[]
+        for lims in self.t_90_hci:
+            hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
+        self.z_90_hci = np.array(hci)
+        self.z_90_offreg = np.array(self.t_90_offreg)
+                       
+        self.z_q = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_q)*u.Gyr)
         hci=[]
         for lims in self.t_q_hci:
-            hci.append(age_to_z(Oldest_galaxy(rshift) - lims))
+            hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
         self.z_q_hci = np.array(hci)
+        self.z_q_offreg = np.array(self.t_q_offreg)
         
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
-        self.lssfr, self.lssfr_hci = Highest_density_region(y,x)
+        self.lssfr, self.lssfr_hci, self.lssfr_offreg = Highest_density_region(y,x)
             
         self.weights = weights
         self.t_50_grid = t_50_grid

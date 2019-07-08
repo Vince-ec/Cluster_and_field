@@ -279,8 +279,24 @@ def Highest_density_region(Px, x, region = 0.683):
                 HCI.append(x[i-1])
                 flip = False
             if x[i] == x[-1]:
-                HCI.append(x[i])                
-    return mode, HCI
+                HCI.append(x[i])    
+                                   
+    off_main_mass = []
+            
+    for i in range(len(HCI) // 2):
+        IDX = [U for U in range(len(x)) if HCI[2*i] <= x[U] <= HCI[2*i+1]]
+        
+        if HCI[2*i] <= mode <= HCI[2*i+1]:
+            mode_reg = [HCI[2*i],HCI[2*i+1]]
+            main_mass = np.trapz(Px[IDX], x[IDX])
+        
+        else:
+            off_main_mass.append(np.trapz(Px[IDX], x[IDX]))
+        
+    if len(HCI) // 2 == 1:
+        off_main_mass.append(0)
+        
+    return mode, mode_reg, np.array(off_main_mass) / main_mass
 
 def Smooth(f,x,bw):
     ksmooth = importr('KernSmooth')
