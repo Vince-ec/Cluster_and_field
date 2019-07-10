@@ -48,24 +48,13 @@ def Galfit_prior(u):
     lm = Gaussian_prior(u[8], [8.0, 12.5], 11, 0.75)
      
     d = 4*u[9]
-    
-    bp1 = Gaussian_prior(u[10], [-0.1,0.1], 0, 0.05)
-    rp1 = Gaussian_prior(u[11], [-0.05,0.05], 0, 0.025)
-    
-    ba = log_10_prior(u[12], [0.1,10])
-    bb = log_10_prior(u[13], [0.0001,1])
-    bl = log_10_prior(u[14], [0.01,1])
-    
-    ra = log_10_prior(u[15], [0.1,10])
-    rb = log_10_prior(u[16], [0.0001,1])
-    rl = log_10_prior(u[17], [0.01,1])
    
     lwa = get_lwa_SF([m, a, m1, m2, m3, m4, m5, m6], get_agebins(a, binnum = 6),sp)[0]
     
-    return [m, a, m1, m2, m3, m4, m5, m6, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
+    return [m, a, m1, m2, m3, m4, m5, m6, lm, d, lwa]
 
 def Galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
+    m, a, m1, m2, m3, m4, m5, m6, lm, d, lwa = X
     
     sp.params['dust2'] = d
     sp.params['logzsol'] = np.log10(m)
@@ -93,7 +82,7 @@ Gs = Gen_SF_spec(field, galaxy, 1, g102_lims=[8200, 11300], g141_lims=[11200, 16
 wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
 
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 19, nlive_points = 4000,
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 11, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=8), queue_size=8)
 
@@ -104,12 +93,12 @@ dres = sampler.results
 np.save(out_path + '{0}_{1}_SFphotfit'.format(field, galaxy), dres) 
 
 ##save out P(z) and bestfit##
-params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm', 'd', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl', 'lwa']
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm', 'd', 'lwa']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + '{0}_{1}_SFphotfit_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
-bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, blwa = dres.samples[-1]
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd,blwa = dres.samples[-1]
 
 np.save(pos_path + '{0}_{1}_SFphotfit_bfit'.format(field, galaxy),
-        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, blwa, dres.logl[-1]])
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd, blwa, dres.logl[-1]])

@@ -32,18 +32,21 @@ k = ['Z', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lmass', 'Av', 'lwa']
 for p in range(len(params)):
     m = np.repeat(-99.0,len(select))
     hci = []
-    
+    offmass = []
+
     for i in range(len(select.index)):
         try:
-            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_P{2}.npy'.format(select.field[select.index[i]], select.id[select.index[i]], params[p]))
-            m[i], dummy = Highest_density_region(px,x)
-            hci.append(dummy)
-
+            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFphotfit_P{2}.npy'.format(select.field[select.index[i]], select.id[select.index[i]], params[p]))
+            m[i], mreg, oreg = Highest_density_region(px,x)
+            hci.append(mreg)
+            offmass.append(oreg)
         except:
             hci.append([0])
+            offmass.append([0])
     
-    fitvals['{0}'.format(k[p])] = np.round(m,5)
+    fitvals['{0}'.format(k[p])] = m
     fitvals['{0}_hci'.format(k[p])] = hci
+    fitvals['{0}_modality'.format(k[p])] = offmass
     
 #make db
 tabfits = pd.DataFrame(fitvals)
@@ -55,69 +58,52 @@ tabfits['AGN'] = select.AGN.values
 #add SFH values
 z_50= np.repeat(-99.0,len(tabfits))
 z_50_hci = []
+z_50_oreg = []
+
 t_50= np.repeat(-99.0,len(tabfits))
 t_50_hci = []
+t_50_oreg = []
+
 log_ssfr= np.repeat(-99.0,len(tabfits))
 log_ssfr_hci = []
+log_ssfr_oreg = []
+
 for i in range(len(tabfits.index)):
     try:
         sfh = Rescale_SF_sfh(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]],tabfits.zgrism[tabfits.index[i]])
 
         z_50[i] = sfh.z_50
         z_50_hci.append(sfh.z_50_hci)
+        z_50_oreg.append(sfh.z_50_offreg)
 
         t_50[i] = sfh.t_50
         t_50_hci.append(sfh.t_50_hci)
+        t_50_oreg.append(sfh.t_50_offreg)
               
         log_ssfr[i] = sfh.lssfr
         log_ssfr_hci.append(sfh.lssfr_hci)
+        log_ssfr_oreg.append(sfh.lssfr_offreg)
         
     except:
         z_50_hci.append(np.array([0]))
         t_50_hci.append([0])
         log_ssfr_hci.append([0])
         
+        z_50_oreg.append(np.array([0]))
+        t_50_oreg.append([0])
+        log_ssfr_oreg.append([0])
+        
+        
 tabfits['z_50'] = z_50
 tabfits['z_50_hci'] = z_50_hci
+tabfits['z_50_modality'] = z_50_hci
 
 tabfits['t_50'] = t_50
 tabfits['t_50_hci'] = t_50_hci
+tabfits['t_50_modality'] = t_50_hci
 
 tabfits['log_ssfr'] = log_ssfr
 tabfits['log_ssfr_hci'] = log_ssfr_hci
+tabfits['log_ssfr_modality'] = log_ssfr_oreg
     
-#add Reff values
-Reff = []
-
-for i in tabfits.index:
-
-    if tabfits.field[i][1] == 'S':
-        r = goodss_rad.re[goodss_rad.NUMBER == tabfits.id[i]].values * np.sqrt(goodss_rad.q[goodss_rad.NUMBER == tabfits.id[i]].values)
-        Reff.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-    if tabfits.field[i][1] == 'N':
-        r = goodsn_rad.re[goodsn_rad.NUMBER == tabfits.id[i]].values * np.sqrt(goodsn_rad.q[goodsn_rad.NUMBER == tabfits.id[i]].values)
-        Reff.append(r[0] / cosmo.arcsec_per_kpc_proper(tabfits.zgrism[i]).value)
-
-tabfits['Reff'] = np.array(Reff)
-
-#add compactness
-
-compactness =[]
-
-def A_value(Reff, mass):
-    return (Reff) / (mass / 1E11)**0.75
-
-for i in tabfits.index:
-    A = A_value(tabfits.Reff[i], 10**tabfits.lmass[i])
-    if A <= 1.5:
-        compactness.append('u')
-        
-    if 1.5 < A <= 2.5:
-        compactness.append('c')
-        
-    if A > 2.5:
-        compactness.append('e')
-
-tabfits['compact'] = compactness
-
-tabfits.to_pickle('../Casey_data/SF_db.pkl')
+tabfits.to_pickle('../Casey_data/SF_photdb.pkl')
