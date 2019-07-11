@@ -68,7 +68,7 @@ def Galfit_L(X):
     Pmfl = Gs.Sim_phot_mult(wave * (1 + specz),
                             F_lam_per_M(flux,wave*(1 + specz), specz, 0, sp.stellar_mass)*10**lm)
      
-    return  np.sum((((Gs.Pflx - Pmfl) / Gs.Perr)**2))
+    return - np.sum((((Gs.Pflx - Pmfl) / Gs.Perr)**2)) / 2
 
 #########define fsps#########
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
@@ -77,9 +77,6 @@ sp.params['dust1'] = 0
 ###########gen spec##########
 Gs = Gen_SF_spec(field, galaxy, 1, g102_lims=[8200, 11300], g141_lims=[11200, 16000],
         phot_errterm = 0.04, irac_err = 0.08) 
-
-####generate grism items#####
-wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
 
 #######set up dynesty########
 sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 11, nlive_points = 4000,
