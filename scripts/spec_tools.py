@@ -618,6 +618,8 @@ class Rescale_sfh(object):
             
         self.weights = weights
         self.t_50_grid = t_50_grid
+        self.t_80_grid = t_80_grid
+        self.t_90_grid = t_90_grid
         
 class Posterior_spec(object):
     def __init__(self, field, galaxy, trials = 1000):
