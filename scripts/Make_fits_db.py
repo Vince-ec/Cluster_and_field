@@ -85,7 +85,9 @@ log_ssfr_hci = []
 log_ssfr_oreg = []
 for i in range(len(tabfits.index)):
     try:
-        sfh = Rescale_sfh(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]])
+        sfh = Rescale_sfh(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]],5000)
+        np.save('../data/SFH/{}_{}.npy'.format(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]]), 
+                [sfh.LBT, sfh.SFH])
         print(sfh.z_50)
         z_50[i] = sfh.z_50
         z_50_hci.append(sfh.z_50_hci)

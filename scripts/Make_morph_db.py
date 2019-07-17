@@ -18,10 +18,10 @@ if hpath.split('/')[-2][-1] == 'a':
     goodsn_160 = Table.read('/Users/vestrada/Downloads/allfields/goodsn/goodsn_3dhst.v4.1_f160w.galfit',format='ascii').to_pandas()
     
 else:
-    goodss_125 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodss_3dhst.v4.1_f125w.galfit',format='ascii').to_pandas()
-    goodsn_125 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodsn_3dhst.v4.1_f125w.galfit',format='ascii').to_pandas()
-    goodss_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodss_3dhst.v4.1_f125w.60lfit',format='ascii').to_pandas()
-    goodsn_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodsn_3dhst.v4.1_f125w.60lfit',format='ascii').to_pandas()
+    goodss_125 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodss/goodss_3dhst.v4.1_f125w.galfit',format='ascii').to_pandas()
+    goodsn_125 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodsn/goodsn_3dhst.v4.1_f125w.galfit',format='ascii').to_pandas()
+    goodss_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodss/goodss_3dhst.v4.1_f160w.galfit',format='ascii').to_pandas()
+    goodsn_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodsn/goodsn_3dhst.v4.1_f160w.galfit',format='ascii').to_pandas()
 
 tabfits = pd.read_pickle('../dataframes/fitdb/fullfitdb.pkl')
     
@@ -201,7 +201,7 @@ def Sigma_1(field, galaxy, filt, gfit_cat):
     bottom = np.trapz(IR_prime(n, Reff, r_range), r_range)   
     
     Lgal = 10**((mgal + 48.6) / -2.5)   
-    return (top / bottom)*(Lgal / Fphot(field, galaxy, filt))*mass / np.pi**2
+    return (top / bottom)*(Lgal / Fphot(field, galaxy, filt))*mass / np.pi
 
 S1f125 = []
 S1f160 = []
