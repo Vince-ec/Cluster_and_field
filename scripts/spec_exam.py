@@ -294,7 +294,6 @@ class Gen_spec(object):
             self.Rfl =  self.Rfl/ self.rcal/ self.rscale
             self.Rer =  self.Rer/ self.rcal/ self.rscale
         
-        
 ###########
 ###########
         
@@ -678,7 +677,13 @@ class Gen_SF_spec(object):
                 self.rscale = Scale_model(self.Rfl / self.rcal, self.Rer/ self.rcal, self.Rmfl)
             self.Rfl =  self.Rfl/ self.rcal/ self.rscale
             self.Rer =  self.Rer/ self.rcal/ self.rscale
-        
+    
+    def Make_sim(self, model_wave, model_flux, specz, rndstate = 10, perturb = True):       
+        self.SBfl, self.SBer,  self.SRfl, self.SRer, self.SPflx, self.SPerr =  init_sim(model_wave, 
+            model_flux, specz, self.Bwv, self.Rwv, 
+            self.Bfl, self.Rfl, self.Pflx, self.Ber, self.Rer, self.Perr, 0, 
+            self.Btrans, self.Rtrans, self.Bbeam, self.Rbeam, 
+            self.IDP, self.sens_wv, self.b, self.dnu, self.adj , rndstate = rndstate, perturb = perturb)
 
 def Calibrate_grism(spec, Gmfl, p1):
     lines = (p1 * (spec[0] -(spec[0][-1] + spec[0][0])/2 ) + 1E3)

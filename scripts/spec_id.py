@@ -281,6 +281,29 @@ def Gather_grism_data(spec):
 
     return np.array([wvs, flxs, errs, beams, trans])
 
+def Gather_simgrism_data(spec):
+    wvs = []
+    flxs = []
+    errs = []
+    beams = []
+    trans = []
+    
+    if spec.g102:
+        wvs.append(spec.Bwv)
+        flxs.append(spec.SBfl)
+        errs.append(spec.SBer)
+        beams.append(spec.Bbeam)
+        trans.append(spec.Btrans)
+    
+    if spec.g141:
+        wvs.append(spec.Rwv)
+        flxs.append(spec.SRfl)
+        errs.append(spec.SRer)
+        beams.append(spec.Rbeam)
+        trans.append(spec.Rtrans)
+
+    return np.array([wvs, flxs, errs, beams, trans])
+
 def Full_forward_model(spec, wave, flux, specz, wvs, flxs, errs, beams, trans):
     Gmfl = []
     
@@ -326,13 +349,23 @@ def Full_fit_2(spec, Gmfl, Pmfl, a, b, l, wvs, flxs, errs):
     Gln = 0
     
     for i in range(len(wvs)):
-        #scale = Scale_model(flxs[i], errs[i], Gmfl[i])
-        #noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i] * scale)
         noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i])
         noise.GP_exp_squared(a[i],b[i],l[i])
         Gln += noise.gp.lnlikelihood(noise.diff)
 
     Pln = lnlike_phot(spec.Pflx, spec.Perr, Pmfl)
+    
+    return Gln + Pln
+
+def Full_fit_sim(spec, Gmfl, Pmfl, a, b, l, wvs, flxs, errs): 
+    Gln = 0
+    
+    for i in range(len(wvs)):
+        noise = noise_model(np.array([wvs[i],flxs[i], errs[i]]).T, Gmfl[i])
+        noise.GP_exp_squared(a[i],b[i],l[i])
+        Gln += noise.gp.lnlikelihood(noise.diff)
+
+    Pln = lnlike_phot(spec.SPflx, spec.SPerr, Pmfl)
     
     return Gln + Pln
 

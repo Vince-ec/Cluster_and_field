@@ -669,13 +669,13 @@ class Posterior_spec(object):
         
 
 class Rescale_SF_sfh(object):
-    def __init__(self, field, galaxy, rshift, trials = 1000):
+    def __init__(self, field, galaxy, rshift, run_name, trials = 1000):
 
         ppf_dict = {}
         params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm']
        
         for i in params:
-            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFphotfit_P{2}.npy'.format(field, galaxy, i))
+            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SF{2}_P{3}.npy'.format(field, galaxy, run_name, i))
             ppf_dict[i] = Gen_PPF(x,px)
 
         idx = 0
@@ -746,10 +746,13 @@ class Rescale_SF_sfh(object):
 
         weights = Derive_SFH_weights(self.SFH, sfr_grid[0:trials])
        
+        ####### t values
         x,y = boot_to_posterior(t_50_grid[0:trials], weights)
         self.t_50, self.t_50_hci, self.t_50_offreg = Highest_density_region(y,x)
+        self.t_50 = interp1d(np.cumsum(self.SFH[::-1]) / np.cumsum(self.SFH[::-1])[-1],self.LBT[::-1])(0.5)
 
-        self.z_50 = age_to_z(Oldest_galaxy(rshift) - self.t_50)
+        ####### z values
+        self.z_50 = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_50)*u.Gyr)
         hci=[]
         for lims in self.t_50_hci:
             hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
@@ -759,6 +762,8 @@ class Rescale_SF_sfh(object):
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
         self.lssfr, self.lssfr_hci, self.lssfr_offreg = Highest_density_region(y,x)
             
+        self.weights = weights
+        self.t_50_grid = t_50_grid
             
 class Posterior_SF_spec(object):
     def __init__(self, field, galaxy, rshift, trials = 1000):

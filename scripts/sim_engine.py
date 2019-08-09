@@ -268,8 +268,8 @@ def init_sim(model_wave, model_fl, specz, bwv, rwv, bflx, rflx, pflx, berr, rerr
     # make models
     SPfl = forward_model_phot(model_wave*(1 + specz), model_fl, IDP, sens_wv, b, dnu, adj)
 
-    Bmf = forward_model_all_beams_flatted(bbeam, btrans, bwv, model_wave*(1 + specz), model_fl)
-    Rmf = forward_model_all_beams_flatted(rbeam, rtrans, rwv, model_wave*(1 + specz), model_fl)
+    Bmf = forward_model_all_beams(bbeam, btrans, bwv, model_wave*(1 + specz), model_fl)
+    Rmf = forward_model_all_beams(rbeam, rtrans, rwv, model_wave*(1 + specz), model_fl)
     
     Bnoise = berr / bflx
     Rnoise = rerr / rflx
