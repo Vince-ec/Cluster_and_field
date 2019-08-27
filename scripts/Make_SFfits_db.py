@@ -36,7 +36,7 @@ for p in range(len(params)):
 
     for i in range(len(select.index)):
         try:
-            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_sim_p2_P{2}.npy'.format(select.field[select.index[i]], select.id[select.index[i]], params[p]))
+            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_sim_p1_P{2}.npy'.format(select.field[select.index[i]], select.id[select.index[i]], params[p]))
             m[i], mreg, oreg = Highest_density_region(px,x)
             hci.append(mreg)
             offmass.append(oreg)
@@ -106,4 +106,4 @@ tabfits['log_ssfr'] = log_ssfr
 tabfits['log_ssfr_hci'] = log_ssfr_hci
 tabfits['log_ssfr_modality'] = log_ssfr_oreg
     
-tabfits.to_pickle('../Casey_data/SF_db_sim_p2.pkl')
+tabfits.to_pickle('../Casey_data/SF_db_sim_p1.pkl')

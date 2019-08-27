@@ -48,7 +48,7 @@ agelim = Oldest_galaxy(specz)
 #a = 3
 
 def Galfit_prior(u):
-    m = 10**Gaussian_prior(u[0], [mllim, mhlim], Z_prior_mu(logmass), 3*onesig)
+    m = 10**Gaussian_prior(u[0], [mllim, mhlim], Z_prior_mu(logmass), onesig)
     a = (agelim - 1)* u[1] + 1
     
     tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7]])
@@ -122,26 +122,26 @@ sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 19, nlive_
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=8), queue_size=8)
 
-#sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
+sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
-sampler = dynesty.NestedSampler(Galfit_L, Galfit_prior, ndim = 19, nlive_points = 4000,
-                                         sample = 'rwalk', bound = 'multi',
-                                         pool=Pool(processes=8), queue_size=8)
+#sampler = dynesty.NestedSampler(Galfit_L, Galfit_prior, ndim = 19, nlive_points = 4000,
+#                                         sample = 'rwalk', bound = 'multi',
+#                                         pool=Pool(processes=8), queue_size=8)
 
-sampler.run_nested(print_progress=True)
+#sampler.run_nested(print_progress=True)
 
 dres = sampler.results
 
-np.save(out_path + '{0}_{1}_SFfit_sim_p2'.format(field, galaxy), dres) 
+np.save(out_path + '{0}_{1}_SFfit_sim_p1'.format(field, galaxy), dres) 
 
 ##save out P(z) and bestfit##
 
 params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm', 'd', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl', 'lwa']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
-    np.save(pos_path + '{0}_{1}_SFfit_sim_p2_P{2}'.format(field, galaxy, params[i]),[t,pt])
+    np.save(pos_path + '{0}_{1}_SFfit_sim_p1_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
 bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, blwa = dres.samples[-1]
 
-np.save(pos_path + '{0}_{1}_SFfit_sim_p2_bfit'.format(field, galaxy),
+np.save(pos_path + '{0}_{1}_SFfit_sim_p1_bfit'.format(field, galaxy),
         [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, blwa, dres.logl[-1]])
