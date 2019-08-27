@@ -64,13 +64,13 @@ def Galfit_prior(u):
     
     d = log_10_prior(u[13],[1E-3,2])
 
-    ba = log_10_prior(u[14], [0.1,10])
-    ra = log_10_prior(u[15], [0.1,10])
+    #ba = log_10_prior(u[14], [0.1,10])
+    #ra = log_10_prior(u[15], [0.1,10])
    
-    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, ba, ra]
+    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d]
 
 def Galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, ba, ra = X
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, = X
     
     sp.params['dust2'] = d
     sp.params['dust1'] = d
@@ -92,7 +92,7 @@ def Galfit_L(X):
 
     scl = Scale_model(Gs.Pflx, Gs.Perr, Pmfl)
 
-    return  -(g102_fit['chi2']*(1/ba) + g141_fit['chi2']*(1/ra) + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
+    return  -(g102_fit['chi2'] + g141_fit['chi2'] + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
    
 #########define fsps#########
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
@@ -101,7 +101,7 @@ sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1
 Gs = Gen_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
 
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 16, nlive_points = 4000,
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 14, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=12), queue_size=12)
 
@@ -115,14 +115,14 @@ sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=Tru
 
 dres = sampler.results
 
-np.save(out_path + '{0}_{1}_tabMfit'.format(field, galaxy), dres) 
+np.save(out_path + '{0}_{1}_nerr_tabMfit'.format(field, galaxy), dres) 
 
-params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10','z', 'd', 'ba', 'ra']
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10','z', 'd']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
-    np.save(pos_path + '{0}_{1}_tabMfit_P{2}'.format(field, galaxy, params[i]),[t,pt])
+    np.save(pos_path + '{0}_{1}_tabMfit_nerr_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
-bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, bfba, bfra= dres.samples[-1]
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd= dres.samples[-1]
 
-np.save(pos_path + '{0}_{1}_tabMfit_bfit'.format(field, galaxy),
-        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, bfba, bfra, dres.logl[-1]])
+np.save(pos_path + '{0}_{1}_tabMfit_nerr_bfit'.format(field, galaxy),
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, dres.logl[-1]])
