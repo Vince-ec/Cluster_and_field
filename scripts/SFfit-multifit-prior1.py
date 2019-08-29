@@ -104,13 +104,13 @@ def Galfit_prior(u):
     d = 4*u[8]
     z = stats.norm.ppf(u[9],loc = specz, scale = zscale)
     
-    ba = log_10_prior(u[10], [0.1,10])
-    ra = log_10_prior(u[11], [0.1,10])
+    #ba = log_10_prior(u[10], [0.1,10])
+    #ra = log_10_prior(u[11], [0.1,10])
     
-    return [m, a, m1, m2, m3, m4, m5, m6, d, z, ba, ra]
+    return [m, a, m1, m2, m3, m4, m5, m6, d, z]
 
 def Galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, d, z, ba, ra = X
+    m, a, m1, m2, m3, m4, m5, m6, d, z = X
     
     sp.params['dust2'] = d
     sp.params['logzsol'] = np.log10(m)
@@ -133,18 +133,17 @@ def Galfit_L(X):
 
     scl = Scale_model(Gs.Pflx, Gs.Perr, Pmfl)
 
-    return  -(g102_fit['chi2']*(1/ba) + g141_fit['chi2']*(1/ra) + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
+    return  -(g102_fit['chi2'] + g141_fit['chi2'] + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
 
 #########define fsps#########
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
 sp.params['dust1'] = 0
 
 ###########gen spec##########
-Gs = Gen_SF_spec(field, galaxy, 1, g102_lims=[8200, 11300], g141_lims=[11200, 16000],
-        phot_errterm = 0.04, irac_err = 0.08) 
+Gs = Gen_SF_spec(field, galaxy, 1, g102_lims=[8200, 11300], g141_lims=[11200, 16000]) 
 
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 12, nlive_points = 4000,
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 10, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=12), queue_size=12)
 
@@ -162,12 +161,12 @@ np.save(out_path + '{0}_{1}_SFMfit'.format(field, galaxy), dres)
 
 ##save out P(z) and bestfit##
 
-params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'd', 'z', 'ba', 'ra']
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'd', 'z']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + '{0}_{1}_SFMfit_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
-bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfba, bfra = dres.samples[-1]
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz = dres.samples[-1]
 
 np.save(pos_path + '{0}_{1}_SFMfit_bfit'.format(field, galaxy),
-        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfba, bfra, dres.logl[-1]])
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, dres.logl[-1]])
