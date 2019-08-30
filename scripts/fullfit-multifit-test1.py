@@ -10,6 +10,10 @@ import sys
 from grizli import multifit
 from grizli.utils import SpectrumTemplate
 
+#################################
+############NORMAL###############
+#################################
+
 start = time()
 hpath = os.environ['HOME'] + '/'
   

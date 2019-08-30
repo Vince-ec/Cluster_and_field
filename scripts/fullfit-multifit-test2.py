@@ -10,6 +10,10 @@ import sys
 from grizli import multifit
 from grizli.utils import SpectrumTemplate
 
+#################################
+#########EQUAL WEIGHTS ###########
+#################################
+
 start = time()
 hpath = os.environ['HOME'] + '/'
   
@@ -27,7 +31,6 @@ mb_g102, mb_g141 = Gen_multibeams(beams, args = args)
 
 wave0 = 4000
 Q_temps = {}
-
 ####################################
 agelim = Oldest_galaxy(specz) / 2
 zscale = 0.035 * (1 + specz)
@@ -64,14 +67,15 @@ def Galfit_L(X):
 
     scl = Scale_model(Gs.Pflx, Gs.Perr, Pmfl)
 
-    return  -(g102_fit['chi2'] + g141_fit['chi2'] + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
+    return  -((Npho / mb_g102.DoF)*g102_fit['chi2'] + (Npho/mb_g141.DoF)*g141_fit['chi2'] + \
+              np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
    
 #########define fsps#########
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
 ###########gen spec##########
 Gs = Gen_spec(field, galaxy, 1) 
-
+Npho = len(Gs.Pflx) - 1
 #######set up dynesty########
 sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 14, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi', pool=Pool(processes=8), queue_size=8)
