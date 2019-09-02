@@ -107,6 +107,17 @@ def Gen_temp_dict(redshift, lowlim, hilim, args = args):
                 
     return temps
 
+def Gen_temp_dict_balm(redshift, lowlim, hilim, args = args):
+    temps = {}
+    
+    balmer = ['line Ha', 'line Hb', 'line Hg', 'line Hd']
+    
+    for k in args['t1']:
+        if k in balmer and lowlim < args['t1'][k].wave[args['t1'][k].flux == args['t1'][k].flux.max()][0] * (1+redshift) < hilim:
+            temps[k] = args['t1'][k]
+                
+    return temps
+
 def spec_construct(g102_fit,g141_fit, z, wave0 = 4000, usetilt = True):
     flat = np.ones_like(g141_fit['cont1d'].wave)
     slope = flat*(g141_fit['cont1d'].wave/(1+z)-wave0)/wave0

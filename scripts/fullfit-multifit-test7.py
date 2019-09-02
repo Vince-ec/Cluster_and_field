@@ -11,7 +11,7 @@ from grizli import multifit
 from grizli.utils import SpectrumTemplate
 
 #################################
-#########FIT WEIGHTS 1###########
+##########SINGLE BOUND###########
 #################################
 
 start = time()
@@ -31,6 +31,7 @@ mb_g102, mb_g141 = Gen_multibeams(beams, args = args)
 
 wave0 = 4000
 Q_temps = {}
+
 ####################################
 agelim = Oldest_galaxy(specz) / 2
 zscale = 0.035 * (1 + specz)
@@ -47,12 +48,13 @@ def Galfit_prior(u):
     
     d = log_10_prior(u[13],[1E-3,2])
 
-    Q = (0.5 * u[14]) + 0.5
+    #ba = log_10_prior(u[14], [0.1,10])
+    #ra = log_10_prior(u[15], [0.1,10])
    
-    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, Q]
+    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d]
 
 def Galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, Q = X
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, = X
     
     wave, flux = Gen_model(sp, [m, a, d], [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10])
     
@@ -66,18 +68,17 @@ def Galfit_L(X):
 
     scl = Scale_model(Gs.Pflx, Gs.Perr, Pmfl)
 
-    return  -((Npho / mb_g102.DoF)*g102_fit['chi2'] + (Npho/mb_g141.DoF)*g141_fit['chi2'] + \
-              Q*np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
+    return  -(g102_fit['chi2'] + g141_fit['chi2'] + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
    
 #########define fsps#########
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
 ###########gen spec##########
 Gs = Gen_spec(field, galaxy, 1) 
-Npho = len(Gs.Pflx) - 1
+
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 15, nlive_points = 4000,
-                                         sample = 'rwalk', bound = 'multi',pool=Pool(processes=12), queue_size=12)
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 14, nlive_points = 4000,
+                                         sample = 'rwalk', bound = 'single', pool=Pool(processes=12), queue_size=12)
 
 sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
@@ -89,16 +90,16 @@ sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=Tru
 
 dres = sampler.results
 
-np.save(out_path + '{0}_{1}_tabMfit3'.format(field, galaxy), dres) 
+np.save(out_path + '{0}_{1}_tabMfit7'.format(field, galaxy), dres) 
 
-params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10','z', 'd', 'Q']
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10','z', 'd']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
-    np.save(pos_path + '{0}_{1}_tabMfit3_P{2}'.format(field, galaxy, params[i]),[t,pt])
+    np.save(pos_path + '{0}_{1}_tabMfit7_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
-bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, bfQ= dres.samples[-1]
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd= dres.samples[-1]
 
-np.save(pos_path + '{0}_{1}_tabMfit3_bfit'.format(field, galaxy),
-        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, bfQ, dres.logl[-1]])
+np.save(pos_path + '{0}_{1}_tabMfit7_bfit'.format(field, galaxy),
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, dres.logl[-1]])
 end = time()
 print(end - start)
