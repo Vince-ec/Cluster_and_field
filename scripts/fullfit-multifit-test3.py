@@ -33,7 +33,7 @@ wave0 = 4000
 Q_temps = {}
 ####################################
 agelim = Oldest_galaxy(specz) / 2
-zscale = 0.035 * (1 + specz)
+zscale = 0.005 
 
 def Galfit_prior(u):
     m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
@@ -43,11 +43,11 @@ def Galfit_prior(u):
     taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
     m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = get_agebins(a))
   
-    z = stats.norm.ppf(u[12],loc = specz, scale = zscale)
+    z = Gaussian_prior(u[12], [specz - 0.01, specz + 0.01], specz, zscale)
     
     d = log_10_prior(u[13],[1E-3,2])
 
-    Q = (0.5 * u[14]) + 0.5
+    Q = (0.9 * u[14]) + 0.1
    
     return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d, Q]
 
@@ -77,8 +77,9 @@ Gs = Gen_spec(field, galaxy, 1)
 Npho = len(Gs.Pflx) - 1
 #######set up dynesty########
 sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 15, nlive_points = 4000,
-                                         sample = 'rwalk', bound = 'multi',pool=Pool(processes=12), queue_size=12)
-
+                                         sample = 'rwalk', bound = 'multi'#,pool=Pool(processes=12), queue_size=12)
+                                            ,pool=Pool(processes=8), queue_size=8)
+    
 sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
 #sampler = dynesty.NestedSampler(Galfit_L, Galfit_prior, ndim = 14,
