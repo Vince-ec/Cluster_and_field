@@ -11,7 +11,7 @@ from grizli import multifit
 from grizli.utils import SpectrumTemplate
 
 #################################
-############NORMAL###############
+############g102###############
 #################################
 
 start = time()
@@ -48,9 +48,6 @@ def Galfit_prior(u):
     
     d = log_10_prior(u[13],[1E-3,2])
 
-    #ba = log_10_prior(u[14], [0.1,10])
-    #ra = log_10_prior(u[15], [0.1,10])
-   
     return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d]
 
 def Galfit_L(X):
@@ -62,19 +59,14 @@ def Galfit_L(X):
     Q_temps['fsps_model_slope'] = SpectrumTemplate(wave=wave, flux=flux*(wave-wave0)/wave0)
     
     g102_fit = mb_g102.template_at_z(z, templates = Q_temps, fitter='lstsq')
-    g141_fit = mb_g141.template_at_z(z, templates = Q_temps, fitter='lstsq')
 
-    Pmfl = Gs.Sim_phot_mult(wave * (1 + z),flux)
-
-    scl = Scale_model(Gs.Pflx, Gs.Perr, Pmfl)
-
-    return  -(g102_fit['chi2'] + g141_fit['chi2'] + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
+    return  -(g102_fit['chi2']) / 2
    
 #########define fsps#########
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
 ###########gen spec##########
-Gs = Gen_spec(field, galaxy, 1) 
+#Gs = Gen_spec(field, galaxy, 1) 
 
 #######set up dynesty########
 sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 14, nlive_points = 4000,
@@ -90,16 +82,16 @@ sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=Tru
 
 dres = sampler.results
 
-np.save(out_path + '{0}_{1}_tabMfit1'.format(field, galaxy), dres) 
+np.save(out_path + '{0}_{1}_tabMfit11'.format(field, galaxy), dres) 
 
 params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10','z', 'd']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
-    np.save(pos_path + '{0}_{1}_tabMfit1_P{2}'.format(field, galaxy, params[i]),[t,pt])
+    np.save(pos_path + '{0}_{1}_tabMfit11_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
 bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd= dres.samples[-1]
 
-np.save(pos_path + '{0}_{1}_tabMfit1_bfit'.format(field, galaxy),
+np.save(pos_path + '{0}_{1}_tabMfit11_bfit'.format(field, galaxy),
         [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bfz, bfd, dres.logl[-1]])
 end = time()
 print(end - start)

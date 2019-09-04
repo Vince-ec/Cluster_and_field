@@ -32,12 +32,12 @@ mb_g102, mb_g141 = Gen_multibeams(beams, args = args)
 wave0 = 4000
 Q_temps = {}
 ####################################
-agelim = Oldest_galaxy(specz) / 2
+agelim = Oldest_galaxy(specz)
 zscale = 0.005 
 
 def Galfit_prior(u):
     m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
-    a = (agelim)* u[1] + agelim
+    a = (agelim - 1)* u[1] + 1
 
     tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8], u[9], u[10],u[11]])
     taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
