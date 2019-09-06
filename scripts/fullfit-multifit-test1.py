@@ -74,7 +74,7 @@ def Galfit_L(X):
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
 ###########gen spec##########
-Gs = Gen_spec(field, galaxy, 1) 
+Gs = Gen_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
 
 #######set up dynesty########
 sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 14, nlive_points = 4000,
