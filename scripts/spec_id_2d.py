@@ -24,7 +24,7 @@ if hpath == '/home/vestrada78840/':
     out_path = '/fdata/scratch/vestrada78840/chidat/'
     pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
-    args = np.load('/home/vestrada78840/fit_args.npy')[0]
+    args = np.load('/home/vestrada78840/ce_scripts/fit_args.npy')[0]
 
 else:
     data_path = '../data/'
@@ -106,12 +106,15 @@ def Gen_temp_dict(redshift, lowlim, hilim, args = args):
             temps[k] = args['t1'][k]
                 
     return temps
-
-def Gen_temp_dict_balm(redshift, lowlim, hilim, args = args):
+ 
+def Gen_temp_dict_balm(redshift, lowlim, hilim, lines, args = args):
     temps = {}
     
-    balmer = ['line Ha', 'line Hb', 'line Hg', 'line Hd']
+    balmer = []
     
+    for ln in lines:
+        balmer.append('line ' + ln)
+        
     for k in args['t1']:
         if k in balmer and lowlim < args['t1'][k].wave[args['t1'][k].flux == args['t1'][k].flux.max()][0] * (1+redshift) < hilim:
             temps[k] = args['t1'][k]
