@@ -13,7 +13,6 @@ from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
 
-
 hpath = os.environ['HOME'] + '/'
 
 if hpath == '/home/vestrada78840/':
@@ -29,7 +28,7 @@ if hpath == '/home/vestrada78840/':
     cbeam_path = '/fdata/scratch/vestrada78840/Casey_data/beams/'
     cphot_path = '/fdata/scratch/vestrada78840/Casey_data/phot/'
     cspec_path = '/fdata/scratch/vestrada78840/Casey_data/spec/'
-    
+    mfit_path =  '/fdata/scratch/vestrada78840/multifit_data/'
 
 else:
     data_path = '../data/'
@@ -44,6 +43,8 @@ else:
     cbeam_path = '../Casey_data/beams/'
     cphot_path = '../Casey_data/phot/'
     cspec_path = '../Casey_data/spec/'
+    mfit_path =  '../data/multifit_data/'
+    
 """
 def:
 -load_spec
@@ -429,7 +430,7 @@ def Get_mass(gwv, gfl, ger, Z, t, z, Av):
     IDX = [U for U in range(len(gwv)) if 8000 < gwv[U] < 11300]
     return np.log10(Scale_model(gfl[IDX],ger[IDX],interp1d(wv,fl_m)(gwv[IDX])))
 
-def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True):
+def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True, setup = False):
     # if loading photometry FLT stands in for num
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
@@ -446,7 +447,7 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True
         L = np.array(L[IDX]) 
         C = np.array(C[IDX]) 
         
-        if mask:
+        if mask and not setup:
             IDT = get_mask(field, galaxy_id, W, instr)
             return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
         

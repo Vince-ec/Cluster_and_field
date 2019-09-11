@@ -23,10 +23,8 @@ if __name__ == '__main__':
     specz = float(sys.argv[3])
     lines = sys.argv[4:]
     
-if hpath == '/home/vestrada78840/':
-    beams = '/home/vestrada78840/ce_scripts/gdn-grism-j123656p6215_25319.beams.fits'
-else:
-    beams = '../data/multifit_data/gdn-grism-j123656p6215_25319.beams.fits'
+beams = mfit_path + '{}_{}.beams.fits'.format(field, galaxy)
+
 #############multifit###############
 mb_g102, mb_g141 = Gen_multibeams(beams, args = args)
 

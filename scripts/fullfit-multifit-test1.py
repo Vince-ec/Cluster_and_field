@@ -22,10 +22,8 @@ if __name__ == '__main__':
     galaxy = int(sys.argv[2])
     specz = float(sys.argv[3])
     
-if hpath == '/home/vestrada78840/':
-    beams = '/home/vestrada78840/ce_scripts/gdn-grism-j123656p6215_25319.beams.fits'
-else:
-    beams = '../data/multifit_data/gdn-grism-j123656p6215_25319.beams.fits'
+beams = mfit_path + '{}_{}.beams.fits'.format(field, galaxy)
+
 #############multifit###############
 mb_g102, mb_g141 = Gen_multibeams(beams, args = args)
 
@@ -47,9 +45,6 @@ def Galfit_prior(u):
     z = Gaussian_prior(u[12], [specz - 0.01, specz + 0.01], specz, zscale)
     
     d = log_10_prior(u[13],[1E-3,2])
-
-    #ba = log_10_prior(u[14], [0.1,10])
-    #ra = log_10_prior(u[15], [0.1,10])
    
     return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, z, d]
 

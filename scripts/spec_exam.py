@@ -510,7 +510,7 @@ class Gen_ALMA_spec(object):
 class Gen_SF_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims=[8200, 11300], g141_lims=[11200, 16000],
-                phot_errterm = 0, irac_err = None, mask = True):
+                phot_errterm = 0, irac_err = None, mask = True, setup = False):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -538,26 +538,26 @@ class Gen_SF_spec(object):
         g102_lims - window for g102
         g141_lims - window for g141
         """
-         
+
         ##load spec and phot
         try:
             self.Bwv, self.Bwv_rf, self.Bflx, self.Berr, self.Bflt, self.IDB, self.Bline, self.Bcont = load_spec_SF(self.field,
-                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, mask = self.mask)
-            
+                                self.galaxy_id, 'g102', self.g102_lims,  self.specz, mask = self.mask, setup = setup)
+
             self.Bfl = self.Bflx / self.Bflt 
             self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
             if self.mask == False:
                 self.Bmask = get_mask(self.field, self.galaxy_id, self.Bwv, 'g102')
-                
+
         except:
             print('missing g102')
             self.g102 = False
-        
+
         try:
             self.Rwv, self.Rwv_rf, self.Rflx, self.Rerr, self.Rflt, self.IDR, self.Rline, self.Rcont = load_spec_SF(self.field,
-                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, mask = self.mask)
+                                self.galaxy_id, 'g141', self.g141_lims,  self.specz, mask = self.mask, setup = setup)
 
             self.Rfl = self.Rflx / self.Rflt 
             self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
@@ -684,7 +684,7 @@ class Gen_SF_spec(object):
             self.Bfl, self.Rfl, self.Pflx, self.Ber, self.Rer, self.Perr, 0, 
             self.Btrans, self.Rtrans, self.Bbeam, self.Rbeam, 
             self.IDP, self.sens_wv, self.b, self.dnu, self.adj , rndstate = rndstate, perturb = perturb)
-
+        
 def Calibrate_grism(spec, Gmfl, p1):
     lines = (p1 * (spec[0] -(spec[0][-1] + spec[0][0])/2 ) + 1E3)
     scale = Scale_model(spec[1]  / lines, spec[2] / lines, Gmfl)    

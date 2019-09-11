@@ -24,7 +24,7 @@ if hpath == '/home/vestrada78840/':
     out_path = '/fdata/scratch/vestrada78840/chidat/'
     pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
-    args = np.load('/home/vestrada78840/ce_scripts/fit_args.npy')[0]
+    args = np.load('/fdata/scratch/vestrada78840/multifit_data/fit_args.npy')[0]
 
 else:
     data_path = '../data/'
