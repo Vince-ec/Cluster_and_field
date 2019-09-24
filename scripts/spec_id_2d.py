@@ -130,7 +130,6 @@ def spec_construct(g102_fit,g141_fit, z, wave0 = 4000, usetilt = True):
     line_g141 = (g141_fit['line1d'].flux - g141_fit['cont1d'].flux)/g141_fit['cont1d'].flux
     untilted_line_g141 = untilted_continuum*(1+line_g141)
 
-
     flat = np.ones_like(g102_fit['cont1d'].wave)
     slope = flat*(g102_fit['cont1d'].wave/(1+z)-wave0)/wave0
     tilt = flat * g102_fit['cfit']['fsps_model'][0]+slope * g102_fit['cfit']['fsps_model_slope'][0]

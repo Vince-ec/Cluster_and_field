@@ -20,6 +20,28 @@ if __name__ == '__main__':
 verbose=False
 poolsize = 8
 
+#############
+def spec_construct(g102_fit,g141_fit, z, sb, sr, wave0 = 4000, usetilt = True):
+    flat = np.ones_like(g141_fit['cont1d'].wave) # ones array
+    slope = (g141_fit['cont1d'].wave/(1+z)-wave0)/wave0 # slope without coeff 
+    tilt = g141_fit['cfit']['fsps_model'][0]*(flat + (slope * sr)) # scaling up and slope coeff
+    untilted_continuum = g141_fit['cont1d'].flux / tilt # return to fsps scale
+    line_g141 = (g141_fit['line1d'].flux - g141_fit['cont1d'].flux)/g141_fit['cont1d'].flux
+    untilted_line_g141 = untilted_continuum*(1+line_g141)
+
+
+    flat = np.ones_like(g102_fit['cont1d'].wave)
+    slope = (g102_fit['cont1d'].wave/(1+z)-wave0)/wave0
+    tilt = g102_fit['cfit']['fsps_model'][0]*(flat + slope * sb)
+    untilted_continuum = g102_fit['cont1d'].flux / tilt
+
+    line_g102 = (g102_fit['line1d'].flux - g102_fit['cont1d'].flux)/g102_fit['cont1d'].flux
+    untilted_line_g102 = untilted_continuum*(1+line_g102)
+
+    FL = np.append(untilted_line_g102[g102_fit['cont1d'].wave <= 12000],untilted_line_g141[g102_fit['cont1d'].wave > 12000])
+
+    return g102_fit['cont1d'].wave, FL
+##############
 #############multifit###############
 beams = mfit_path + '{}_{}.beams.fits'.format(field, galaxy)
 
@@ -52,20 +74,23 @@ def Galfit_prior(u):
     d = 4*u[8]
     z = Gaussian_prior(u[9], [specz - 0.01, specz + 0.01], specz, zscale)
     
-    return [m, a, m1, m2, m3, m4, m5, m6, d, z]
+    sb = Gaussian_prior(u[10], [-0.2, 0.2], 0, 0.025)
+    sr = Gaussian_prior(u[11], [-0.2, 0.2], 0, 0.025)
+    
+    return [m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr]
 
 def Galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, d, z = X
+    m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr = X
     
     wave, flux = Gen_model(sp, [m, a, d], [m1, m2, m3, m4, m5, m6], agebins = 6, SF = True)
     
-    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux)
-    SF_temps['fsps_model_slope'] = SpectrumTemplate(wave=wave, flux=flux*(wave-wave0)/wave0)
-    
+    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sb*flux*(wave-wave0)/wave0)    
     g102_fit = mb_g102.template_at_z(z, templates = SF_temps, fitter='lstsq')
+    
+    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sr*flux*(wave-wave0)/wave0)    
     g141_fit = mb_g141.template_at_z(z, templates = SF_temps, fitter='lstsq')
 
-    wv_obs, flx = spec_construct(g102_fit,g141_fit,z)
+    wv_obs, flx = spec_construct(g102_fit,g141_fit,z, sb, sr)
 
     Pmfl = Gs.Sim_phot_mult(wv_obs, flx)
 
@@ -81,7 +106,7 @@ sp.params['dust1'] = 0
 Gs = Gen_SF_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
 
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 10, nlive_points = 4000,
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 12, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=12), queue_size=12)
 
@@ -99,12 +124,12 @@ np.save(out_path + '{0}_{1}_SFMfit'.format(field, galaxy), dres)
 
 ##save out P(z) and bestfit##
 
-params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'd', 'z']
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'd', 'z', 'sb', 'sr']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + '{0}_{1}_SFMfit_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
-bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz = dres.samples[-1]
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfsb, bfsr = dres.samples[-1]
 
 np.save(pos_path + '{0}_{1}_SFMfit_bfit'.format(field, galaxy),
-        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, dres.logl[-1]])
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfsb, bfsr, dres.logl[-1]])
