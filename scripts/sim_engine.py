@@ -5,6 +5,7 @@ import pandas as pd
 from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import interp1d, interp2d
+from spec_id_2d import args
 from scipy import stats
 from glob import glob
 import os
@@ -25,9 +26,6 @@ if hpath == '/home/vestrada78840/':
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
     alma_path = '/fdata/scratch/vestrada78840/Alma_files/'
-    cbeam_path = '/fdata/scratch/vestrada78840/Casey_data/beams/'
-    cphot_path = '/fdata/scratch/vestrada78840/Casey_data/phot/'
-    cspec_path = '/fdata/scratch/vestrada78840/Casey_data/spec/'
     mfit_path =  '/fdata/scratch/vestrada78840/multifit_data/'
 
 else:
@@ -40,9 +38,6 @@ else:
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
     alma_path = '../Alma_files/'
-    cbeam_path = '../Casey_data/beams/'
-    cphot_path = '../Casey_data/phot/'
-    cspec_path = '../Casey_data/spec/'
     mfit_path =  '../data/multifit_data/'
     
 """
@@ -204,7 +199,7 @@ def load_phot_precalc(Pnum):
         
     return MDF, IDP, SWV, TR, B, DNU, ADJ, MFWV
         
-def load_beams_and_trns(wv, beam):
+"""def load_beams_and_trns(wv, beam):
     ### Set transmission curve
     sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), 
                                 sfh = 4, tau = 0.6, dust_type = 1)
@@ -224,7 +219,40 @@ def load_beams_and_trns(wv, beam):
         BEAMS.append(Beam)
         TRANS.append(trans)
         
+    return BEAMS, TRANS"""
+
+def load_beams_and_trns(wv, field, galaxy_id, instr):
+    ### Set transmission curve
+    sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), 
+                                sfh = 4, tau = 0.6, dust_type = 1)
+
+    model_wave, model_flux = sp.get_spectrum(tage = 3.6, peraa = True)
+
+    ### set beams
+    BEAMS = []
+
+    blist = glob(beam_path + '*{}*_*{}*'.format(field[1], galaxy_id) )
+
+    for b in blist:    
+        mb = multifit.MultiBeam(b,**args)
+
+        PAlist = []
+
+        for bm in mb.beams:
+            if bm.grism.filter == instr:
+                if bm.get_dispersion_PA() not in PAlist:
+                    PAlist.append(bm.get_dispersion_PA())
+                    BEAMS.append(bm)
+
+    TRANS = []
+
+    for i in BEAMS:
+        W, F = forward_model_grism(i, model_wave, np.ones(len(model_wave)))
+        trans = interp1d(W,F)(wv)       
+        TRANS.append(trans)
+
     return BEAMS, TRANS
+
 
 def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
     
@@ -337,7 +365,7 @@ def decontaminate(W, WRF, F, E, FLT, IDX, L, C):
     return W, WRF, F, E, FLT, IDX, L, C
 
 def get_mask(field, galaxy_id, W, instr):
-    MASK = np.load(cspec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
+    MASK = np.load(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
             
     IDT = np.repeat(True, len(W))
 
@@ -435,7 +463,7 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
     if grism:
-        W, F, E, FLT, L, C = np.load(cspec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
         
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
@@ -455,7 +483,7 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True
             return W, WRF, F, E, FLT, np.array(IDX), L, C
 
     else:
-        W, F, E, FLT = np.load(cphot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
         
         WRF = W / (1 + specz)
         

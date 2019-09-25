@@ -10,7 +10,7 @@ from astropy import wcs
 from spec_stats import Highest_density_region
 import fsps
 import os
-from sim_engine import F_lam_per_M
+#from sim_engine import F_lam_per_M
 import img_scale
 
 import rpy2

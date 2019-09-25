@@ -12,7 +12,7 @@ from grizli import multifit
 from grizli import model
 from astropy.cosmology import Planck13 as cosmo
 import fsps
-from spec_tools import Scale_model, Oldest_galaxy
+#from spec_tools import Scale_model
 from time import time
 from sim_engine import *
 from matplotlib import gridspec
@@ -36,24 +36,17 @@ if hpath == '/home/vestrada78840/':
     template_path = '/fdata/scratch/vestrada78840/data/'
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
-    cbeam_path = '/fdata/scratch/vestrada78840/Casey_data/beams/'
-    cphot_path = '/fdata/scratch/vestrada78840/Casey_data/phot/'
-    cspec_path = '/fdata/scratch/vestrada78840/Casey_data/spec/'
+
 else:
     data_path = '../data/'
     model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
     chi_path = '../chidat/'
     spec_path = '../spec_files/'
     beam_path = '../beams/'
-    #beam_path = '../beams_v2/'
-
-    cbeam_path = '../Casey_data/beams/'
     template_path = '../templates/'
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
-    cbeam_path = '../Casey_data/beams/'
-    cphot_path = '../Casey_data/phot/'
-    cspec_path = '../Casey_data/spec/'
+
 
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
@@ -94,7 +87,8 @@ class Gen_spec(object):
                                 self.galaxy_id, 'g102', self.g102_lims,  self.specz, 
                                 select = Bselect, auto_select = auto_select, decontam = decontam)
             self.Bfl = self.Bflx / self.Bflt 
-            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
+            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.field, self.galaxy_id, 'G102')
+
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
 
@@ -107,7 +101,8 @@ class Gen_spec(object):
                                 self.galaxy_id, 'g141', self.g141_lims,  self.specz, 
                                 select = Rselect, auto_select = auto_select, decontam = decontam)
             self.Rfl = self.Rflx / self.Rflt 
-            self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
+            self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.field, self.galaxy_id, 'G141')
+            
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
 
@@ -134,7 +129,7 @@ class Gen_spec(object):
         model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
 
         if self.g102:
-            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave * (1 + model_redshift), 
+            self.Bmfl = self.Forward_model_all_beams(self.Bbeam, self.Btrans, self.Bwv, model_wave * (1 + model_redshift), 
                                                         model_flux)
             self.Bmfl *= self.PC
 
@@ -144,7 +139,7 @@ class Gen_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave * (1 + model_redshift), 
+            self.Rmfl = self.Forward_model_all_beams(self.Rbeam, self.Rtrans, self.Rwv, model_wave * (1 + model_redshift), 
                                                         model_flux) 
             self.Rmfl *= self.PC
 
@@ -155,7 +150,7 @@ class Gen_spec(object):
     
     def Sim_spec_premade(self, model_wave, model_flux):
         if self.g102:
-            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
+            self.Bmfl = self.Forward_model_all_beams(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
             self.Bmfl *= self.PC
 
             if not self.set_scale:
@@ -164,7 +159,7 @@ class Gen_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
+            self.Rmfl = self.Forward_model_all_beams(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
             self.Rmfl *= self.PC
 
             if not self.set_scale:
@@ -384,7 +379,7 @@ class Gen_ALMA_spec(object):
         model_wave,model_flux = self.sp.get_spectrum(tage = age, peraa = True)
 
         if self.g102:
-            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave * (1 + model_redshift), 
+            self.Bmfl = self.Forward_model_all_beams(self.Bbeam, self.Btrans, self.Bwv, model_wave * (1 + model_redshift), 
                                                         model_flux)
             self.Bmfl *= self.PC
 
@@ -394,7 +389,7 @@ class Gen_ALMA_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave * (1 + model_redshift), 
+            self.Rmfl = self.Forward_model_all_beams(self.Rbeam, self.Rtrans, self.Rwv, model_wave * (1 + model_redshift), 
                                                         model_flux) 
             self.Rmfl *= self.PC
 
@@ -405,7 +400,7 @@ class Gen_ALMA_spec(object):
     
     def Sim_spec_premade(self, model_wave, model_flux):
         if self.g102:
-            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
+            self.Bmfl = self.Forward_model_all_beams(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
             self.Bmfl *= self.PC
 
             if not self.set_scale:
@@ -414,7 +409,7 @@ class Gen_ALMA_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
+            self.Rmfl = self.Forward_model_all_beams(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
             self.Rmfl *= self.PC
 
             if not self.set_scale:
@@ -517,15 +512,15 @@ class Gen_SF_spec(object):
         self.c = 3E18          # speed of light angstrom s^-1
         self.g102_lims = g102_lims
         self.g141_lims = g141_lims
-        self.g102_beam = glob(cbeam_path + '*{0}*g102*'.format(galaxy_id))
-        self.g141_beam = glob(cbeam_path + '*{0}*g141*'.format(galaxy_id))
+        self.g102_beam = glob(beam_path + '*{0}*g102*'.format(galaxy_id))
+        self.g141_beam = glob(beam_path + '*{0}*g141*'.format(galaxy_id))
         self.sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1, dust_type = 1)
         self.mask = mask
         
         if len(self.g102_beam) < 1 :
-            self.g102_beam = glob(cbeam_path + '*{0}*g102*'.format(10639))
+            self.g102_beam = glob(beam_path + '*{0}*g102*'.format(10639))
         if len(self.g141_beam) < 1 :
-            self.g141_beam = glob(cbeam_path + '*{0}*g141*'.format(10639))
+            self.g141_beam = glob(beam_path + '*{0}*g141*'.format(10639))
         
         """
         B - prefix refers to g102
@@ -545,7 +540,8 @@ class Gen_SF_spec(object):
                                 self.galaxy_id, 'g102', self.g102_lims,  self.specz, mask = self.mask, setup = setup)
 
             self.Bfl = self.Bflx / self.Bflt 
-            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.g102_beam)
+            self.Bbeam, self.Btrans = load_beams_and_trns(self.Bwv, self.field, self.galaxy_id, 'G102')
+
             self.Ber = self.Berr / self.Bflt
             self.g102 = True
             if self.mask == False:
@@ -560,7 +556,7 @@ class Gen_SF_spec(object):
                                 self.galaxy_id, 'g141', self.g141_lims,  self.specz, mask = self.mask, setup = setup)
 
             self.Rfl = self.Rflx / self.Rflt 
-            self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.g141_beam)
+            self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.field, self.galaxy_id, 'G141')
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
             if self.mask == False:
@@ -579,7 +575,7 @@ class Gen_SF_spec(object):
     
     def Sim_spec_premade(self, model_wave, model_flux):
         if self.g102:
-            self.Bmfl = self.Forward_model_all_beams_flatted(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
+            self.Bmfl = self.Forward_model_all_beams(self.Bbeam, self.Btrans, self.Bwv, model_wave, model_flux)
             self.Bmfl *= self.PC
 
             if not self.set_scale:
@@ -588,7 +584,7 @@ class Gen_SF_spec(object):
                 self.Bfl = self.Bfl / Bscale ; self.Ber = self.Ber / Bscale 
                 
         if self.g141: 
-            self.Rmfl = self.Forward_model_all_beams_flatted(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
+            self.Rmfl = self.Forward_model_all_beams(self.Rbeam, self.Rtrans, self.Rwv, model_wave, model_flux) 
             self.Rmfl *= self.PC
 
             if not self.set_scale:
