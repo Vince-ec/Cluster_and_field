@@ -51,7 +51,7 @@ else:
 class Gen_spec(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims=[8300, 11288], g141_lims=[11288, 16500],
-                phot_errterm = 0, irac_err = None, decontam = True, Bselect = None, Rselect = None, auto_select = True):
+                phot_errterm = 0, irac_err = None, decontam = True, Bselect = None, Rselect = None, auto_select = False):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -102,7 +102,7 @@ class Gen_spec(object):
                                 select = Rselect, auto_select = auto_select, decontam = decontam)
             self.Rfl = self.Rflx / self.Rflt 
             self.Rbeam, self.Rtrans = load_beams_and_trns(self.Rwv, self.field, self.galaxy_id, 'G141')
-            
+
             self.Rer = self.Rerr / self.Rflt
             self.g141 = True
 

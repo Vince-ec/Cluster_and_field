@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from glob import glob
 
-from spec_id import convert_sfh, get_agebins
+#from spec_id import convert_sfh, get_agebins
 
 import fsps
 from grizli import multifit
