@@ -333,3 +333,24 @@ def Get_posterior(results, entry):
     y0 = n
     
     return x0, y0 / np.trapz(y0,x0)
+
+def Get_derived_posterior(sample, results):
+    logwt = results.logwt
+    logz = results.logz
+    
+    
+    weight = np.exp(logwt - logz[-1])
+
+    q = [0.5 - 0.5 * 0.999999426697, 0.5 + 0.5 * 0.999999426697]
+    span = _quantile(sample.T, q, weights=weight)
+
+    s = 0.02
+
+    bins = int(round(10. / 0.02))
+    n, b = np.histogram(sample, bins=bins, weights=weight,
+                        range=np.sort(span))
+    n = norm_kde(n, 10.)
+    x0 = 0.5 * (b[1:] + b[:-1])
+    y0 = n
+    
+    return x0, y0 / np.trapz(y0,x0)
