@@ -4,7 +4,6 @@ from astropy.cosmology import Planck13 as cosmo
 from astropy.io import fits
 import fsps
 from matplotlib.gridspec import GridSpec
-from spec_exam import Gen_spec
 from spec_id import *
 from sim_engine import *
 from spec_stats import Highest_density_region, Linear_fit
@@ -21,8 +20,10 @@ import dynesty
 from dynesty import plotting as dyplot
 from dynesty.utils import quantile as _quantile
 from scipy.ndimage import gaussian_filter as norm_kde
-from spec_tools import Rescale_sfh, lbt_to_z, Posterior_spec, IMG_pull
-
+from spec_tools import Photometry, Posterior_spec, Posterior_SF_spec
+from spec_exam import Gen_spec, Gen_SF_spec
+import pickle
+import re
 from time import time
 sea.set(style='white')
 sea.set(style='ticks')
@@ -41,9 +42,9 @@ if hpath == '/Users/Vince.ec/':
 else:
     dpath = hpath + 'Data/' 
 
-def plot_posterior(field, galaxy, param, name, x_name, y_name, roundto = 3):
-    grow = morph_db.query('id == {0}'.format(galaxy))
-    z,pz = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, param))
+def plot_posterior(field, galaxy, param, ext, name, x_name, y_name, DB, roundto = 3):
+    grow = DB.query('id == {0}'.format(galaxy))
+    z,pz = np.load('../data/posteriors/{}_{}_{}_P{}.npy'.format(field, galaxy, ext, param))
     ipz = interp1d(np.round(z,roundto),pz)
 
     plt.plot(z,pz,'k')
@@ -59,20 +60,32 @@ def plot_posterior(field, galaxy, param, name, x_name, y_name, roundto = 3):
     if max(pz) >= 3:
         plt.yticks(np.linspace(0,max(pz)*1.05,4).astype(int))
 
-def PLOT(field, galaxy, savefig = True):
-    grow = morph_db.query('id == {0}'.format(galaxy))
+def PLOT(field, galaxy, DF, savefig = True):
+    grow = DF.query('id == {0}'.format(galaxy))
 
-    Gs = Gen_spec(field, galaxy, grow.zgrism.values[0], phot_errterm = 0.04, irac_err = 0.08) 
-    Flam = Posterior_spec(field, galaxy)
+    flist = glob('../data/posteriors/{}_{}_*_Pm.npy'.format(field, galaxy))
+    for f in flist:
+        ext = re.split('{}_{}_'.format(field, galaxy),
+        re.split('_Pm.npy', os.path.basename(f))[0])[1]
+        if ext  == 'tabfit':
+            Gs = Gen_spec(field, galaxy, grow.zgrism.values[0], phot_errterm = 0.04, irac_err = 0.08) 
+            Flam = Posterior_spec(field, galaxy)
+            break
+        if ext in 'SFfit_p1':
+            Gs = Gen_SF_spec(field, galaxy, grow.z_grizli.values[0], phot_errterm = 0.04, irac_err = 0.08) 
+            Flam = Posterior_SF_spec(field, galaxy, grow.z_grizli.values[0])
+            break
+
     
-    x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pbp1.npy'.format(field, galaxy))
+    x,px = np.load('../data/posteriors/{}_{}_{}_Pbp1.npy'.format(field, galaxy, ext))
     bp1 = x[px == max(px)][0]
-    x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Prp1.npy'.format(field, galaxy))
+    x,px = np.load('../data/posteriors/{}_{}_{}_Prp1.npy'.format(field, galaxy, ext))
     rp1 = x[px == max(px)][0]
     
     Gs.Best_fit_scale_flam(Flam.wave, Flam.SPEC, Flam.rshift, bp1, rp1)
 
-    sfh = Rescale_sfh(field, galaxy)
+    with open('../data/SFH/{}_{}.pkl'.format(field, galaxy), 'rb') as sfh_file:
+        sfh = pickle.load(sfh_file)
 
     gs = GridSpec(3,5, hspace=0.3, wspace = 0.35)   
 
@@ -117,46 +130,48 @@ def PLOT(field, galaxy, savefig = True):
     ax1 = plt.subplot(gs[0,3:5])
     ax2 = ax1.twiny()
 
-    ax1.plot(sfh.fulltimes, sfh.sfr_grid.T, color = '#532436', alpha=.075, linewidth = 0.5)
+    ax1.plot(sfh.fulltimes, sfh.sfr_grid.T[:1000], color = '#532436', alpha=.075, linewidth = 0.5)
     ax1.plot(sfh.LBT,sfh.SFH, color = '#C1253C', linewidth = 3, zorder = 9)
     ax1.plot(sfh.LBT,sfh.SFH_16, 'k', linewidth = 2)
     ax1.plot(sfh.LBT,sfh.SFH_84, 'k', linewidth = 2)
 
+    max_lbt = np.round(sfh.fulltimes[-1])
+    max_age = max_lbt + cosmo.lookback_time(grow.zgrism.values[0]).value
+    age_at_z = cosmo.lookback_time(grow.zgrism.values[0]).value
+    
+    if ext == 'tabfit':
+        zarray = [np.round(grow.zgrism.values[0],2)]
+    else:
+        zarray = [np.round(grow.z_grizli.values[0],2)]
+        
+    idx = 0
+    while cosmo.lookback_time(np.array(zarray[idx])).value  < 13:
+        zarray.append(int(zarray[idx])+1)
+        idx += 1 
+    
+    tarray =cosmo.lookback_time(np.array(zarray)).value - cosmo.lookback_time(np.array(zarray)).value[0]
+
     ax2.set_xlim(ax1.get_xlim())
-    ax2.set_xticks(np.arange(0,int(sfh.fulltimes[-1])))
-    ax2.set_xticklabels(np.round(lbt_to_z(np.arange(0,int(sfh.fulltimes[-1])) + cosmo.lookback_time(grow.zgrism.values[0]).value),2))
+    ax2.set_xticks(tarray)
+    ax2.set_xticklabels(zarray)
     ax2.xaxis.set_ticks_position('top')
 
-    ax1.set_xlabel('Look-back time (Gyr)', fontsize=15)
-    ax1.set_ylabel('SFR ($M_\odot$ / yr)', fontsize=15)
-    ax2.set_xlabel('Redshift (z)', fontsize=15) 
-    ax1.tick_params(axis='both', which='major', labelsize=15)
-    ax2.tick_params(axis='both', which='major', labelsize=15)
+    ax1.set_xlabel('Look-back time (Gyr)', fontsize=21)
+    ax1.set_ylabel('SFR ($M_\odot$ / yr)', fontsize=21)
+    ax2.set_xlabel('Redshift (z)', fontsize=21) 
+    ax1.tick_params(axis='both', which='major', labelsize=17)
+    ax2.tick_params(axis='both', which='major', labelsize=17)
 
     ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = '#ED2D39', linewidth = 2, zorder = 11)
     ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = 'k', linewidth = 4, zorder = 10)
 
-    for i in range(len(grow.t_50_hci.values[0])//2):
-        hdr = np.linspace(grow.t_50_hci.values[0][2*i],grow.t_50_hci.values[0][2*i+1])
+    hdr = np.linspace(grow.t_50_hci.values[0][0],grow.t_50_hci.values[0][1])
 
-        ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = '#4E7577', alpha=0.75, zorder = 8)
-        ax1.vlines(grow.t_50_hci.values[0][2*i],isfhl(grow.t_50_hci.values[0][2*i]),isfhh(grow.t_50_hci.values[0][2*i]), 
-                   color = 'k', linewidth = 1, zorder = 8)
-        ax1.vlines(grow.t_50_hci.values[0][2*i+1],isfhl(grow.t_50_hci.values[0][2*i+1]),isfhh(grow.t_50_hci.values[0][2*i+1]), 
-                   color = 'k', linewidth = 1, zorder = 8)
-
-    ax1.vlines(grow.t_q.values[0],isfhl(grow.t_q.values[0]),isfhh(grow.t_q.values[0]), color = '#4E7577', linewidth = 2, zorder = 11)
-    ax1.vlines(grow.t_q.values[0],isfhl(grow.t_q.values[0]),isfhh(grow.t_q.values[0]), color = 'k', linewidth = 4, zorder = 10)
-
-    for i in range(len(grow.t_q_hci.values[0])//2):
-        hdr = np.linspace(grow.t_q_hci.values[0][2*i],grow.t_q_hci.values[0][2*i+1])
-
-        ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = 'k', alpha=0.6, zorder = 8)
-        ax1.vlines(grow.t_q_hci.values[0][2*i],isfhl(grow.t_q_hci.values[0][2*i]),isfhh(grow.t_q_hci.values[0][2*i]), 
-                   color = 'k', linewidth = 1, zorder = 8)
-        ax1.vlines(grow.t_q_hci.values[0][2*i+1],isfhl(grow.t_q_hci.values[0][2*i+1]),isfhh(grow.t_q_hci.values[0][2*i+1]), 
-                   color = 'k', linewidth = 1, zorder = 8)
-    
+    ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = '#4E7577', alpha=0.75, zorder = 8)
+    ax1.vlines(grow.t_50_hci.values[0][0],isfhl(grow.t_50_hci.values[0][0]),isfhh(grow.t_50_hci.values[0][0]), 
+               color = 'k', linewidth = 1, zorder = 8)
+    ax1.vlines(grow.t_50_hci.values[0][1],isfhl(grow.t_50_hci.values[0][1]),isfhh(grow.t_50_hci.values[0][1]), 
+               color = 'k', linewidth = 1, zorder = 8)    
     ###############plot zoom tab##################
     plt.subplot(gs[1,:3])
 
@@ -174,39 +189,50 @@ def PLOT(field, galaxy, savefig = True):
     plt.ylabel(r'F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/ \rm \AA $)', fontsize=20)
     plt.tick_params(axis='both', which='major', labelsize=15)
         
-    #################plot image###################
-    img = IMG_pull(field, galaxy)
-    
+    #################plot uvj###################    
     plt.subplot(gs[1,3:5])
-    plt.imshow(img,aspect='equal')
-    plt.title('Blue = F105W, Green = F125W, Red = F160W', fontsize = 15)
-    plt.xticks([])
-    plt.yticks([])
+    plt.scatter(Bdb.VJ, Bdb.UV)
+    plt.scatter(grow.VJ.values, grow.UV.values, marker = '*', color = 'r', s = 100)
+    
+    if grow.AGN.values == 'AGN':
+        plt.scatter(grow.VJ.values, grow.UV.values,marker = 'o', s=500,linewidth = 5, color = 'None', edgecolor = 'g')
+        
+    plt.plot([0,.9],[1.382,1.382],'k',lw=1.2)
+    plt.plot([1.65,1.65],[2.05,2.5],'k',lw=1.2)
+    plt.plot([.9,1.65],[0.88*.9+0.59,0.88*1.65+0.59],'k',lw=1.2)
+    plt.xlabel('(V-J)', fontsize=21)
+    plt.ylabel('(U-V)', fontsize=21)
+    plt.tick_params(axis='both', which='major', labelsize=17)
 
     ###############P(Z)################
     plt.subplot(gs[2,0])
-    plot_posterior(field, galaxy, 'm', 'Z', 'Z / Z$_\odot$', 'Z / Z$_\odot$')
+    plot_posterior(field, galaxy, 'm', ext, 'Z', 'Z / Z$_\odot$', 'Z / Z$_\odot$', Bdb)
     
     ###############P(lwa)################
     plt.subplot(gs[2,1])
-    plot_posterior(field, galaxy, 'lwa', 'lwa', 'LWA (Gyr)', 'LWA')
+    plot_posterior(field, galaxy, 'lwa', ext, 'lwa', 'LWA (Gyr)', 'LWA', Bdb)
  
     ###############P(z)################
     plt.subplot(gs[2,2])
-    plot_posterior(field, galaxy, 'z', 'zgrism', 'Redshift (z)', 'z', roundto=4)
+    if ext == 'tabfit':
+        plot_posterior(field, galaxy, 'z', ext, 'zgrism', 'Redshift (z)', 'z', Bdb, roundto=4)
     
     ###############P(d)################
     plt.subplot(gs[2,3])
-    plot_posterior(field, galaxy, 'd', 'Av', 'Dust (Av)', 'Av')
+    plot_posterior(field, galaxy, 'd', ext, 'Av', 'Dust (Av)', 'Av', Bdb)
     
     ###############P(lmass)################
     plt.subplot(gs[2,4])
-    plot_posterior(field, galaxy, 'lm', 'lmass', 'log(M/M$_\odot$)', 'log(M/M$_\odot$)')
+    plot_posterior(field, galaxy, 'lm', ext, 'lmass', 'log(M/M$_\odot$)', 'log(M/M$_\odot$)', Bdb)
     
     if savefig:
-        plt.savefig('../plots/fullfits/all_data_{0}_{1}.png'.format(field, galaxy),bbox_inches = 'tight')
-
-morph_db = pd.read_pickle('../dataframes/fitdb/tabfitdb.pkl')
+        plt.savefig('../plots/bulgefits/all_data_{0}_{1}.png'.format(field, galaxy),bbox_inches = 'tight')
     
-for i in morph_db.index:
-    PLOT(morph_db.field[i], morph_db.id[i])
+Bdb = pd.read_pickle('../dataframes/fitdb/buldgefitsdb.pkl')
+
+for i in Bdb.index:
+    if not os.path.isfile('../plots/bulgefits/all_data_{0}_{1}.png'.format(Bdb.field[i], Bdb.id[i])):
+        try:
+            PLOT(Bdb.field[i], Bdb.id[i], Bdb,)
+        except:
+            pass

@@ -12,7 +12,7 @@ import fsps
 import os
 import re
 import img_scale
-
+from glob import glob
 import rpy2
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
@@ -623,7 +623,7 @@ class Rescale_sfh(object):
         
 class Posterior_spec(object):
     def __init__(self, field, galaxy, trials = 1000):
-
+        from sim_engine import F_lam_per_M
         sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
         ppf_dict = {}
@@ -767,6 +767,7 @@ class Rescale_SF_sfh(object):
             
 class Posterior_SF_spec(object):
     def __init__(self, field, galaxy, rshift, trials = 1000):
+        from sim_engine import F_lam_per_M
 
         self.rshift = rshift
            
@@ -777,7 +778,7 @@ class Posterior_SF_spec(object):
         params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm','d']
 
         for i in params:
-            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_P{2}.npy'.format(field, galaxy, i))
+            x,px = np.load('../data/posteriors/{0}_{1}_SFfit_p1_P{2}.npy'.format(field, galaxy, i))
             ppf_dict[i] = Gen_PPF(x,px)
 
         idx = 0

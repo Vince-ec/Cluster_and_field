@@ -1,12 +1,14 @@
 import numpy as np
 import pandas as pd
+import pickle
 from astropy.cosmology import Planck13 as cosmo
 from astropy.io import fits
 from astropy.table import Table
 from spec_stats import Highest_density_region
-from spec_tools import Rescale_sfh
+from spec_tools import Gen_SFH
 from glob import glob
 import os
+import re
 
 ### set home for files
 hpath = os.environ['HOME'] + '/'
@@ -38,22 +40,28 @@ fitvals = {}
 params = ['m', 'lm', 'z', 'd', 'lwa']
 k = ['Z', 'lmass', 'zgrism', 'Av', 'lwa']
 
+FIELD = select.field.values
+GID = select.id.values
+
+
 for p in range(len(params)):
-    m = np.repeat(-99.0,len(select))
+    m = np.repeat(-99.0,len(FIELD))
     hci = []
     offmass = []
     
-    for i in range(len(select.index)):
+    for i in range(len(FIELD)):
+        flist = glob('../data/posteriors/{}_{}_*_P{}.npy'.format(FIELD[i], GID[i],params[p]))
         try:
-            flist = glob('../data/posteriors/{}_{}_*_P{}.npy'.format(select.field[select.index[i]], select.id[select.index[i]],params[p]))
-
+            flnm = 'none'
             for f in flist:
-                ext = os.path.basename(f).strip('{}_{}_'.format(select.field[select.index[i]], select.id[select.index[i]])).strip('_P{}.npy'.format(params[p]))
+                ext = re.split('{}_{}_'.format(FIELD[i],GID[i]),
+                re.split('_P{}.npy'.format(params[p]), os.path.basename(f))[0])[1]
                 if ext in ['tabfit', 'SFfit_p1']:
-                    print(f)
-
-            x,px = np.load(f)            
+                    flnm = str(f)
+                    break
+            x,px = np.load(flnm)            
             m[i], mreg, oreg = Highest_density_region(px,x)
+            print(m[i])
             hci.append(mreg)
             offmass.append(oreg)
         except:
@@ -69,6 +77,7 @@ tabfits = pd.DataFrame(fitvals)
 tabfits['field'] = select.field.values
 tabfits['id'] = select.id.values
 tabfits['z_grizli'] = select.z_50.values
+tabfits['AGN'] = select.AGN.values
 
 #add SFH values
 z_50= np.repeat(-99.0,len(tabfits))
@@ -94,9 +103,12 @@ log_ssfr_hci = []
 log_ssfr_oreg = []
 for i in range(len(tabfits.index)):
     try:
-        sfh = Gen_sfh(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]], tabfits.z_grizli[tabfits.index[i]] ,5000)
-        np.save('../data/SFH/{}_{}.npy'.format(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]]), 
-                [sfh.LBT, sfh.SFH])
+    
+        sfh = Gen_SFH(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]], tabfits.z_grizli[tabfits.index[i]] ,5000)
+
+        with open('../data/SFH/{}_{}.pkl'.format(tabfits.field[tabfits.index[i]], tabfits.id[tabfits.index[i]]), 'wb') as output:
+            pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)
+
         print(sfh.z_50)
         z_50[i] = sfh.z_50
         z_50_hci.append(sfh.z_50_hci)
@@ -125,7 +137,7 @@ for i in range(len(tabfits.index)):
         log_ssfr[i] = sfh.lssfr
         log_ssfr_hci.append(sfh.lssfr_hci)
         log_ssfr_oreg.append(sfh.lssfr_offreg)
-        
+
     except:
         z_50_hci.append(np.array([0]))
         z_80_hci.append(np.array([0]))
@@ -134,7 +146,7 @@ for i in range(len(tabfits.index)):
         t_80_hci.append([0])
         t_90_hci.append([0])
         log_ssfr_hci.append([0])
-        
+
         z_50_oreg.append(np.array([0]))
         z_80_oreg.append(np.array([0]))
         z_90_oreg.append(np.array([0]))
