@@ -169,5 +169,42 @@ for i in range(len(dres.samples)):
 t,pt = Get_lwa_posterior(np.array(lm), dres)
 np.save(pos_path + '{0}_{1}_SFMfit_Plm'.format(field, galaxy),[t,pt])
 
+#### gen logmass posterior
+sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
+sp.params['dust1'] = 0
+B_lines = {}
+R_lines = {}
+for k in SF_temps:
+    if k[0] == 'l':
+        B_lines[k] = []
+        R_lines[k] = []
+
+for i in range(len(dres.samples)):
+    m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr = dres.samples[i]
+    wave, flux = Gen_model(sp, [m, a, d], [m1, m2, m3, m4, m5, m6], agebins = 6, SF = True)
+    
+    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sb*flux*(wave-wave0)/wave0)    
+    g102_fit = mb_g102.template_at_z(z, templates = SF_temps, fitter='lstsq')
+    
+    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sr*flux*(wave-wave0)/wave0)    
+    g141_fit = mb_g141.template_at_z(z, templates = SF_temps, fitter='lstsq')
+    
+    for k in B_lines:
+        B_lines[k].append(g102_fit['cfit'][k][0])
+    
+    for k in R_lines:
+        R_lines[k].append(g141_fit['cfit'][k][0])
+
+for k in B_lines:
+    if sum(B_lines[k]) > 0:
+        x,px = Get_derived_posterior(np.array(B_lines[k]), dres)
+        plt.title(k)
+        np.save(pos_path + '{}_{}_SFMfit_PB{}'.format(field, galaxy, k),[x,px])
+
+    if sum(R_lines[k]) > 0:
+        x,px = Get_derived_posterior(np.array(R_lines[k]), dres)
+        np.save(pos_path + '{}_{}_SFMfit_PR{}'.format(field, galaxy, k),[x,px])
+
+
 end = time()
 print(end - start)
