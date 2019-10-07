@@ -80,6 +80,7 @@ def Gen_model(sp, params, masses, agebins = 10, SF = False):
     SF : boolean, if SF then dust1 = 0
     SFH : boolean, whether or not to return SFH
     """
+    from spec_id import convert_sfh, get_agebins
     Z, a, d = params
 
     if SF:
@@ -107,19 +108,44 @@ def Gen_temp_dict(redshift, lowlim, hilim, args = args):
                 
     return temps
  
-def Gen_temp_dict_balm(redshift, lowlim, hilim, lines, args = args):
+def Gen_temp_dict_addline(lines, args = args):
     temps = {}
     
-    balmer = []
+    llist = []
     
     for ln in lines:
-        balmer.append('line ' + ln)
+        llist.append('line ' + ln)
         
     for k in args['t1']:
-        if k in balmer and lowlim < args['t1'][k].wave[args['t1'][k].flux == args['t1'][k].flux.max()][0] * (1+redshift) < hilim:
+        if k in llist:
             temps[k] = args['t1'][k]
                 
     return temps
+
+def Gather_MB_data(spec):
+    mbs = []
+    
+    if spec.g102:
+        mbs.append(spec.mb_g102)
+    
+    if spec.g141:
+        mbs.append(spec.mb_g141)
+
+    return mbs    
+    
+def Fit_MB(mbs, slopes, temps, wave, flux, specz, wave0 = 4000):
+    chi2 = []
+    fits = []
+    for i in range(len(mbs)):
+    
+        temps['fsps_model'] = SpectrumTemplate(wave=wave, flux=flux + slopes[i]*flux*(wave-wave0)/wave0)
+    
+        fit = mbs[i].template_at_z(specz, templates = temps, fitter='lstsq')
+        fits.append(fit)
+        chi2.append(fit['chi2'])
+
+    return np.sum(chi2), fits
+
 
 def spec_construct(g102_fit,g141_fit, z, wave0 = 4000, usetilt = True):
     flat = np.ones_like(g141_fit['cont1d'].wave)

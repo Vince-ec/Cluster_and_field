@@ -21,32 +21,63 @@ verbose=False
 poolsize = 8
 
 #############
-def spec_construct(g102_fit,g141_fit, z, sb, sr, wave0 = 4000, usetilt = True):
-    flat = np.ones_like(g141_fit['cont1d'].wave) # ones array
-    slope = (g141_fit['cont1d'].wave/(1+z)-wave0)/wave0 # slope without coeff 
-    tilt = g141_fit['cfit']['fsps_model'][0]*(flat + (slope * sr)) # scaling up and slope coeff
-    untilted_continuum = g141_fit['cont1d'].flux / tilt # return to fsps scale
-    line_g141 = (g141_fit['line1d'].flux - g141_fit['cont1d'].flux)/g141_fit['cont1d'].flux
-    untilted_line_g141 = untilted_continuum*(1+line_g141)
+###########gen spec##########
+Gs = Gen_spec_2D(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
+    
+MBS = Gather_MB_data(Gs)   
+#############multifit#######
 
+if Gs.g102 and Gs.g141:
+    def spec_construct(fits, z, slopes, wave0 = 4000, usetilt = True):
+        fluxes = []
 
-    flat = np.ones_like(g102_fit['cont1d'].wave)
-    slope = (g102_fit['cont1d'].wave/(1+z)-wave0)/wave0
-    tilt = g102_fit['cfit']['fsps_model'][0]*(flat + slope * sb)
-    untilted_continuum = g102_fit['cont1d'].flux / tilt
+        for i in range(len(fits)):
+            flat = np.ones_like(fits[i]['cont1d'].wave) # ones array
+            slope = (fits[i]['cont1d'].wave/(1+z)-wave0)/wave0 # slope without coeff 
+            tilt = fits[i]['cfit']['fsps_model'][0]*(flat + (slope * slopes[i])) # scaling up and slope coeff
+            untilted_continuum = fits[i]['cont1d'].flux / tilt # return to fsps scale
+            lines = (fits[i]['line1d'].flux - fits[i]['cont1d'].flux)/fits[i]['cont1d'].flux
+            fluxes.append(untilted_continuum*(1+lines))
 
-    line_g102 = (g102_fit['line1d'].flux - g102_fit['cont1d'].flux)/g102_fit['cont1d'].flux
-    untilted_line_g102 = untilted_continuum*(1+line_g102)
+        FL = np.append(fluxes[0][fits[0]['cont1d'].wave <= 12000],fluxes[1][fits[0]['cont1d'].wave > 12000])
+        return fits[0]['cont1d'].wave, FL
+    
+if Gs.g102 and not Gs.g141:
+    def spec_construct(fits, z, slopes, wave0 = 4000, usetilt = True):
+        fluxes = []
 
-    FL = np.append(untilted_line_g102[g102_fit['cont1d'].wave <= 12000],untilted_line_g141[g102_fit['cont1d'].wave > 12000])
+        for i in range(len(fits)):
+            flat = np.ones_like(fits[i]['cont1d'].wave) # ones array
+            slope = (fits[i]['cont1d'].wave/(1+z)-wave0)/wave0 # slope without coeff 
+            tilt = fits[i]['cfit']['fsps_model'][0]*(flat + (slope * slopes[i])) # scaling up and slope coeff
+            untilted_continuum = fits[i]['cont1d'].flux / tilt # return to fsps scale
+            lines = (fits[i]['line1d'].flux - fits[i]['cont1d'].flux)/fits[i]['cont1d'].flux
+            fluxes.append(untilted_continuum*(1+lines))
 
-    return g102_fit['cont1d'].wave, FL
+        FL = fluxes[0]
+        return fits[0]['cont1d'].wave, FL
+    
+if Gs.g141 and not Gs.g102:
+    def spec_construct(fits, z, slopes, wave0 = 4000, usetilt = True):
+        fluxes = []
+
+        for i in range(len(fits)):
+            flat = np.ones_like(fits[i]['cont1d'].wave) # ones array
+            slope = (fits[i]['cont1d'].wave/(1+z)-wave0)/wave0 # slope without coeff 
+            tilt = fits[i]['cfit']['fsps_model'][0]*(flat + (slope * slopes[i])) # scaling up and slope coeff
+            untilted_continuum = fits[i]['cont1d'].flux / tilt # return to fsps scale
+            lines = (fits[i]['line1d'].flux - fits[i]['cont1d'].flux)/fits[i]['cont1d'].flux
+            fluxes.append(untilted_continuum*(1+lines))
+
+        FL = fluxes[0]
+        return fits[0]['cont1d'].wave, FL
+
 ##############
-#############multifit###############
-beams = mfit_path + '{}_{}.beams.fits'.format(field, galaxy)
+#########define fsps#########
+sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
+sp.params['dust1'] = 0
 
-mb_g102, mb_g141 = Gen_multibeams(beams, args = args)
-
+########
 wave0 = 4000
 SF_temps =  Gen_temp_dict(specz, 8000, 16000)
 ############build priors#############
@@ -72,44 +103,34 @@ def Galfit_prior(u):
     m1, m2, m3, m4, m5, m6 = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = get_agebins(a, binnum = 6))
 
     d = 4*u[8]
-    z = Gaussian_prior(u[9], [specz - 0.01, specz + 0.01], specz, zscale)
+
+    z = stats.norm.ppf(q = u[9], loc = specz, scale = zscale)
+
+    s1 = Gaussian_prior(u[10], [-0.2, 0.2], 0, 0.025)
+    s2 = Gaussian_prior(u[11], [-0.2, 0.2], 0, 0.025)
     
-    sb = Gaussian_prior(u[10], [-0.2, 0.2], 0, 0.025)
-    sr = Gaussian_prior(u[11], [-0.2, 0.2], 0, 0.025)
-    
-    return [m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr]
+    return [m, a, m1, m2, m3, m4, m5, m6, d, z, s1, s2]
 
 def Galfit_L(X):
-    m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr = X
+    m, a, m1, m2, m3, m4, m5, m6, d, z, s1, s2 = X
     
     wave, flux = Gen_model(sp, [m, a, d], [m1, m2, m3, m4, m5, m6], agebins = 6, SF = True)
     
-    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sb*flux*(wave-wave0)/wave0)    
-    g102_fit = mb_g102.template_at_z(z, templates = SF_temps, fitter='lstsq')
-    
-    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sr*flux*(wave-wave0)/wave0)    
-    g141_fit = mb_g141.template_at_z(z, templates = SF_temps, fitter='lstsq')
+    Gchi2, fits = Fit_MB(MBS, [s1, s2], SF_temps, wave, flux, z)
 
-    wv_obs, flx = spec_construct(g102_fit,g141_fit,z, sb, sr)
+    wv_obs, flx = spec_construct(fits, z, [s1, s2])
 
     Pmfl = Gs.Sim_phot_mult(wv_obs, flx)
 
     scl = Scale_model(Gs.Pflx, Gs.Perr, Pmfl)
 
-    return  -(g102_fit['chi2'] + g141_fit['chi2'] + np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
-
-#########define fsps#########
-sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
-sp.params['dust1'] = 0
-
-###########gen spec##########
-Gs = Gen_SF_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
+    return  -(Gchi2+ np.sum((((Gs.Pflx - Pmfl*scl) / Gs.Perr)**2))) / 2
 
 #######set up dynesty########
 sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 12, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=12), queue_size=12)
-
+                                      
 sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
 #sampler = dynesty.NestedSampler(Galfit_L, Galfit_prior, ndim = 10,
@@ -124,22 +145,22 @@ np.save(out_path + '{0}_{1}_SFMfit'.format(field, galaxy), dres)
 
 ##save out P(z) and bestfit##
 
-params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'd', 'z', 'sb', 'sr']
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'd', 'z', 's1', 's2']
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
     np.save(pos_path + '{0}_{1}_SFMfit_P{2}'.format(field, galaxy, params[i]),[t,pt])
 
-bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfsb, bfsr = dres.samples[-1]
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfs1, bfs2 = dres.samples[-1]
 
 np.save(pos_path + '{0}_{1}_SFMfit_bfit'.format(field, galaxy),
-        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfsb, bfsr, dres.logl[-1]])
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfd, bfz, bfs1, bfs2, dres.logl[-1]])
 
 #### gen light-weighted age posterior
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
 sp.params['dust1'] = 0
 lwa = []
 for i in range(len(dres.samples)):
-    m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr = dres.samples[i]
+    m, a, m1, m2, m3, m4, m5, m6, d, z, s1, s2 = dres.samples[i]
     lwa.append(get_lwa_SF([m, a, m1, m2, m3, m4, m5, m6], get_agebins(a, binnum = 6),sp)[0])
 
 t,pt = Get_lwa_posterior(np.array(lwa), dres)
@@ -150,7 +171,7 @@ sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2
 sp.params['dust1'] = 0
 lm = []
 for i in range(len(dres.samples)):
-    m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr = dres.samples[i]
+    m, a, m1, m2, m3, m4, m5, m6, d, z, s1, s2 = dres.samples[i]
 
     sp.params['dust2'] = d
     sp.params['logzsol'] = np.log10(m)
@@ -172,39 +193,29 @@ np.save(pos_path + '{0}_{1}_SFMfit_Plm'.format(field, galaxy),[t,pt])
 #### gen logmass posterior
 sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
 sp.params['dust1'] = 0
-B_lines = {}
-R_lines = {}
-for k in SF_temps:
-    if k[0] == 'l':
-        B_lines[k] = []
-        R_lines[k] = []
+
+lines = []
+for i in range(len(MB)):
+    lines.append({})    
+    for k in SF_temps:
+        if k[0] == 'l':
+            lines[i][k] = []
 
 for i in range(len(dres.samples)):
-    m, a, m1, m2, m3, m4, m5, m6, d, z, sb, sr = dres.samples[i]
+    m, a, m1, m2, m3, m4, m5, m6, d, z, s1, s2 = dres.samples[i]
     wave, flux = Gen_model(sp, [m, a, d], [m1, m2, m3, m4, m5, m6], agebins = 6, SF = True)
-    
-    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sb*flux*(wave-wave0)/wave0)    
-    g102_fit = mb_g102.template_at_z(z, templates = SF_temps, fitter='lstsq')
-    
-    SF_temps['fsps_model'] = SpectrumTemplate(wave, flux + sr*flux*(wave-wave0)/wave0)    
-    g141_fit = mb_g141.template_at_z(z, templates = SF_temps, fitter='lstsq')
-    
-    for k in B_lines:
-        B_lines[k].append(g102_fit['cfit'][k][0])
-    
-    for k in R_lines:
-        R_lines[k].append(g141_fit['cfit'][k][0])
+      
+    Gchi2, fits = Fit_MB(MBS, [s1, s2], SF_temps, wave, flux, z)
 
-for k in B_lines:
-    if sum(B_lines[k]) > 0:
-        x,px = Get_derived_posterior(np.array(B_lines[k]), dres)
-        plt.title(k)
-        np.save(pos_path + '{}_{}_SFMfit_PB{}'.format(field, galaxy, k),[x,px])
+    for ii in range(len(lines)):
+        for k in lines[ii]:
+            lines[ii][k].append(fit[ii]['cfit'][k][0])
 
-    if sum(R_lines[k]) > 0:
-        x,px = Get_derived_posterior(np.array(R_lines[k]), dres)
-        np.save(pos_path + '{}_{}_SFMfit_PR{}'.format(field, galaxy, k),[x,px])
-
+for i in range(len(lines)):
+    for k in lines[i]:
+        if sum(lines[i][k]) > 0:
+            x,px = Get_derived_posterior(np.array(lines[i][k]), dres)
+            np.save(pos_path + '{}_{}_SFMfit_P{}_{}'.format(field, galaxy, k, i),[x,px])
 
 end = time()
 print(end - start)

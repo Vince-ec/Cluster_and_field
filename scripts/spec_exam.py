@@ -685,3 +685,155 @@ def Calibrate_grism(spec, Gmfl, p1):
     lines = (p1 * (spec[0] -(spec[0][-1] + spec[0][0])/2 ) + 1E3)
     scale = Scale_model(spec[1]  / lines, spec[2] / lines, Gmfl)    
     return scale * lines
+
+##################################
+
+class Gen_spec_2D(object):
+    def __init__(self, field, galaxy_id, specz,
+                 g102_lims=[8000, 11300], g141_lims=[11300, 16500],
+                phot_errterm = 0, irac_err = None):
+        self.field = field
+        self.galaxy_id = galaxy_id
+        self.specz = specz
+        self.c = 3E18          # speed of light angstrom s^-1
+        self.g102_lims = g102_lims
+        self.g141_lims = g141_lims
+
+        """
+        B - prefix refers to g102
+        R - prefix refers to g141
+        P - prefix refers to photometry
+        
+        field - GND/GSD
+        galaxy_id - ID number from 3D-HST
+        specz - redshift
+
+        """
+        ##load spec and phot
+        self.Clean_multibeam()
+        
+        if self.g102:
+            self.Bwv, self.Bfl, self.Ber = self.Gen_1D_spec(self.mb_g102, g102_lims, 'G102')
+            self.Bwv_rf = self.Bwv/(1 + self.specz)
+        
+        if self.g141:
+            self.Rwv, self.Rfl, self.Rer = self.Gen_1D_spec(self.mb_g141, g141_lims, 'G141')
+            self.Rwv_rf = self.Rwv/(1 + self.specz)
+        
+        self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec(self.field,
+                                self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False, select = None)
+         
+        self.Perr = apply_phot_err(self.Pflx, self.Perr, self.Pnum, base_err = phot_errterm, irac_err = irac_err)
+        # load photmetry precalculated values
+        self.model_photDF, self.IDP, self.sens_wv, self.trans, self.b, self.dnu, self.adj, self.mdleffwv = load_phot_precalc(self.Pnum)
+       
+    def Sim_phot_premade(self, model_wave, model_flux):
+        self.Pmfl = self.Sim_phot_mult(model_wave, model_flux)
+        self.PC =  Scale_model(self.Pflx, self.Perr, self.Pmfl)
+
+        self.Pmfl = self.Pmfl * self.PC
+     
+    def Sim_phot_mult(self, model_wave, model_flux):
+        return forward_model_phot(model_wave, model_flux, self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
+    
+    def Clean_multibeam(self):
+        BMX = np.load(beam_path +'beam_config/{}_{}_ex.npy'.format(self.field, self.galaxy_id))
+        clip, clipspec, omitspec = np.load('../beams/beam_config/{}_{}.npy'.format(self.field, self.galaxy_id))
+        fl = glob(beam_path + '*{}*{}*.beams.fits'.format(self.field[1], self.galaxy_id))
+
+        sz = []
+        for f in fl:
+            sz.append(os.path.getsize(f))
+       
+        fl = np.array(fl)[np.argsort(sz)]
+
+        nlist = []
+        blist = []
+        for f in fl:
+            mb = multifit.MultiBeam(f,**args)
+            for bm in mb.beams:
+                if bm.grism.parent_file not in nlist:
+                    nlist.append(bm.grism.parent_file)
+                    blist.append(bm)
+
+        #####clip or omit
+        fblist = []
+
+        idc = 0
+
+        for bm in blist:
+            if bm.grism.parent_file in BMX:            
+                if clipspec[idc] == 1:
+                    xspec, yspec, yerr = bm.beam.optimal_extract(bm.grism.data['SCI'] - bm.contam,ivar = bm.ivar) 
+                    for lms in clip[idc]:
+                        for i in range(len(xspec)):
+                            if lms[0] < xspec[i]< lms[1]:
+                                bm.grism.data['SCI'].T[i] = np.zeros_like(bm.grism.data['SCI'].T[i])
+                                bm.grism.data['ERR'].T[i] = np.ones_like(bm.grism.data['ERR'].T[i])*1000  
+
+                if omitspec[idc] == 1:
+                    pass
+                else:    
+                    fblist.append(bm)
+
+                idc += 1
+    
+            else:    
+                fblist.append(bm)   
+
+
+        mb = multifit.MultiBeam(fblist,**args)
+        for b in mb.beams:
+            if hasattr(b, 'xp'):
+                delattr(b, 'xp')
+        mb.initialize_masked_arrays()
+
+        grism_beams = {}
+        for g in mb.PA:
+            grism_beams[g.lower()] = []
+            for pa in mb.PA[g]:
+                for i in mb.PA[g][pa]:
+                    grism_beams[g.lower()].append(mb.beams[i])
+
+        try:
+            self.mb_g102 = multifit.MultiBeam(grism_beams['g102'], fcontam=mb.fcontam, 
+                                         min_sens=mb.min_sens, min_mask=mb.min_mask, 
+                                         group_name=mb.group_name+'-g102')
+            # bug, will be fixed ~today to not have to do this in the future
+            for b in self.mb_g102.beams:
+                if hasattr(b, 'xp'):
+                    delattr(b, 'xp')
+            self.mb_g102.initialize_masked_arrays()
+            self.g102 = True
+            
+        except:
+            self.g102 = False
+            
+        try:
+            self.mb_g141 = multifit.MultiBeam(grism_beams['g141'], fcontam=mb.fcontam, 
+                                         min_sens=mb.min_sens, min_mask=mb.min_mask, 
+                                         group_name=mb.group_name+'-g141')
+            # bug, will be fixed ~today to not have to do this in the future
+            for b in self.mb_g141.beams:
+                if hasattr(b, 'xp'):
+                    delattr(b, 'xp')
+            self.mb_g141.initialize_masked_arrays()
+            self.g141 = True
+            
+        except:
+            self.g141 = False
+            
+    def Gen_1D_spec(self, MB, lims, instr, tfit = 'none'):
+        if tfit != 'none':
+            sptbl = MB.oned_spectrum(tfit = tfit)
+        else:
+            sptbl = MB.oned_spectrum()
+
+        w = sptbl[instr]['wave']
+        f = sptbl[instr]['flux']
+        e = sptbl[instr]['err']
+        fl = sptbl[instr]['flat']
+
+        clip = [U for U in range(len(w)) if lims[0] < w[U] < lims[1]]
+        
+        return w[clip], f[clip]/fl[clip], e[clip]/fl[clip]
