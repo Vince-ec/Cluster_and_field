@@ -129,7 +129,7 @@ def Galfit_L(X):
 #######set up dynesty########
 sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 12, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
-                                         pool=Pool(processes=12), queue_size=12)
+                                         pool=Pool(processes=8), queue_size=8)
                                       
 sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
 
