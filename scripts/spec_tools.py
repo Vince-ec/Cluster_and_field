@@ -882,7 +882,8 @@ class Gen_SFH(object):
         t_50_grid = []
         t_80_grid = []
         t_90_grid = []
-
+        mwa_grid = []
+        
         while idx < trials:
             try:
                 draw = np.zeros(len(params))
@@ -923,6 +924,8 @@ class Gen_SFH(object):
                 sfr_grid.append(interp1d(lbt,lbsfr,bounds_error=False,fill_value=0)(self.fulltimes))
 
                 ssfr_grid.append(lbsfr[0] / 10**lmass)
+                
+                mwa.append(np.trapz(sfr_grid[idx]*self.fulltimes,self.fulltimes)/np.trapz(sfr_grid[idx],self.fulltimes))
                 idx +=1
             except:
                 pass
@@ -952,6 +955,10 @@ class Gen_SFH(object):
 
         weights = Derive_SFH_weights(self.SFH, sfr_grid[0:trials])
        
+        ####### mwa values
+        x,y = boot_to_posterior(mwa_grid[0:trials], weights)
+        self.mwa, self.mwa_hci, self.mwa_offreg = Highest_density_region(y,x)
+    
         ####### t values
         x,y = boot_to_posterior(t_50_grid[0:trials], weights)
         self.t_50, self.t_50_hci, self.t_50_offreg = Highest_density_region(y,x)
