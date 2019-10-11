@@ -925,7 +925,7 @@ class Gen_SFH(object):
 
                 ssfr_grid.append(lbsfr[0] / 10**lmass)
                 
-                mwa.append(np.trapz(sfr_grid[idx]*self.fulltimes,self.fulltimes)/np.trapz(sfr_grid[idx],self.fulltimes))
+                mwa_grid.append(np.trapz(sfr_grid[idx]*self.fulltimes,self.fulltimes)/np.trapz(sfr_grid[idx],self.fulltimes))
                 idx +=1
             except:
                 pass
@@ -1002,3 +1002,4 @@ class Gen_SFH(object):
         self.t_50_grid = t_50_grid
         self.t_80_grid = t_80_grid
         self.t_90_grid = t_90_grid
+        self.mwa_grid = mwa_grid
