@@ -3,8 +3,8 @@ import pandas as pd
 import os
 from glob import glob
 
-#from spec_id import convert_sfh, get_agebins
-
+from dynesty.utils import quantile as _quantile
+from scipy.ndimage import gaussian_filter as norm_kde
 import fsps
 from grizli import multifit
 from grizli import model
@@ -166,3 +166,24 @@ def spec_construct(g102_fit,g141_fit, z, wave0 = 4000, usetilt = True):
 
     FL = np.append(untilted_line_g102[g102_fit['cont1d'].wave <= 12000],untilted_line_g141[g102_fit['cont1d'].wave > 12000])
     return g102_fit['cont1d'].wave, FL
+
+
+def Get_derived_posterior(sample, results):
+    logwt = results.logwt
+    logz = results.logz
+    
+    weight = np.exp(logwt - logz[-1])
+
+    q = [0.5 - 0.5 * 0.999999426697, 0.5 + 0.5 * 0.999999426697]
+    span = _quantile(sample.T, q, weights=weight)
+
+    s = 0.02
+
+    bins = int(round(10. / 0.02))
+    n, b = np.histogram(sample, bins=bins, weights=weight,
+                        range=np.sort(span))
+    n = norm_kde(n, 10.)
+    x0 = 0.5 * (b[1:] + b[:-1])
+    y0 = n
+    
+    return x0, y0 / np.trapz(y0,x0)

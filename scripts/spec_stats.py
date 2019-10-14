@@ -338,7 +338,6 @@ def Get_derived_posterior(sample, results):
     logwt = results.logwt
     logz = results.logz
     
-    
     weight = np.exp(logwt - logz[-1])
 
     q = [0.5 - 0.5 * 0.999999426697, 0.5 + 0.5 * 0.999999426697]
