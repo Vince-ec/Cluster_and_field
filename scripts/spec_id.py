@@ -40,6 +40,7 @@ if hpath == '/home/vestrada78840/':
     out_path = '/fdata/scratch/vestrada78840/chidat/'
     pos_path = '/home/vestrada78840/posteriors/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
+    sfh_path = '/fdata/scratch/vestrada78840/SFH/'
 
 else:
     data_path = '../data/'
@@ -103,7 +104,7 @@ def get_lwa_SF(params, agebins,sp):
     sp.params['compute_light_ages'] = True
     lwa = sp.get_mags(tage = a, bands=['sdss_g'])
     sp.params['compute_light_ages'] = False
-    
+    s
     return lwa
     
 def get_lwa_delay(params, agebins,sp):
