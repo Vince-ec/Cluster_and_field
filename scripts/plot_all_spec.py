@@ -95,7 +95,7 @@ v4Scat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodss_3dhst.v4.4.cats/Cata
 GND_all = pd.read_pickle('../dataframes/galaxy_frames/GND_CLEAR.pkl')
 GSD_all = pd.read_pickle('../dataframes/galaxy_frames/GSD_CLEAR.pkl')
 
-for i in GSD_all.index[:10]:
+for i in GSD_all.index:
     if len(str(GSD_all.id[i])) < 5:
         gid = '0' + str(GSD_all.id[i])
     else:
@@ -115,13 +115,25 @@ for i in GSD_all.index[:10]:
     plt.title('GSD-' + str(GSD_all.id[i],), fontsize = 20)
     plt.xticks([5000,10000,25000,50000],[5000,10000,25000,50000])
     plt.savefig('../plots/allspec_exam/GSD-{}'.format(GSD_all.id[i]), bbox_inches = 'tight')
-"""
+
+    
 for i in GND_all.index:
+    if len(str(GND_all.id[i])) < 5:
+        gid = '0' + str(GND_all.id[i])
+    else:
+        gid = str(GND_all.id[i])
+    
+    GWV,GFL,GER = Extract_spec('N', gid)
+    
     W,P,E = Phot_load('GND', GND_all.id[i], v4Ncat)
 
     plt.figure(figsize=[12,8])
     plt.errorbar(W,P,E, fmt = 'o',ms=10)
+    
+    for ii in range(len(GWV)):
+        plt.errorbar(GWV[ii],GFL[ii],GER[ii], fmt = 'o',ms = 1, color = 'k')
+    
     plt.xscale('log')
     plt.title('GND-' + str(GND_all.id[i],), fontsize = 20)
     plt.xticks([5000,10000,25000,50000],[5000,10000,25000,50000])
-    plt.savefig('../plots/allspec_exam/GND-{}'.format(GND_all.id[i]), bbox_inches = 'tight')"""
+    plt.savefig('../plots/allspec_exam/GND-{}'.format(GND_all.id[i]), bbox_inches = 'tight')
