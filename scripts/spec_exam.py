@@ -33,6 +33,7 @@ if hpath == '/home/vestrada78840/':
     chi_path = '/fdata/scratch/vestrada78840/chidat/'
     spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
     beam_path = '/fdata/scratch/vestrada78840/beams/'
+    beam_2d_path = '/fdata/scratch/vestrada78840/beams/'
     template_path = '/fdata/scratch/vestrada78840/data/'
     out_path = '/home/vestrada78840/chidat/'
     phot_path = '/fdata/scratch/vestrada78840/phot/'
@@ -43,6 +44,7 @@ else:
     chi_path = '../chidat/'
     spec_path = '../spec_files/'
     beam_path = '../beams/'
+    beam_2d_path = '/Volumes/Vince_CLEAR/RELEASE_v2.1.0/BEAMS/'
     template_path = '../templates/'
     out_path = '../data/posteriors/'
     phot_path = '../phot/'
@@ -738,9 +740,10 @@ class Gen_spec_2D(object):
     
     def Clean_multibeam(self):
         BMX = np.load(beam_path +'beam_config/{}_{}_ex.npy'.format(self.field, self.galaxy_id))
-        clip, clipspec, omitspec = np.load('../beams/beam_config/{}_{}.npy'.format(self.field, self.galaxy_id))
-        fl = glob(beam_path + '*{}*{}*.beams.fits'.format(self.field[1], self.galaxy_id))
+        clip, clipspec, omitspec = np.load(beam_path +'beam_config/{}_{}.npy'.format(self.field, self.galaxy_id))
+        fl = glob(beam_2d_path + '*{}*/*{}*'.format(self.field[1], self.galaxy_id))
 
+        
         sz = []
         for f in fl:
             sz.append(os.path.getsize(f))
