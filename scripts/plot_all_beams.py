@@ -119,7 +119,7 @@ def Plot_beams(mb,W,P,E, field, gid):
     ax.errorbar(np.array(W)[IDP],np.array(P)[IDP],np.array(E)[IDP], fmt='o', color='k', zorder=0)
     ax.set_xscale('log')  
     
-    plt.savefig('../plots/allspec_exam/G{}D-{}_beams.png'.format(field, gid),bbox_inches = 'tight')
+    plt.savefig('../plots/newspec_exam/G{}D-{}_beams.png'.format(field, gid),bbox_inches = 'tight')
     
 def Beam_cleanup(mb, B_condition=[], R_condition=[]):
     ## conditions in form of [low-wv, hi-wv, gtr or less, flux, clip or omit]
@@ -254,8 +254,8 @@ def Phot_load(field, galaxy_id,ref_cat_loc,masterlist = '../phot/master_template
 ########################################################################################
 ########################################################################################
     
-GND_all = pd.read_pickle('../dataframes/galaxy_frames/GND_CLEAR.pkl')
-GSD_all = pd.read_pickle('../dataframes/galaxy_frames/GSD_CLEAR.pkl')
+#GND_all = pd.read_pickle('../dataframes/galaxy_frames/GND_CLEAR.pkl')
+#GSD_all = pd.read_pickle('../dataframes/galaxy_frames/GSD_CLEAR.pkl')
 
 v4Ncat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodsn_3dhst.v4.4.cats/Catalog/goodsn_3dhst.v4.4.cat',
                  format='ascii').to_pandas()
@@ -288,7 +288,7 @@ for idx in db.index:
     BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
 
     np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
-    np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])"""
+    np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
 
     
 field = 'N'
@@ -313,4 +313,45 @@ for idx in db.index:
         BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
 
         np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
-        np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
+        np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])"""
+        
+field = 'S'
+cat = v4Scat 
+ids = [18169,20960,23102,24148,24622,25053,25884,26914,27965,29928,30144,30152,35046,35579,38472,40985,42548,42985,44471,46275,46500,42113,43114,43683,42607,44133,44725]
+
+for idx in range(len(ids)):
+    if len(str(ids[idx])) < 5:
+        gid = '0' + str(ids[idx])
+    else:
+        gid = str(ids[idx])
+
+    W,P,E = Phot_load('G{}D'.format(field), ids[idx], cat)
+
+    mb  = Gen_initial_MB(field, gid)
+
+    Plot_beams(mb, W,P,E, field, gid)
+    BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
+
+    np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
+    np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
+
+    
+field = 'N'
+cat = v4Ncat 
+ids = [12006,14355,17194,20538,21618,22184,22633,23857,26544,34130,35831,37343,38126,38225,14140,33777,37107,12543,15976,26197,38061]
+
+for idx in range(len(ids)):
+    if len(str(ids[idx])) < 5:
+        gid = '0' + str(ids[idx])
+    else:
+        gid = str(ids[idx])
+
+    W,P,E = Phot_load('G{}D'.format(field), ids[idx], cat)
+
+    mb  = Gen_initial_MB(field, gid)
+
+    Plot_beams(mb, W,P,E, field, gid)
+    BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
+
+    np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
+    np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
