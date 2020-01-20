@@ -13,9 +13,9 @@ from spec_id_2d import *
 ### set home for files
 hpath = os.environ['HOME'] + '/'
 
-
 ###### create tabit db#########
 alldb = pd.read_pickle('all_galaxies.pkl')
+
 #####parameters to get Z, m1-10, z, logmass, Av, lwa, z_50, t_50, z_q, t_q, log_ssfr, Reff, compactness
 
 #make a dictionary
@@ -23,9 +23,8 @@ fitvals = {}
 params = ['m', 'lm', 'z', 'd', 'lwa']
 k = ['Z', 'lmass', 'zgrism', 'Av', 'lwa']
 
-FIELD = alldb.field.values
-GID = alldb.id.values
-
+#FIELD = alldb.field.values
+#GID = alldb.id.values
 
 for p in range(len(params)):
     m = np.repeat(-99.0,len(FIELD))
