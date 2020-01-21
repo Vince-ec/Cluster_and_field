@@ -385,15 +385,15 @@ tabfits['Re_f160'] = np.array(Reff160)
 tabfits['Re_f125_sig'] = np.array(Reff125_sig)
 tabfits['Re_f160_sig'] = np.array(Reff160_sig)
 
-tabfits['Rm_f125'] = np.array(Reff125)
-tabfits['Rm_f160'] = np.array(Reff160)
-tabfits['Rm_f125_sig'] = np.array(Reff125_sig)
-tabfits['Rm_f160_sig'] = np.array(Reff160_sig)
+tabfits['Rm_f125'] = np.array(Rmaj125)
+tabfits['Rm_f160'] = np.array(Rmaj160)
+tabfits['Rm_f125_sig'] = np.array(Rmaj125_sig)
+tabfits['Rm_f160_sig'] = np.array(Rmaj160_sig)
 
-tabfits['Ra_f125'] = np.array(Reff125)
-tabfits['Ra_f160'] = np.array(Reff160)
-tabfits['Ra_f125_sig'] = np.array(Reff125_sig)
-tabfits['Ra_f160_sig'] = np.array(Reff160_sig)
+tabfits['Ra_f125'] = np.array(Rarc125)
+tabfits['Ra_f160'] = np.array(Rarc160)
+tabfits['Ra_f125_sig'] = np.array(Rarc125_sig)
+tabfits['Ra_f160_sig'] = np.array(Rarc160_sig)
 
 #add sigma1
 
