@@ -18,10 +18,6 @@ import astropy.units as u
 ### set home for files
 hpath = os.environ['HOME'] + '/'
 
-if __name__ == '__main__':
-    field = sys.argv[1] 
-    galaxy = int(sys.argv[2])
-
 sfh_path = '/fdata/scratch/vestrada78840/SFH/'
 #sfh_path = '../data/SFH/'
 
@@ -173,8 +169,3 @@ class Gen_SFH(object):
                               
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
         self.lssfr, self.lssfr_hci, self.lssfr_offreg = Highest_density_region(y,x)
-
-
-sfh = Gen_SFH(field, galaxy, 5000)
-with open(sfh_path + '{}_{}_1D.pkl'.format(field, galaxy), 'wb') as output:
-    pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)
