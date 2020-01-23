@@ -18,8 +18,8 @@ import astropy.units as u
 ### set home for files
 hpath = os.environ['HOME'] + '/'
 
-sfh_path = '/fdata/scratch/vestrada78840/SFH/'
-#sfh_path = '../data/SFH/'
+#sfh_path = '/fdata/scratch/vestrada78840/SFH/'
+sfh_path = '../data/SFH/'
 
 zdb = pd.read_pickle(sfh_path + 'zfit_catalog.pkl')
     
