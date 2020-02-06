@@ -1,154 +1,112 @@
 #!/home/vestrada78840/miniconda3/envs/astroconda/bin/python
-from spec_exam import Gen_spec
+from spec_id import *
+import fsps
 import numpy as np
 from glob import glob
 import pandas as pd
 import os
 import sys
-import fsps
-import dynesty
-from scipy.interpolate import interp1d, RegularGridInterpolator
-from sim_engine import forward_model_grism, Salmon
-from spec_id import Scale_model
-
 hpath = os.environ['HOME'] + '/'
-
-if hpath == '/home/vestrada78840/':
-    data_path = '/fdata/scratch/vestrada78840/data/'
-    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
-    chi_path = '/fdata/scratch/vestrada78840/chidat/'
-    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/beams/'
-    template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
-    phot_path = '/fdata/scratch/vestrada78840/phot/'
-
-else:
-    data_path = '../data/'
-    model_path = hpath + 'fsps_models_for_fit/fsps_spec/'
-    chi_path = '../chidat/'
-    spec_path = '../spec_files/'
-    beam_path = '../beams/'
-    template_path = '../templates/'
-    out_path = '../data/posteriors/'
-    phot_path = '../phot/'
+  
+field = 'GND'
+galaxy = 23459
+specz = 0.8
     
-if __name__ == '__main__':
-    runnum = sys.argv[1] 
+verbose=False
+poolsize = 8
 
-tau_range = np.load(template_path + 'tau_range.npy')
-metal_range = np.load(template_path + 'metal_range.npy')
-age_range = np.load(template_path + 'age_range.npy')
-lwagrid = np.load(template_path + 'lwa_grid.npy')
+agelim = Oldest_galaxy(specz)
+zscale = 0.035 * (1 + specz)
 
-ilwagrid = RegularGridInterpolator([metal_range,tau_range],lwagrid)
+def Galfit_prior(u):
+    m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
+    a = (agelim - 1)* u[1] + 1
+
+    tsamp = np.array([u[2],u[3],u[4],u[5],u[6],u[7],u[8], u[9], u[10],u[11]])
+    taus = stats.t.ppf( q = tsamp, loc = 0, scale = 0.3, df =2.)
+    m1, m2, m3, m4, m5, m6, m7, m8, m9, m10 = logsfr_ratios_to_masses(logmass = 0, logsfr_ratios = taus, agebins = get_agebins(a))
     
-sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(1), sfh = 4, tau = 0.1)
-
-Gs = Gen_spec('GND', 21156, 1.2529, beam_path + 'o151.0_21156.g102.A.fits',  beam_path + 'o144.0_21156.g141.A.fits',
-               g102_lims=[7900, 11300], g141_lims=[11100, 16500],
-            phot_errterm = 0.03, decontam = False)  
-
-Gs.Make_sim(0.019, 3.2, 0.2 , 1.2, 0)
-
-############
-###priors###
-specz = 1.2
-bft = 0.2
-bfd = 0
-
-if bft <= 0.5:
-    tau_limit = 0.5
+    lm = Gaussian_prior(u[12], [9.5, 12.5], 11, 0.75)
+  
+    z = stats.norm.ppf(u[13],loc = specz, scale = zscale)
     
-if 0.5 < bft <= 1.0:
-    tau_limit = 1.0
+    d = log_10_prior(u[14],[1E-3,2])
+
+    bp1 = Gaussian_prior(u[15], [-0.1,0.1], 0, 0.05)
+    rp1 = Gaussian_prior(u[16], [-0.05,0.05], 0, 0.025)
     
-if bft > 1.0:
-    tau_limit = 2.0
+    ba = log_10_prior(u[17], [0.1,10])
+    bb = log_10_prior(u[18], [0.0001,1])
+    bl = log_10_prior(u[19], [0.01,1])
     
-if bfd <= 0.5:
-    dust_limit = 0.5
+    ra = log_10_prior(u[20], [0.1,10])
+    rb = log_10_prior(u[21], [0.0001,1])
+    rl = log_10_prior(u[22], [0.01,1])
+   
+    #lwa = get_lwa([m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], get_agebins(a),sp)[0]
     
-if 0.5 < bfd <= 1.0:
-    dust_limit = 1.0
+    #return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
+    return [m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl]
+
+def Galfit_L(X):
+    #m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
+    m, a, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, lm, z, d, bp1, rp1, ba, bb, bl, ra, rb, rl= X
     
-if bfd > 1.0:
-    dust_limit = 2.0
-
-def prior_transform(u):
-    m = (0.03 * u[0] + 0.001) / 0.019
-    a = 5. * u[1] + 0.1
-    t = tau_limit*u[2] + 0.01
-    z = specz + 0.004 * (2*u[3] - 1)
-    d = dust_limit*u[4]
+    sp.params['dust2'] = d
+    sp.params['dust1'] = d
+    sp.params['logzsol'] = np.log10(m)
     
-    lwvs = ilwagrid([m,t])[0]
+    time, sfr, tmax = convert_sfh(get_agebins(a), [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10], maxage = a*1E9)
 
-    lwa = interp1d(age_range,lwvs)(a)
-        
-    return [m, lwa, t, z, d]
-############
-#likelihood#
-def Full_forward_model(spec, wave, flux, specz):
-    Bmwv, Bmflx= forward_model_grism(spec.Bbeam, wave * (1 + specz), flux)
-    Rmwv, Rmflx= forward_model_grism(spec.Rbeam, wave * (1 + specz), flux)
-    
-    Pmfl = spec.Sim_phot_mult(wave * (1 + specz),flux)
-    
-    Bmfl = Resize(spec.Bwv,Bmwv,Bmflx)
-    Rmfl = Resize(spec.Rwv,Rmwv,Rmflx)
-    
-    return Bmfl, Rmfl, Pmfl
-
-def Full_scale(spec, Bmfl, Rmfl, Pmfl):
-
-    BC = Scale_model(spec.SBflx, spec.SBerr, Bmfl)
-    RC = Scale_model(spec.SRflx, spec.SRerr, Rmfl)
-    PC = Scale_model(spec.SPflx, spec.SPerr, Pmfl)
-
-    return BC, RC, PC
-
-
-def Full_fit(spec, Bmfl, Rmfl, Pmfl):
-
-    Bchi = np.sum((((spec.SBflx - Bmfl) / spec.SBerr)**2))
-    Rchi = np.sum((((spec.SRflx - Rmfl) / spec.SRerr)**2))
-    Pchi = np.sum((((spec.SPflx - Pmfl) / spec.SPerr)**2))
-    
-    return Bchi, Rchi, Pchi
-
-def Resize(fit_wv, mwv, mfl):
-    mfl = interp1d(mwv,mfl)(fit_wv)
-    return mfl
-
-
-def loglikelihood(X):
-    m,lwa,t,z,d = X
-    
-    sp.params['logzsol'] = np.log10( m )
-    sp.params['tau'] = t
-    
-    lwvs = ilwagrid([m,t])[0]
-
-    a = interp1d(lwvs,age_range)(lwa)
+    sp.set_tabular_sfh(time,sfr) 
     
     wave, flux = sp.get_spectrum(tage = a, peraa = True)
-        
-    Bmfl, Rmfl, Pmfl = Full_forward_model(Gs, wave, flux * Salmon(d, wave), z)
-    
-    BC, RC, PC = Full_scale(Gs, Bmfl, Rmfl, Pmfl)
 
-    Bchi, Rchi, Pchi = Full_fit(Gs, BC * Bmfl, RC * Rmfl, PC * Pmfl)
-                  
-    return -0.5 * (Bchi + Rchi + Pchi)
-############
-####run#####
-dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim = 5, sample = 'rwalk') 
+    Gmfl, Pmfl = Full_forward_model(Gs, wave, F_lam_per_M(flux,wave*(1+z),z,0,sp.stellar_mass)*10**lm, z, 
+                                    wvs, flxs, errs, beams, trans)
+       
+    Gmfl = Full_calibrate_2(Gmfl, [bp1, rp1], wvs, flxs, errs)
+   
+    return Full_fit_sim(Gs, Gmfl, Pmfl, [ba,ra], [bb,rb], [bl, rl], wvs, flxs, errs)
 
-dsampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.005, print_progress=False)
+#########define fsps#########
+sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
 
+#########load in model spectra########
 
-dres = dsampler.results
-############
-####save####
-np.save(out_path + 'sim_nestedfit_{0}.npy'.format(runnum), dres) 
+lbt, sfh = np.load('../data/SFH/sim_sfh.npy')
+sp.set_tabular_sfh(lbt,sfh[::-1]) 
+wave, flux = sp.get_spectrum(tage = 6.008, peraa = True)
+
+###########gen spec##########
+Gs = Gen_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
+Gs.Make_sim(wave,flux,specz=0.8, rndstate=100)
+
+####generate grism items#####
+wvs, flxs, errs, beams, trans = Gather_simgrism_data(Gs)
+
+#######set up dynesty########
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 23, nlive_points = 4000,
+                                         sample = 'rwalk', bound = 'multi',
+                                         pool=Pool(processes=8), queue_size=8)
+
+sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
+
+dres = sampler.results
+
+np.save(out_path + '{0}_{1}_simtabfit'.format(field, galaxy), dres) 
+
+##save out P(z) and bestfit##
+
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm',
+          'z', 'd', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl']
+for i in range(len(params)):
+    t,pt = Get_posterior(dres,i)
+    np.save(pos_path + '{0}_{1}_simtabfit_P{2}'.format(field, galaxy, params[i]),[t,pt])
+
+bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bflm, bfz, bfd,\
+    bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl= dres.samples[-1]
+
+np.save(pos_path + '{0}_{1}_simtabfit_bfit'.format(field, galaxy),
+        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bfm7, bfm8, bfm9, bfm10, bflm, bfz, bfd,
+         bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, dres.logl[-1]])
