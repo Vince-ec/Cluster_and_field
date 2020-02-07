@@ -75,13 +75,14 @@ sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1
 #########load in model spectra########
 
 lbt, sfh = np.load('../data/SFH/sim_sfh.npy')
-sp.set_tabular_sfh(lbt,sfh[::-1]) 
+sp.set_tabular_sfh(lbt,sfh[::-1]/np.trapz(sfh, lbt*1E9)) 
 wave, flux = sp.get_spectrum(tage = 6.008, peraa = True)
 
 ###########gen spec##########
 Gs = Gen_spec(field, galaxy, 1, phot_errterm = 0.04, irac_err = 0.08) 
-Gs.Make_sim(wave,flux,specz=0.8, rndstate=100)
+flam = F_lam_per_M(flux,wave*(1+0.8),0.8,0,sp.stellar_mass)*10**11
 
+Gs.Make_sim(wave,flam,specz=0.8, rndstate=100)
 ####generate grism items#####
 wvs, flxs, errs, beams, trans = Gather_simgrism_data(Gs)
 
