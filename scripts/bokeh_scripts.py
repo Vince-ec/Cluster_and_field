@@ -59,7 +59,7 @@ def get_positions(ra, dec, D, W):
     return Of, Lf, Hf
 
 def img_ext(field, gid):
-    D = (1.5 * u.arcsec * (1*u.arcmin/(60*u.arcsec)) * (1*u.deg/(60*u.arcmin))).value
+    D = (2 * u.arcsec * (1*u.arcmin/(60*u.arcsec)) * (1*u.deg/(60*u.arcmin))).value
 
     if field == 'GND':
         ra=v4N.query('id == {}'.format(gid)).ra.values[0]
@@ -72,7 +72,7 @@ def img_ext(field, gid):
 
     Of1, Lf1, Hf1 = get_positions(ra, dec, D, W)
 
-    dx = np.abs(Of1[0] - Lf1[0])
+    dx = np.abs(Of1[1] - Lf1[1])
 
     if field == 'GND':
         gal_img = f105N_img[Of1[1] - dx : Of1[1]+1 + dx , Of1[0] - dx: Of1[0]+1 + dx]
