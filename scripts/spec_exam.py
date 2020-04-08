@@ -768,11 +768,11 @@ class Gen_spec_2D(object):
             if bm.grism.parent_file in BMX:            
                 if clipspec[idc] == 1:
                     xspec, yspec, yerr = bm.beam.optimal_extract(bm.grism.data['SCI'] - bm.contam,ivar = bm.ivar) 
-                    for lms in clip[idc]:
-                        for i in range(len(xspec)):
-                            if lms[0] < xspec[i]< lms[1]:
-                                bm.grism.data['SCI'].T[i] = np.zeros_like(bm.grism.data['SCI'].T[i])
-                                bm.grism.data['ERR'].T[i] = np.ones_like(bm.grism.data['ERR'].T[i])*1000  
+                    lms = clip[idc]
+                    for i in range(len(xspec)):
+                        if lms[0] < xspec[i]< lms[1]:
+                            bm.grism.data['SCI'].T[i] = np.zeros_like(bm.grism.data['SCI'].T[i])
+                            bm.grism.data['ERR'].T[i] = np.ones_like(bm.grism.data['ERR'].T[i])*1000  
 
                 if omitspec[idc] == 1:
                     pass

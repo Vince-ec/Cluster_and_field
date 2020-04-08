@@ -254,20 +254,19 @@ def Phot_load(field, galaxy_id,ref_cat_loc,masterlist = '../phot/master_template
 ########################################################################################
 ########################################################################################
     
-#GND_all = pd.read_pickle('../dataframes/galaxy_frames/GND_CLEAR.pkl')
+GND_all = pd.read_pickle('../dataframes/galaxy_frames/GND_CLEAR.pkl')
 #GSD_all = pd.read_pickle('../dataframes/galaxy_frames/GSD_CLEAR.pkl')
 
 v4Ncat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodsn_3dhst.v4.4.cats/Catalog/goodsn_3dhst.v4.4.cat',
                  format='ascii').to_pandas()
-v4Scat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodss_3dhst.v4.4.cats/Catalog/goodss_3dhst.v4.4.cat',
-                 format='ascii').to_pandas()
+#v4Scat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodss_3dhst.v4.4.cats/Catalog/goodss_3dhst.v4.4.cat',
+#                 format='ascii').to_pandas()
 
 temps = {}
 for k in args['t1']:
     if k[0] == 'f' or k[5:] in ['Ha', 'Hb', 'Hg', 'Hd'] :
         temps[k] = args['t1'][k]
-        
-"""        
+"""            
 field = 'S'
 cat = v4Scat 
 db = GSD_all
@@ -289,7 +288,7 @@ for idx in db.index:
 
     np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
     np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
-
+"""
     
 field = 'N'
 cat = v4Ncat 
@@ -313,8 +312,9 @@ for idx in db.index:
         BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
 
         np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
-        np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])"""
-        
+        np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
+ 
+"""
 field = 'S'
 cat = v4Scat 
 ids = [18169,20960,23102,24148,24622,25053,25884,26914,27965,29928,30144,30152,35046,35579,38472,40985,42548,42985,44471,46275,46500,42113,43114,43683,42607,44133,44725]
@@ -354,4 +354,4 @@ for idx in range(len(ids)):
     BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
 
     np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
-    np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
+    np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])"""

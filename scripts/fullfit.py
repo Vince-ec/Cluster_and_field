@@ -17,7 +17,8 @@ verbose=False
 poolsize = 8
 
 agelim = Oldest_galaxy(specz)
-zscale = 0.035 * (1 + specz)
+#zscale = 0.035 * (1 + specz)
+zscale = 0.0035 * (1 + specz)
 
 def Galfit_prior(u):
     m = Gaussian_prior(u[0], [0.002,0.03], 0.019, 0.08)/ 0.019
@@ -89,7 +90,7 @@ sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 24, nlive_
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=8), queue_size=8)
 
-sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
+sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
 dres = sampler.results
 
