@@ -17,16 +17,17 @@ import fsps
 hpath = os.environ['HOME'] + '/'
 
 if hpath == '/home/vestrada78840/':
-    data_path = '/fdata/scratch/vestrada78840/data/'
-    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
-    chi_path = '/fdata/scratch/vestrada78840/chidat/'
-    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/beams/'
-    template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
-    phot_path = '/fdata/scratch/vestrada78840/phot/'
-    alma_path = '/fdata/scratch/vestrada78840/Alma_files/'
-    mfit_path =  '/fdata/scratch/vestrada78840/multifit_data/'
+    data_path = '/scratch/user/vestrada78840/data/'
+    model_path ='/scratch/user/vestrada78840/fsps_spec/'
+    chi_path = '/scratch/user/vestrada78840/chidat/'
+    spec_path = '/scratch/user/vestrada78840/spec/'
+    beam_path = '/scratch/user/vestrada78840/beams/'
+    template_path = '/scratch/user/vestrada78840/data/'
+    out_path = '/scratch/user/vestrada78840/chidat/'
+    phot_path = '/scratch/user/vestrada78840/phot/'
+    alma_path = '/scratch/user/vestrada78840/Alma_files/'
+    mfit_path =  '/scratch/user/vestrada78840/multifit_data/'
+    mask_path = '/scratch/user/vestrada78840/spec/mask/'
 
 else:
     data_path = '../data/'
@@ -39,7 +40,7 @@ else:
     phot_path = '../phot/'
     alma_path = '../Alma_files/'
     mfit_path =  '../data/multifit_data/'
-    
+    mask_path = '../spec_files/mask/'
 """
 def:
 -load_spec
@@ -73,7 +74,7 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None,
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
     if grism:
-        W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
     
         section_db = pd.read_pickle(spec_path + 'all_section.pkl')
     
@@ -112,7 +113,7 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None,
                 IDT = np.repeat(True, len(W))
 
         if decontam and os.path.isfile(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id)):
-            MASK = np.load(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
+            MASK = np.load(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id),allow_pickle=True)
             
             for m in MASK:
                 for i in range(len(W)):
@@ -123,7 +124,7 @@ def load_spec(field, galaxy_id, instr, lims, specz, grism = True, select = None,
         return W[IDT], WRF[IDT], F[IDT], E[IDT], FLT[IDT], np.array(IDX)[IDT], L[IDT], C[IDT]
             
     else:
-        W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
         
         WRF = W / (1 + specz)
         
@@ -144,7 +145,7 @@ def load_ALMA_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = No
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
     if grism:
-        W, F, E, FLT, L, C = np.load(alma_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT, L, C = np.load(alma_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
     
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
@@ -162,7 +163,7 @@ def load_ALMA_spec(field, galaxy_id, instr, lims, specz, grism = True, trim = No
         return W[WRF > trim], WRF[WRF > trim], F[WRF > trim], E[WRF > trim], FLT[WRF > trim], np.array(IDX)[WRF > trim], L[WRF > trim], C[WRF > trim]
 
     else:
-        W, F, E, FLT = np.load(alma_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT = np.load(alma_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
         
         WRF = W / (1 + specz)
         
@@ -191,11 +192,11 @@ def load_phot_precalc(Pnum):
                 IDP.append(ii)
 
     ### Define precalculated terms for photometry
-    SWV, TR = np.load(template_path + 'master_tmp.npy')
-    B = np.load(template_path + 'bottom_precalc.npy')
-    DNU = np.load(template_path + 'dnu_precalc.npy')
-    ADJ = np.load(template_path + 'adj_precalc.npy')
-    MFWV = np.load(template_path + 'effwv_precalc.npy') 
+    SWV, TR = np.load(template_path + 'master_tmp.npy',allow_pickle=True)
+    B = np.load(template_path + 'bottom_precalc.npy',allow_pickle=True)
+    DNU = np.load(template_path + 'dnu_precalc.npy',allow_pickle=True)
+    ADJ = np.load(template_path + 'adj_precalc.npy',allow_pickle=True)
+    MFWV = np.load(template_path + 'effwv_precalc.npy',allow_pickle=True) 
         
     return MDF, IDP, SWV, TR, B, DNU, ADJ, MFWV
         
@@ -258,15 +259,15 @@ def apply_tmp_err(wv, wv_rf, er, flx, instr, mdl_err = True):
     
     if mdl_err:
         if instr == 'P':
-            WV_RF, MEF = np.load(template_path + 'P_mdl_EF.npy')
-            WV, IEF = np.load(template_path + 'P_inst_EF.npy')
+            WV_RF, MEF = np.load(template_path + 'P_mdl_EF.npy',allow_pickle=True)
+            WV, IEF = np.load(template_path + 'P_inst_EF.npy',allow_pickle=True)
             
             iMEF = interp1d(WV_RF,MEF)(wv_rf)
             iIEF = interp1d(WV,IEF)(wv)
 
         if instr == 'R':
-            WV_RF, MEF = np.load(template_path + 'R_mdl_EF.npy')
-            WV, IEF = np.load(template_path + 'R_inst_EF.npy')
+            WV_RF, MEF = np.load(template_path + 'R_mdl_EF.npy',allow_pickle=True)
+            WV, IEF = np.load(template_path + 'R_inst_EF.npy',allow_pickle=True)
             
             iMEF = interp1d(WV_RF,MEF)(wv_rf)
             iIEF = interp1d(WV,IEF)(wv)
@@ -365,7 +366,7 @@ def decontaminate(W, WRF, F, E, FLT, IDX, L, C):
     return W, WRF, F, E, FLT, IDX, L, C
 
 def get_mask(field, galaxy_id, W, instr):
-    MASK = np.load(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id))
+    MASK = np.load(spec_path + 'mask/{0}_{1}_mask.npy'.format(field, galaxy_id),allow_pickle=True)
             
     IDT = np.repeat(True, len(W))
 
@@ -463,7 +464,7 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
     if grism:
-        W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT, L, C = np.load(spec_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
         
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
@@ -483,7 +484,7 @@ def load_spec_SF(field, galaxy_id, instr, lims, specz, grism = True, mask = True
             return W, WRF, F, E, FLT, np.array(IDX), L, C
 
     else:
-        W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT = np.load(phot_path + '{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
         
         WRF = W / (1 + specz)
         
@@ -505,7 +506,7 @@ def load_spec_SF_2(field, galaxy_id, instr, lims, specz, grism = True, mask = Tr
     bfilters = [34, 36, 37, 58, 117, 118, 195, 196, 220, 224]
 
     if grism:
-        W, F, E, FLT, L, C = np.load('../CLEAR_show_and_tell/{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT, L, C = np.load('../CLEAR_show_and_tell/{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
         
         IDX = [U for U in range(len(W)) if lims[0] <= W[U] <= lims[-1] and F[U]**2 > 0]
 
@@ -525,7 +526,7 @@ def load_spec_SF_2(field, galaxy_id, instr, lims, specz, grism = True, mask = Tr
             return W, WRF, F, E, FLT, np.array(IDX), L, C
 
     else:
-        W, F, E, FLT = np.load('../CLEAR_show_and_tell/{0}_{1}_{2}.npy'.format(field, galaxy_id, instr))
+        W, F, E, FLT = np.load('../CLEAR_show_and_tell/{0}_{1}_{2}.npy'.format(field, galaxy_id, instr),allow_pickle=True)
         
         WRF = W / (1 + specz)
         

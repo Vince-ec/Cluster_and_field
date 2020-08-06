@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 from shutil import copy
 from glob import glob
-from bokeh.models import HoverTool, ColumnDataSource, OpenURL, TapTool, DataTable, TableColumn, Label, BoxAnnotation
+from scipy.interpolate import interp1d
+from bokeh.models import HoverTool, ColumnDataSource, OpenURL, TapTool, DataTable, TableColumn, Label, BoxAnnotation, Band
 from bokeh import palettes
 from bokeh.plotting import figure,save
 from bokeh.io import show, output_notebook, output_file
@@ -70,6 +71,20 @@ def IMG_plot(gid):
     
 def SFH_plot(DB, SDB, gid):
     rshift = DB.query('id == {}'.format(gid)).zgrism.values[0]
+    t50 = DB.query('id == {}'.format(gid)).t_50.values[0]
+    t50_err = DB.query('id == {}'.format(gid)).t_50_hdr.values[0]
+    
+    t50_l = t50_err[0]
+    t50_h = t50_err[1]
+    
+    x = np.linspace(t50_l, t50_h, 100)
+    top = interp1d(SDB.LBT,SDB['{}_84'.format(gid)])(x)
+    bottom = interp1d(SDB.LBT,SDB['{}_16'.format(gid)])(x)
+    
+
+    df = pd.DataFrame({'x':x, 'top':top, 'bottom':bottom})
+    source = ColumnDataSource(df)
+    
     LBT = SDB.LBT
     SFH = SDB['{}'.format(gid)]
     LBT = LBT[SFH**2 > 0]
@@ -88,7 +103,14 @@ def SFH_plot(DB, SDB, gid):
     r1 = sfh.line(source = src_sfh, x = 'LBT', y='SFH', color = '#C1253C', line_width = 2)
     sfh.line(SDB.LBT,SDB['{}_16'.format(gid)], color ='black', line_width = 2)
     sfh.line(SDB.LBT,SDB['{}_84'.format(gid)], color ='black', line_width = 2)
+    sfh.line([t50, t50], [interp1d(SDB.LBT,SDB['{}_16'.format(gid)])(t50), 
+             interp1d(SDB.LBT,SDB['{}_84'.format(gid)])(t50)],line_width=2.4, color = 'black')
+    sfh.line([t50, t50], [interp1d(SDB.LBT,SDB['{}_16'.format(gid)])(t50), 
+             interp1d(SDB.LBT,SDB['{}_84'.format(gid)])(t50)],line_width=2, color = '#ED2D39')
 
+    band = Band(base='x', lower='top', upper='bottom', source=source, level='underlay',
+                fill_color = '#4E7577', fill_alpha=0.7, line_width=1, line_color='black')
+    sfh.add_layout(band)
     sfh.add_tools(HoverTool(tooltips = [('Lookback time', '@LBT'), 
                                         ('SFH', '@SFH'), ('z', '@z')], renderers = [r1]))
     sfh.xaxis.axis_label_text_font_size = "20pt"
@@ -200,9 +222,7 @@ def Table_plot(DB, gid):
     S1.yaxis.minor_tick_line_color = S1.xaxis.minor_tick_line_color =None  
     return S1
 
-#for gid in [19850, 22358,23857,23758,23459,24177,27951,27185,27006,29879,37325,37210,40597,41147,42615,44133,47140]:
 for idx in cats.DB.index:
-    #idx = cats.DB.query('id == {}'.format(gid)).index.values[0]
     img = IMG_plot(cats.DB.id[idx])
     tbl = Table_plot(cats.DB, cats.DB.id[idx])
     sfh = SFH_plot(cats.DB, cats.SFH, cats.DB.id[idx])

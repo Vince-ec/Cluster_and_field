@@ -31,16 +31,16 @@ from george import kernels
 hpath = os.environ['HOME'] + '/'
 
 if hpath == '/home/vestrada78840/':
-    data_path = '/fdata/scratch/vestrada78840/data/'
-    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
-    chi_path = '/fdata/scratch/vestrada78840/chidat/'
-    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/beams/'
-    template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    data_path = '/scratch/user/vestrada78840/data/'
+    model_path ='/scratch/user/vestrada78840/fsps_spec/'
+    chi_path = '/scratch/user/vestrada78840/chidat/'
+    spec_path = '/scratch/user/vestrada78840/stack_specs/'
+    beam_path = '/scratch/user/vestrada78840/beams/'
+    template_path = '/scratch/user/vestrada78840/data/'
+    out_path = '/scratch/user/vestrada78840/chidat/'
     pos_path = '/home/vestrada78840/posteriors/'
-    phot_path = '/fdata/scratch/vestrada78840/phot/'
-    sfh_path = '/fdata/scratch/vestrada78840/SFH/'
+    phot_path = '/scratch/user/vestrada78840/phot/'
+    sfh_path = '/scratch/user/vestrada78840/SFH/'
 
 else:
     data_path = '../data/'
@@ -104,7 +104,7 @@ def get_lwa_SF(params, agebins,sp):
     sp.params['compute_light_ages'] = True
     lwa = sp.get_mags(tage = a, bands=['sdss_g'])
     sp.params['compute_light_ages'] = False
-    s
+    
     return lwa
     
 def get_lwa_delay(params, agebins,sp):
@@ -413,3 +413,51 @@ def zfit_L(X):
     Gchi, Pchi = Full_fit(Gs, Gmfl, PC*Pmfl, wvs, flxs, errs)
                   
     return -0.5 * (Gchi + Pchi)
+
+def Gather_grism_data_from_2d(spec, sp):
+    time, sfr, tmax = convert_sfh(get_agebins(5, binnum = 6), [0.1, 0.1, 0.1, 0.1, 0.1, 0.1], maxage = 5*1E9)
+    sp.set_tabular_sfh(time,sfr) 
+    model_wave, model_flux = sp.get_spectrum(tage = 3.6, peraa = True)
+
+    wvs = []
+    flxs = []
+    errs = []
+    beams = []
+    trans = []
+    if spec.g102:
+        wvs.append(spec.Bwv)
+        flxs.append(spec.Bfl)
+        errs.append(spec.Ber)
+        BEAMS = []
+        PAlist = []
+        for bm in spec.mb_g102.beams:
+            if bm.get_dispersion_PA() not in PAlist:
+                PAlist.append(bm.get_dispersion_PA())
+                BEAMS.append(bm)
+        beams.append(BEAMS)
+        
+        TRANS = []
+        for i in BEAMS:
+            W, F = forward_model_grism(i, model_wave, np.ones(len(model_wave)))
+            TRANS.append(interp1d(W,F)(spec.Bwv))     
+        trans.append(TRANS)  
+
+    if spec.g141:
+        wvs.append(spec.Rwv)
+        flxs.append(spec.Rfl)
+        errs.append(spec.Rer)
+        BEAMS = []
+        PAlist = []
+        for bm in spec.mb_g141.beams:
+            if bm.get_dispersion_PA() not in PAlist:
+                PAlist.append(bm.get_dispersion_PA())
+                BEAMS.append(bm)
+        beams.append(BEAMS)
+        
+        TRANS = []
+        for i in BEAMS:
+            W, F = forward_model_grism(i, model_wave, np.ones(len(model_wave)))
+            TRANS.append(interp1d(W,F)(spec.Rwv))     
+        trans.append(TRANS)  
+        
+    return np.array([wvs, flxs, errs, beams, trans])

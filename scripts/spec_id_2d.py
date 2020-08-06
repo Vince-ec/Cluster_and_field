@@ -15,16 +15,16 @@ from time import time
 hpath = os.environ['HOME'] + '/'
 
 if hpath == '/home/vestrada78840/':
-    data_path = '/fdata/scratch/vestrada78840/data/'
-    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
-    chi_path = '/fdata/scratch/vestrada78840/chidat/'
-    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/beams/'
-    template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/fdata/scratch/vestrada78840/chidat/'
+    data_path = '/scratch/user/vestrada78840/data/'
+    model_path ='/scratch/user/vestrada78840/fsps_spec/'
+    chi_path = '/scratch/user/vestrada78840/chidat/'
+    spec_path = '/scratch/user/vestrada78840/spec/'
+    beam_path = '/scratch/user/vestrada78840/beams/'
+    template_path = '/scratch/user/vestrada78840/data/'
+    out_path = '/scratch/user/vestrada78840/chidat/'
     pos_path = '/home/vestrada78840/posteriors/'
-    phot_path = '/fdata/scratch/vestrada78840/phot/'
-    args = np.load('/fdata/scratch/vestrada78840/multifit_data/fit_args.npy')[0]
+    phot_path = '/scratch/user/vestrada78840/phot/'
+    args = np.load('/scratch/user/vestrada78840/data/fit_args.npy',allow_pickle=True)[0]
 
 else:
     data_path = '../data/'
@@ -36,7 +36,7 @@ else:
     out_path = '../data/out_dict/'
     pos_path = '../data/posteriors/'
     phot_path = '../phot/'
-    args = np.load('../data/multifit_data/fit_args.npy')[0]
+    args = np.load('../data/multifit_data/fit_args.npy',allow_pickle=True)[0]
 
 def Gen_multibeams(beams, args = args):
     mb = multifit.MultiBeam(beams,**args)

@@ -119,7 +119,7 @@ def Plot_beams(mb,W,P,E, field, gid):
     ax.errorbar(np.array(W)[IDP],np.array(P)[IDP],np.array(E)[IDP], fmt='o', color='k', zorder=0)
     ax.set_xscale('log')  
     
-    plt.savefig('../plots/newspec_exam/G{}D-{}_beams.png'.format(field, gid),bbox_inches = 'tight')
+    plt.savefig('../plots/newspec_exam_2/G{}D-{}_beams.png'.format(field, gid),bbox_inches = 'tight')
     
 def Beam_cleanup(mb, B_condition=[], R_condition=[]):
     ## conditions in form of [low-wv, hi-wv, gtr or less, flux, clip or omit]
@@ -254,59 +254,63 @@ def Phot_load(field, galaxy_id,ref_cat_loc,masterlist = '../phot/master_template
 ########################################################################################
 ########################################################################################
     
-GND_all = pd.read_pickle('../dataframes/galaxy_frames/GND_CLEAR.pkl')
-#GSD_all = pd.read_pickle('../dataframes/galaxy_frames/GSD_CLEAR.pkl')
+CNdb = pd.read_pickle('../dataframes/galaxy_frames/massMetal_GND_full.pkl')
+CSdb = pd.read_pickle('../dataframes/galaxy_frames/massMetal_GSD_full.pkl')
 
 v4Ncat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodsn_3dhst.v4.4.cats/Catalog/goodsn_3dhst.v4.4.cat',
                  format='ascii').to_pandas()
-#v4Scat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodss_3dhst.v4.4.cats/Catalog/goodss_3dhst.v4.4.cat',
-#                 format='ascii').to_pandas()
+v4Scat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodss_3dhst.v4.4.cats/Catalog/goodss_3dhst.v4.4.cat',
+                 format='ascii').to_pandas()
 
 temps = {}
 for k in args['t1']:
     if k[0] == 'f' or k[5:] in ['Ha', 'Hb', 'Hg', 'Hd'] :
         temps[k] = args['t1'][k]
-"""            
+
 field = 'S'
 cat = v4Scat 
-db = GSD_all
+db = CSdb
 
 for idx in db.index:
-    rshift = db.zphot[idx] 
+    rshift = db.z_50[idx] 
 
     if len(str(db.id[idx])) < 5:
         gid = '0' + str(db.id[idx])
     else:
         gid = str(db.id[idx])
 
-    W,P,E = Phot_load('G{}D'.format(field), db.id[idx], cat)
-
-    mb  = Gen_initial_MB(field, gid)
-
-    Plot_beams(mb,W,P,E, field, gid)
-    BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
-
-    np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
-    np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
-"""
-    
-field = 'N'
-cat = v4Ncat 
-db = GND_all
-
-for idx in db.index:
-    if idx > 273:
-        rshift = db.zphot[idx] 
-
-        if len(str(db.id[idx])) < 5:
-            gid = '0' + str(db.id[idx])
-        else:
-            gid = str(db.id[idx])
-
+    if not os.path.isfile('../beams/beam_config/GSD_{}.npy'.format(gid)):
+        print('run',glob('../beams/beam_config/GSD_{}.npy'.format(gid)))
         W,P,E = Phot_load('G{}D'.format(field), db.id[idx], cat)
 
         mb  = Gen_initial_MB(field, gid)
 
+        Plot_beams(mb,W,P,E, field, gid)
+        BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
+
+        np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
+        np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
+
+    else:
+        print(glob('../beams/beam_config/GSD_{}.npy'.format(gid)))
+
+field = 'N'
+cat = v4Ncat 
+db = CNdb
+
+for idx in db.index:
+    rshift = db.z_50[idx] 
+
+    if len(str(db.id[idx])) < 5:
+        gid = '0' + str(db.id[idx])
+    else:
+        gid = str(db.id[idx])
+
+    if not os.path.isfile('../beams/beam_config/GND_{}.npy'.format(gid)):
+        print('run',glob('../beams/beam_config/GND_{}.npy'.format(gid)))
+        W,P,E = Phot_load('G{}D'.format(field), db.id[idx], cat)
+
+        mb  = Gen_initial_MB(field, gid)
 
         Plot_beams(mb,W,P,E, field, gid)
         BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
@@ -314,6 +318,9 @@ for idx in db.index:
         np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
         np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
  
+    else:
+        print(glob('../beams/beam_config/GND_{}.npy'.format(gid)))
+
 """
 field = 'S'
 cat = v4Scat 

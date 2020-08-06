@@ -18,33 +18,32 @@ import astropy.units as u
 ### set home for files
 hpath = os.environ['HOME'] + '/'
 
-#sfh_path = '/fdata/scratch/vestrada78840/SFH/'
+
+sfh_path = '/scratch/user/vestrada78840/SFH/'
+pos_path = '/home/vestrada78840/posteriors/'
+ 
 #sfh_path = '../data/SFH/'
-
-#zdb = pd.read_pickle(sfh_path + 'zfit_catalog.pkl')
+#pos_path = '../data/posteriors/'
     
-class Gen_SFH(object):
-    def __init__(self, field, galaxy, trials = 1000):
+class Gen_sim_SFH(object):
+    def __init__(self, fname, trials = 1000):
         ppf_dict = {}
-        flist = glob(pos_path + '{}_{}_*_Pm*.npy'.format(field,galaxy))
+        fname = glob(pos_path + '{}'.format(fname))[0]
+        fit_db = np.load(fname, allow_pickle = True).item()
 
-        for f in flist:
-            ext = re.split('{}_{}_'.format(field,galaxy),re.split('_Pm[0-9].npy', os.path.basename(f))[0])[1]
-            if ext in ['tabfit', 'SFfit_p1']:
-                fext = ext
-                break
+        fext = os.path.basename(fname).split('_')[2]
 
-        if fext == 'tabfit':
-            params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm']
-            x,px = np.load(pos_path + '{}_{}_{}_Pz.npy'.format(field, galaxy,fext))
-            rshift = x[px == max(px)][0]
-        else:
-            params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm']
-            rshift = zdb.query('id == {}'.format(galaxy)).zfit.values[0]
-                     
-        for i in params:
-            x,px = np.load(pos_path + '{}_{}_{}_P{}.npy'.format(field, galaxy, fext, i))
-            ppf_dict[i] = Gen_PPF(x,px)
+        params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm']
+        P_params = ['Pa', 'Pm1', 'Pm2', 'Pm3', 'Pm4', 'Pm5', 'Pm6', 'Pm7', 'Pm8', 'Pm9', 'Pm10', 'Plm']
+        x = fit_db['z']
+        px = fit_db['Pz']
+        rshift = x[px == max(px)][0]
+            
+
+        for i in range(len(params)):
+            x = fit_db[params[i]]
+            px = fit_db[P_params[i]]
+            ppf_dict[params[i]] = Gen_PPF(x,px)
 
         idx = 0
 
@@ -96,7 +95,7 @@ class Gen_SFH(object):
                 sfr_grid.append(interp1d(lbt,lbsfr,bounds_error=False,fill_value=0)(self.fulltimes))
 
                 ssfr_grid.append(lbsfr[0] / 10**lmass)
-                
+
                 mwa_grid.append(np.trapz(sfr_grid[idx]*self.fulltimes,self.fulltimes)/np.trapz(sfr_grid[idx],self.fulltimes))
                 idx +=1
             except:
@@ -169,3 +168,10 @@ class Gen_SFH(object):
                               
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
         self.lssfr, self.lssfr_hci, self.lssfr_offreg = Highest_density_region(y,x)
+
+fnames = glob(pos_path + '*trial*')
+
+for fname in fnames:
+    sfh = Gen_sim_SFH(fname, 5000)
+    with open(sfh_path + '{}_1D.pkl'.format(fname), 'wb') as output:
+        pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)

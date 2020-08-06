@@ -28,15 +28,15 @@ def:
 """
 
 if hpath == '/home/vestrada78840/':
-    data_path = '/fdata/scratch/vestrada78840/data/'
-    model_path ='/fdata/scratch/vestrada78840/fsps_spec/'
-    chi_path = '/fdata/scratch/vestrada78840/chidat/'
-    spec_path = '/fdata/scratch/vestrada78840/stack_specs/'
-    beam_path = '/fdata/scratch/vestrada78840/beams/'
-    beam_2d_path = '/fdata/scratch/vestrada78840/beams/'
-    template_path = '/fdata/scratch/vestrada78840/data/'
-    out_path = '/home/vestrada78840/chidat/'
-    phot_path = '/fdata/scratch/vestrada78840/phot/'
+    data_path = '/scratch/user/vestrada78840/data/'
+    model_path ='/scratch/user/vestrada78840/fsps_spec/'
+    chi_path = '/scratch/user/vestrada78840/chidat/'
+    spec_path = '/scratch/user/vestrada78840/spec/'
+    beam_path = '/scratch/user/vestrada78840/beams/'
+    beam_2d_path = '/scratch/user/vestrada78840/beams/'
+    template_path = '/scratch/user/vestrada78840/data/'
+    out_path = '/scratch/user/vestrada78840/chidat/'
+    phot_path = '/scratch/user/vestrada78840/phot/'
 
 else:
     data_path = '../data/'
@@ -693,7 +693,7 @@ def Calibrate_grism(spec, Gmfl, p1):
 class Gen_spec_2D(object):
     def __init__(self, field, galaxy_id, specz,
                  g102_lims=[8000, 11300], g141_lims=[11300, 16500],
-                phot_errterm = 0, irac_err = None):
+                phot_errterm = 0, irac_err = None, mask = False, simple_spec=False):
         self.field = field
         self.galaxy_id = galaxy_id
         self.specz = specz
@@ -714,13 +714,23 @@ class Gen_spec_2D(object):
         ##load spec and phot
         self.Clean_multibeam()
         
-        if self.g102:
-            self.Bwv, self.Bfl, self.Ber = self.Gen_1D_spec(self.mb_g102, g102_lims, 'G102')
-            self.Bwv_rf = self.Bwv/(1 + self.specz)
-        
-        if self.g141:
-            self.Rwv, self.Rfl, self.Rer = self.Gen_1D_spec(self.mb_g141, g141_lims, 'G141')
-            self.Rwv_rf = self.Rwv/(1 + self.specz)
+        if simple_spec:
+            if self.g102:
+                self.Bwv, self.Bfl, self.Ber = self.Simple_spec('G102')
+                self.Bwv_rf = self.Bwv/(1 + self.specz)
+
+            if self.g141:
+                self.Rwv, self.Rfl, self.Rer = self.Simple_spec('G141')
+                self.Rwv_rf = self.Rwv/(1 + self.specz)
+            
+        else:
+            if self.g102:
+                self.Bwv, self.Bfl, self.Ber = self.Gen_1D_spec(self.mb_g102, g102_lims, 'G102', self.specz, mask = mask)
+                self.Bwv_rf = self.Bwv/(1 + self.specz)
+
+            if self.g141:
+                self.Rwv, self.Rfl, self.Rer = self.Gen_1D_spec(self.mb_g141, g141_lims, 'G141', self.specz, mask = mask)
+                self.Rwv_rf = self.Rwv/(1 + self.specz)
         
         self.Pwv, self.Pwv_rf, self.Pflx, self.Perr, self.Pnum = load_spec(self.field,
                                 self.galaxy_id, 'phot', self.g141_lims,  self.specz, grism = False, select = None)
@@ -739,10 +749,17 @@ class Gen_spec_2D(object):
         return forward_model_phot(model_wave, model_flux, self.IDP, self.sens_wv, self.b, self.dnu, self.adj)
     
     def Clean_multibeam(self):
-        BMX = np.load(beam_path +'beam_config/{}_{}_ex.npy'.format(self.field, self.galaxy_id))
-        clip, clipspec, omitspec = np.load(beam_path +'beam_config/{}_{}.npy'.format(self.field, self.galaxy_id))
-        fl = glob(beam_2d_path + '*{}*/*{}*'.format(self.field[1], self.galaxy_id))
+        if int(self.galaxy_id) < 10000:
+            gid = '0' + str(self.galaxy_id)
+        else:
+            gid = self.galaxy_id
 
+        BMX = np.load(beam_path +'beam_config/{}_{}_ex.npy'.format(self.field, gid),allow_pickle=True)
+        clip, clipspec, omitspec = np.load(beam_path +'beam_config/{}_{}.npy'.format(self.field, gid),allow_pickle=True)
+        if hpath == '/home/vestrada78840/':
+            fl = glob(beam_2d_path + '*{}*{}*'.format(self.field[1], gid))
+        else:
+            fl = glob(beam_2d_path + '*{}*/*{}*'.format(self.field[1], gid))
         
         sz = []
         for f in fl:
@@ -826,11 +843,13 @@ class Gen_spec_2D(object):
         except:
             self.g141 = False
             
-    def Gen_1D_spec(self, MB, lims, instr, tfit = 'none'):
-        if tfit != 'none':
-            sptbl = MB.oned_spectrum(tfit = tfit)
-        else:
-            sptbl = MB.oned_spectrum()
+    def Gen_1D_spec(self, MB, lims, instr, specz, mask = False):
+        #if tfit != 'none':
+        #    sptbl = MB.oned_spectrum(tfit = tfit)
+        #else:
+        #    sptbl = MB.oned_spectrum()
+        temps = MB.template_at_z(specz, templates = args['t1'], fitter='lstsq')
+        sptbl = MB.oned_spectrum(tfit = temps)
 
         w = sptbl[instr]['wave']
         f = sptbl[instr]['flux']
@@ -839,4 +858,31 @@ class Gen_spec_2D(object):
 
         clip = [U for U in range(len(w)) if lims[0] < w[U] < lims[1]]
         
-        return w[clip], f[clip]/fl[clip], e[clip]/fl[clip]
+        w = w[clip]
+        f = f[clip]
+        e = e[clip]
+        fl = fl[clip]
+        print(mask)
+        if mask:
+            try:
+                clip = np.repeat(True, len(w))
+
+                m_fl = np.load(mask_path + '{}_{}_mask.npy'.format(self.field, self.galaxy_id),allow_pickle=True)
+                for m in m_fl:
+                    for i in range(len(w)):
+                        if m[0] < w[i] < m[1]:
+                            clip[i] = False
+
+                w = w[clip]
+                f = f[clip]
+                e = e[clip]
+                fl = fl[clip]
+            except:
+                print('no mask')
+        print('advanced')
+        return w[f>0], f[f>0]/fl[f>0], e[f>0]/fl[f>0]
+    
+    def Simple_spec(self,instr):
+        W,F,E = np.load(spec_path +'{}_{}_{}.npy'.format(self.field, self.galaxy_id, instr.lower()),allow_pickle=True)
+        print('simple')
+        return W,F,E

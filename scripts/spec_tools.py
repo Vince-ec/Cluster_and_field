@@ -479,11 +479,11 @@ class Rescale_sfh(object):
         params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm']
 
         for i in params:
-            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, i))
+            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, i),allow_pickle=True)
             ppf_dict[i] = Gen_PPF(x,px)
 
         idx = 0
-        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
+        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy),allow_pickle=True)
         rshift = x[px == max(px)][0]
         self.fulltimes = np.arange(0.0,Oldest_galaxy(rshift),0.01)
         sfr_grid = []
@@ -630,10 +630,10 @@ class Posterior_spec(object):
         params = ['m','a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm','d']
 
         for i in params:
-            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, i))
+            x,px = np.load('../data/posteriors/{0}_{1}_tabfit_P{2}.npy'.format(field, galaxy, i),allow_pickle=True)
             ppf_dict[i] = Gen_PPF(x,px)
 
-        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy))
+        x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pz.npy'.format(field, galaxy),allow_pickle=True)
         self.rshift = x[px == max(px)][0]
 
         idx = 0
@@ -675,7 +675,7 @@ class Rescale_SF_sfh(object):
         params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm']
        
         for i in params:
-            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SF{2}_P{3}.npy'.format(field, galaxy, run_name, i))
+            x,px = np.load('../Casey_data/posteriors/{0}_{1}_SF{2}_P{3}.npy'.format(field, galaxy, run_name, i),allow_pickle=True)
             ppf_dict[i] = Gen_PPF(x,px)
 
         idx = 0
@@ -778,7 +778,7 @@ class Posterior_SF_spec(object):
         params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm','d']
 
         for i in params:
-            x,px = np.load('../data/posteriors/{0}_{1}_SFfit_p1_P{2}.npy'.format(field, galaxy, i))
+            x,px = np.load('../data/posteriors/{0}_{1}_SFfit_p1_P{2}.npy'.format(field, galaxy, i),allow_pickle=True)
             ppf_dict[i] = Gen_PPF(x,px)
 
         idx = 0
@@ -864,14 +864,14 @@ class Gen_SFH(object):
 
         if fext == 'tabfit':
             params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm']
-            x,px = np.load('../data/posteriors/{}_{}_{}_Pz.npy'.format(field, galaxy,fext))
+            x,px = np.load('../data/posteriors/{}_{}_{}_Pz.npy'.format(field, galaxy,fext),allow_pickle=True)
             rshift = x[px == max(px)][0]
         else:
             params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm']
             rshift = redshift
 
         for i in params:
-            x,px = np.load('../data/posteriors/{}_{}_{}_P{}.npy'.format(field, galaxy, fext, i))
+            x,px = np.load('../data/posteriors/{}_{}_{}_P{}.npy'.format(field, galaxy, fext, i),allow_pickle=True)
             ppf_dict[i] = Gen_PPF(x,px)
 
         idx = 0

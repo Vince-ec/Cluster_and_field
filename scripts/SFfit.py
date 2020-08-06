@@ -1,13 +1,16 @@
 #!/home/vestrada78840/miniconda3/envs/astroconda/bin/python
 from spec_id import *
+from spec_exam import Gen_spec_2D
 import fsps
 import numpy as np
 from glob import glob
 import pandas as pd
 import os
 import sys
+from time import time
 hpath = os.environ['HOME'] + '/'
-  
+START = time()
+    
 if __name__ == '__main__':
     field = sys.argv[1] 
     galaxy = int(sys.argv[2])
@@ -52,14 +55,14 @@ def Galfit_prior(u):
     rb = log_10_prior(u[16], [0.0001,1])
     rl = log_10_prior(u[17], [0.01,1])
    
-    lwa = get_lwa_SF([m, a, m1, m2, m3, m4, m5, m6], get_agebins(a, binnum = 6),sp)[0]
+    #lwa = get_lwa_SF([m, a, m1, m2, m3, m4, m5, m6], get_agebins(a, binnum = 6),sp)[0]
     
     #return [m, a, t, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl]
-    return [m, a, m1, m2, m3, m4, m5, m6, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa]
+    return [m, a, m1, m2, m3, m4, m5, m6, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl]
 
 def Galfit_L(X):
     #m, a, t, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl = X
-    m, a, m1, m2, m3, m4, m5, m6, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl, lwa = X
+    m, a, m1, m2, m3, m4, m5, m6, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl = X
     
     sp.params['dust2'] = d
     sp.params['logzsol'] = np.log10(m)
@@ -82,14 +85,13 @@ sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2
 sp.params['dust1'] = 0
 
 ###########gen spec##########
-Gs = Gen_SF_spec(field, galaxy, 1, g102_lims=[8200, 11300], g141_lims=[11200, 16000],
-        phot_errterm = 0.04, irac_err = 0.08) 
-
+Gs = Gen_spec_2D(field, galaxy, specz, g102_lims=[8200, 11300], g141_lims=[11200, 16000],
+                 phot_errterm = 0.04, irac_err = 0.08, mask = True)
 ####generate grism items#####
-wvs, flxs, errs, beams, trans = Gather_grism_data(Gs)
+wvs, flxs, errs, beams, trans = Gather_grism_data_from_2d(Gs, sp)
 
 #######set up dynesty########
-sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 19, nlive_points = 4000,
+sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 18, nlive_points = 4000,
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=8), queue_size=8)
 
@@ -107,12 +109,21 @@ np.save(out_path + '{0}_{1}_SFfit_p1'.format(field, galaxy), dres)
 
 ##save out P(z) and bestfit##
 
-params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm', 'd', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl', 'lwa']
+fit_dict = {}
+params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'lm', 'd', 'bp1', 'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl']
+P_params = ['Pm', 'Pa', 'Pm1', 'Pm2', 'Pm3', 'Pm4', 'Pm5', 'Pm6', 'Plm', 'Pd', 
+            'Pbp1', 'Prp1', 'Pba', 'Pbb', 'Pbl', 'Pra', 'Prb', 'Prl']
+bf_params = ['bfm', 'bfa', 'bfm1', 'bfm2', 'bfm3', 'bfm4', 'bfm5', 'bfm6', 
+            'bflm', 'bfd', 'bfbp1', 'bfrp1', 'bfba', 'bfbb', 'bfbl', 'bfra', 'bfrb', 'bfrl']
+
+bfits = dres.samples[-1]
+
 for i in range(len(params)):
     t,pt = Get_posterior(dres,i)
-    np.save(pos_path + '{0}_{1}_SFfit_p1_P{2}'.format(field, galaxy, params[i]),[t,pt])
+    fit_dict[params[i]] = t
+    fit_dict[P_params[i]] = pt
+    fit_dict[bf_params[i]] = bfits[i]
 
-bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, blwa = dres.samples[-1]
-
-np.save(pos_path + '{0}_{1}_SFfit_p1_bfit'.format(field, galaxy),
-        [bfm, bfa, bfm1, bfm2, bfm3, bfm4, bfm5, bfm6, bflm, bfd, bfbp1, bfrp1, bfba, bfbb, bfbl, bfra, bfrb, bfrl, blwa, dres.logl[-1]])
+np.save(pos_path + '{0}_{1}_SFfit_p1_fits'.format(field, galaxy),fit_dict)
+END = time()
+print(END - START)
