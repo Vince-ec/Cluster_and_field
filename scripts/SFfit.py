@@ -21,14 +21,15 @@ verbose=False
 poolsize = 8
 
 def Z_prior_mu(lmass):
-    M = [9, 11.5]
-    P = [-0.5813, 0.06818]
+    M = [7,9, 11.5,13]
+    P = [-0.5813,-0.5813, 0.06818,0.06818]
     iP = interp1d(M,P)
     return iP(lmass) 
 
-onesig = (0.04 + 0.47)/2
+onesig = (0.04 + 0.47)
 mllim = np.log10(0.001 / 0.019)
 mhlim = np.log10(0.031 / 0.019)
+
 
 agelim = Oldest_galaxy(specz)
 
@@ -57,7 +58,6 @@ def Galfit_prior(u):
    
     #lwa = get_lwa_SF([m, a, m1, m2, m3, m4, m5, m6], get_agebins(a, binnum = 6),sp)[0]
     
-    #return [m, a, t, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl]
     return [m, a, m1, m2, m3, m4, m5, m6, lm, d, bp1, rp1, ba, bb, bl, ra, rb, rl]
 
 def Galfit_L(X):
@@ -95,13 +95,7 @@ sampler = dynesty.DynamicNestedSampler(Galfit_L, Galfit_prior, ndim = 18, nlive_
                                          sample = 'rwalk', bound = 'multi',
                                          pool=Pool(processes=8), queue_size=8)
 
-sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=True)
-
-#sampler = dynesty.NestedSampler(Galfit_L, Galfit_prior, ndim = 19, nlive_points = 4000,
-#                                         sample = 'rwalk', bound = 'multi',
-#                                         pool=Pool(processes=8), queue_size=8)
-
-#sampler.run_nested(print_progress=True)
+sampler.run_nested(wt_kwargs={'pfrac': 1.0}, dlogz_init=0.01, print_progress=False)
 
 dres = sampler.results
 

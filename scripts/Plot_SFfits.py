@@ -35,161 +35,106 @@ cmap = sea.cubehelix_palette(12, start=2, rot=.2, dark=0, light=1.0, as_cmap=Tru
 ### set home for files
 hpath = os.environ['HOME'] + '/'
 
-if hpath == '/Users/Vince.ec/':
-    dpath = '/Volumes/Vince_research/Data/' 
-    
-else:
-    dpath = hpath + 'Data/' 
 
-def plot_SF_posterior(field, galaxy, param, name, x_name, y_name, roundto = 3):
-    grow = sfdb.query('id == {0}'.format(galaxy))
-    z,pz = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_P{2}.npy'.format(field, galaxy, param))
-    ipz = interp1d(np.round(z,roundto),pz)
+import make_sfh_tool
+from importlib import reload
+reload(make_sfh_tool)
 
-    plt.plot(z,pz,'k')
-    for i in range(len(grow['{0}_hci'.format(name)].values[0])//2):
-        hdr = np.linspace(np.round(grow['{0}_hci'.format(name)].values[0][2*i],roundto),
-                          np.round(grow['{0}_hci'.format(name)].values[0][2*i+1],roundto))
-        plt.fill_between(hdr, ipz(hdr), color = '#4E7577', alpha=0.75)
-    plt.vlines(grow['{0}'.format(name)].values[0],0, ipz(np.round(grow['{0}'.format(name)].values[0],roundto)), color = '#C1253C')
-    plt.xlabel('{0}'.format(x_name), fontsize=15)
-    plt.ylabel('P({0})'.format(y_name), fontsize=15)
-    plt.tick_params(axis='both', which='major', labelsize=15)
-    plt.ylim(0,max(pz)*1.05)
-    if max(pz) >= 3:
-        plt.yticks(np.linspace(0,max(pz)*1.05,4).astype(int))
+from make_sfh_tool import Gen_SFH
+Edb = pd.read_pickle('../dataframes/fitdb/emission_line_galaxies_prior2_v1.pkl')
 
-def PLOT_SF(field, galaxy, savefig = True):
-    grow = sfdb.query('id == {0}'.format(galaxy))
+for i in Edb.index:
+    gid = Edb.id[i]
+    field = Edb.field[i]
+    if not os.path.isfile('../plots/emission_line_gal/{}_{}.png'.format(field, gid)):
+        zgrizli = Edb.zgrism[i]
+        SFH = make_sfh_tool.Gen_SFH_p2(field, gid, zgrizli)
 
-    Gs = Gen_SF_spec(field, galaxy, grow.zgrism.values[0], phot_errterm = 0.04, irac_err = 0.08, mask = False) 
-    Flam = Posterior_SF_spec(field, galaxy, grow.zgrism.values[0])
-    
-    x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_Pbp1.npy'.format(field, galaxy))
-    bp1 = x[px == max(px)][0]
-    x,px = np.load('../Casey_data/posteriors/{0}_{1}_SFfit_Prp1.npy'.format(field, galaxy))
-    rp1 = x[px == max(px)][0]
-    
-    Gs.Best_fit_scale_flam(Flam.wave, Flam.SPEC, Flam.rshift, bp1, rp1)
+        spec = np.load('../full_specs/{}_{}_fullspec_p2.npy'.format(field, gid), allow_pickle = True).item()
+        param = np.load('../data/posteriors/{}_{}_SFfit_p2_fits.npy'.format(field, gid), allow_pickle = True).item()
 
-    sfh = Rescale_SF_sfh(field, galaxy, grow.zgrism.values[0])
+        IDB = [U for U in range(len(spec['wave'])) if min(spec['Pwv']/(1+zgrizli)) < spec['wave'][U] < min(spec['Bwv']/(1+zgrizli))]
+        if len(spec['Rwv']) > 0:
+            IDR = [U for U in range(len(spec['wave'])) if max(spec['Rwv']/(1+zgrizli)) < spec['wave'][U] < max(spec['Pwv']/(1+zgrizli))]
+        else:
+            IDR = [U for U in range(len(spec['wave'])) if max(spec['Bwv']/(1+zgrizli)) < spec['wave'][U] < max(spec['Pwv']/(1+zgrizli))]
 
-    gs = GridSpec(3,4, hspace=0.3, wspace = 0.3)   
+            
+        gs = gridspec.GridSpec(2,3, hspace=0.3)
 
-    plt.figure(figsize=[20,15])
-    ###############plot tab##################
-    plt.subplot(gs[0,:2])
+        plt.figure(figsize=[20,10])
+        ax1 = plt.subplot(gs[0,:]) ; ax2 = plt.subplot(gs[1,0]) ; ax3 = plt.subplot(gs[1,1]) ; ax4 = plt.subplot(gs[1,2])
 
-    if Gs.g102:
-        plt.errorbar(np.log10(Gs.Bwv_rf),Gs.Bfl *1E18,Gs.Ber *1E18,
-                linestyle='None', marker='o', markersize=3, color='#36787A', zorder = 2)
-        plt.plot(np.log10(Gs.Bwv_rf),Gs.Bmfl *1E18,'k', zorder = 4)
-        IDB = [U for U in range(len(Flam.wave)) if Flam.wave[U] < Gs.Bwv_rf[0]]
-    else:
-        IDB = [U for U in range(len(Flam.wave)) if Flam.wave[U] < Gs.Rwv_rf[0]]
-        
-    if Gs.g141:
-        plt.errorbar(np.log10(Gs.Rwv_rf),Gs.Rfl *1E18,Gs.Rer *1E18,
-                linestyle='None', marker='o', markersize=3, color='#EA2E3B', zorder = 2)
-        plt.plot(np.log10(Gs.Rwv_rf),Gs.Rmfl *1E18,'k', zorder = 4)
-        IDR = [U for U in range(len(Flam.wave)) if Flam.wave[U] > Gs.Rwv_rf[-1]]
-    else:
-        IDR = [U for U in range(len(Flam.wave)) if Flam.wave[U] > Gs.Bwv_rf[-1]]
 
-    plt.errorbar(np.log10(Gs.Pwv_rf),Gs.Pflx*1E18,Gs.Perr*1E18,
-            linestyle='None', marker='o', markersize=10, markerfacecolor='#B5677D', zorder = 1,
-                 markeredgecolor = '#685877',markeredgewidth = 1)
+        ax1.errorbar(spec['Bwv']/(1+zgrizli),spec['Bfl'] * 1E18,spec['Ber']* 1E18, linestyle = 'none',
+                   marker='o', markersize=3, color='#377eb8',zorder = 2)
+        if len(spec['Rfl']):
+            ax1.errorbar(spec['Rwv']/(1+zgrizli),spec['Rfl'] * 1E18,spec['Rer']* 1E18, linestyle = 'none',
+                marker='o', markersize=3, color='#e41a1c',zorder = 2)
 
-    plt.plot(np.log10(Flam.wave)[IDB],Flam.SPEC[IDB]*1E18,'k', alpha = 1, label = 'Model', zorder=5)
-    plt.plot(np.log10(Flam.wave)[IDR],Flam.SPEC[IDR]*1E18,'k', alpha = 1)
-    plt.xlim(np.log10(min(Gs.Pwv_rf)*0.95),np.log10(max(Gs.Pwv_rf)*1.05))
+        ax1.errorbar(spec['Pwv']/(1+zgrizli),spec['Pfl'] * 1E18,spec['Per']* 1E18,
+                linestyle='None', marker='o', markersize=10, color='#4daf4a',zorder = 1)
 
-    plt.xticks(np.log10([2500,5000,7500,10000,25000]),[2500,5000,7500,10000,25000])
-    plt.title(galaxy, fontsize=25)
-    plt.xlabel(r'Wavelength ($\rm  \AA$)', fontsize=20)
-    plt.ylabel(r'F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/ \rm \AA $)', fontsize=20)
-    plt.tick_params(axis='both', which='major', labelsize=15)
+        ax1.plot(spec['Bwv']/(1+zgrizli),spec['Bmfl'] * 1E18, 'k', linewidth = 2, zorder = 10)
+        if len(spec['Rfl']):
+            ax1.plot(spec['Rwv']/(1+zgrizli),spec['Rmfl'] * 1E18, 'k', linewidth = 2, zorder = 10)
+        ax1.plot(spec['wave'][IDB],spec['flam'][IDB] * 1E18, 'k', linewidth = 2, zorder = 10)
+        ax1.plot(spec['wave'][IDR],spec['flam'][IDR] * 1E18, 'k', linewidth = 2, zorder = 10, 
+                label = '{}-{}, z={}'.format(field, gid, np.round(zgrizli, 3)))
 
-    ###############sfh plot################
-    isfhl = interp1d(sfh.LBT,sfh.SFH_16)
-    isfhh = interp1d(sfh.LBT,sfh.SFH_84)
+        ax1.legend(loc = 1, fontsize = 15)
+        ax1.set_xscale('log')
+        ax1.set_xticks([2500,5000,7500,10000,25000])
+        ax1.set_xticklabels([2500,5000,7500,10000,25000])
+        ax1.minorticks_off()
 
-    ax1 = plt.subplot(gs[0,2:])
-    ax2 = ax1.twiny()
+        ax1.set_xlim(min(spec['Pwv']/(1+zgrizli))*0.95, max(spec['Pwv']/(1+zgrizli))*1.05)
+        ymax = max(spec['Pfl'])
+        if ymax < max(spec['Bfl']):
+            ymax = max(spec['Bfl'])
+        if len(spec['Rfl']):
+            if ymax < max(spec['Rfl']):
+                ymax = max(spec['Rfl'])
+        ax1.set_ylim(-0.05,ymax * 1.1* 1E18)
+        ######################
+        iP = interp1d(param['lm'], param['Plm'])
+        ax2.plot(param['lm'], param['Plm'], linewidth = 3, color = 'k')
+        ax2.stem(Edb.query('id == {}'.format(gid)).lmass.values,iP(Edb.query('id == {}'.format(gid)).lmass.values),
+                markerfmt = 'none')
+        HDRL = Edb.query('id == {}'.format(gid)).lmass_lower.values[0]
+        HDRH = Edb.query('id == {}'.format(gid)).lmass_upper.values[0]
+        ax2.fill_between(np.linspace(HDRL, HDRH), iP(np.linspace(HDRL, HDRH)), alpha = 0.3)
+        ######################
+        iP = interp1d(param['m'], param['Pm'])
+        ax3.plot(param['m'], param['Pm'], linewidth = 3, color = 'k')
+        ax3.stem(Edb.query('id == {}'.format(gid)).Z.values,iP(Edb.query('id == {}'.format(gid)).Z.values),
+                markerfmt = 'none')
+        HDRL = Edb.query('id == {}'.format(gid)).Z_lower.values[0]
+        HDRH = Edb.query('id == {}'.format(gid)).Z_upper.values[0]
+        ax3.fill_between(np.linspace(HDRL, HDRH), iP(np.linspace(HDRL, HDRH)), alpha = 0.3)
+        ######################
+        iP = interp1d(SFH.log_sSFR, SFH.Plog_sSFR)
+        ax4.plot(SFH.log_sSFR, SFH.Plog_sSFR, linewidth = 3, color = 'k')
+        ax4.stem([SFH.lssfr],[iP(SFH.lssfr)],
+                markerfmt = 'none')
+        HDRL = SFH.lssfr_hci[0]
+        HDRH = SFH.lssfr_hci[1]
+        ax4.fill_between(np.linspace(HDRL, HDRH), iP(np.linspace(HDRL, HDRH)), alpha = 0.3)
 
-    ax1.plot(sfh.fulltimes, sfh.sfr_grid.T, color = '#532436', alpha=.075, linewidth = 0.5)
-    ax1.plot(sfh.LBT,sfh.SFH, color = '#C1253C', linewidth = 2, zorder = 10)
-    ax1.plot(sfh.LBT,sfh.SFH_16, 'k', linewidth = 2)
-    ax1.plot(sfh.LBT,sfh.SFH_84, 'k', linewidth = 2)
+        ax1.set_xlabel('Wavelength ($ \\rm\AA$)', fontsize=22)
+        ax1.set_ylabel('F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/\AA $)', fontsize=22)
+        ax1.tick_params(axis='both', which='major', labelsize=17)
 
-    ax2.set_xlim(ax1.get_xlim())
-    ax2.set_xticks(np.arange(0,int(sfh.fulltimes[-1])))
-    ax2.set_xticklabels(np.round(lbt_to_z(np.arange(0,int(sfh.fulltimes[-1])) + cosmo.lookback_time(grow.zgrism.values[0]).value),2))
-    ax2.xaxis.set_ticks_position('top')
+        ax2.set_xlabel('log(M$_*$/M$_\odot$)', fontsize=20)
+        ax2.set_ylabel('P(log(M$_*$/M$_\odot$))', fontsize=20)
+        ax2.tick_params(axis='both', which='major', labelsize=15)
 
-    ax1.set_xlabel('Look-back time (Gyr)', fontsize=15)
-    ax1.set_ylabel('SFR ($M_\odot$ / yr)', fontsize=15)
-    ax2.set_xlabel('Redshift (z)', fontsize=15) 
-    ax1.tick_params(axis='both', which='major', labelsize=15)
-    ax2.tick_params(axis='both', which='major', labelsize=15)
+        ax3.set_xlabel('Metallicity (Z$_\odot$)', fontsize=20)
+        ax3.set_ylabel('P(Z$_\odot$)', fontsize=20)
+        ax3.tick_params(axis='both', which='major', labelsize=15)
 
-    ax1.vlines(grow.t_50.values[0],isfhl(grow.t_50.values[0]), isfhh(grow.t_50.values[0]), color = '#4E7577', linewidth = 2, zorder = 11)
+        ax4.set_xlabel('log(sSFR (yr$^{-1}$))', fontsize=20)
+        ax4.set_ylabel('P(log(sSFR))', fontsize=20)
+        ax4.tick_params(axis='both', which='major', labelsize=15)
 
-    for i in range(len(grow.t_50_hci.values[0])//2):
-        hdr = np.linspace(grow.t_50_hci.values[0][2*i],grow.t_50_hci.values[0][2*i+1])
-
-        ax1.fill_between(hdr, isfhh(hdr), isfhl(hdr), color = '#4E7577', alpha=0.75, zorder = 9)
-        ax1.vlines(grow.t_50_hci.values[0][2*i],isfhl(grow.t_50_hci.values[0][2*i]),isfhh(grow.t_50_hci.values[0][2*i]), 
-                   color = 'k', linewidth = 0.5, zorder = 9)
-        ax1.vlines(grow.t_50_hci.values[0][2*i+1],isfhl(grow.t_50_hci.values[0][2*i+1]),isfhh(grow.t_50_hci.values[0][2*i+1]), 
-                   color = 'k', linewidth = 0.5, zorder = 9)
-
-    ###############plot zoom tab##################
-    plt.subplot(gs[1,:2])
-
-    if Gs.g102:
-        plt.errorbar(Gs.Bwv_rf,Gs.Bfl *1E18,Gs.Ber *1E18,
-                linestyle='None', marker='o', markersize=3, color='#36787A', zorder = 2)
-        plt.plot(Gs.Bwv_rf,Gs.Bmfl *1E18,'k', zorder = 4)
-        
-    if Gs.g141:
-        plt.errorbar(Gs.Rwv_rf,Gs.Rfl *1E18,Gs.Rer *1E18,
-                linestyle='None', marker='o', markersize=3, color='#EA2E3B', zorder = 2)
-        plt.plot(Gs.Rwv_rf,Gs.Rmfl *1E18,'k', zorder = 4)
-
-    plt.xlabel(r'Wavelength ($\rm  \AA$)', fontsize=20)
-    plt.ylabel(r'F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/ \rm \AA $)', fontsize=20)
-    plt.tick_params(axis='both', which='major', labelsize=15)
-        
-    #################plot image###################
-    img = IMG_pull(field, galaxy)
-    
-    plt.subplot(gs[1,2:])
-    plt.imshow(img,aspect='equal')
-    plt.title('Blue = F105W, Green = F125W, Red = F160W', fontsize = 15)
-    plt.xticks([])
-    plt.yticks([])
-        
-    ###############P(Z)################
-    plt.subplot(gs[2,0])
-    plot_SF_posterior(field, galaxy, 'm', 'Z', 'Z / Z$_\odot$', 'Z / Z$_\odot$')
-
-    ###############P(d)################
-    plt.subplot(gs[2,1])
-    plot_SF_posterior(field, galaxy, 'd', 'Av', 'Dust (Av)', 'Av')
-
-    ###############P(lwa)################
-    plt.subplot(gs[2,2])
-    plot_SF_posterior(field, galaxy, 'lwa', 'lwa', 'LWA (Gyr)', 'LWA')
-
-    ###############P(logmass)################
-    plt.subplot(gs[2,3])
-    plot_SF_posterior(field, galaxy, 'lm', 'lmass', 'log(M/M$_\odot$)', 'log(M/M$_\odot$)')
-
-    if savefig:
-        plt.savefig('../Casey_data/plots/all_data_{0}_{1}.png'.format(field, galaxy),bbox_inches = 'tight')
-
-sfdb = pd.read_pickle('../Casey_data/SF_db.pkl')
-
-for i in sfdb.index:
-    PLOT_SF(sfdb.field[i], sfdb.id[i])
+        plt.savefig('../plots/emission_line_gal/{}_{}.png'.format(field, gid) ,bbox_inches = 'tight')

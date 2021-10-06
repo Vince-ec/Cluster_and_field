@@ -20,7 +20,8 @@ import sys
 import dynesty
 from scipy import stats
 from spec_tools import Oldest_galaxy
-from astropy.cosmology import Planck13 as cosmo
+from astropy.cosmology import FlatLambdaCDM
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 from multiprocessing import Pool
 from prospect.models.transforms import logsfr_ratios_to_masses
 from spec_stats import Get_posterior
@@ -135,6 +136,24 @@ def get_agebins(maxage, binnum = 10):
 #############
 ####prior####
 #############
+def get_tx_vals(rand_vals, ncomp = 4):
+    alpha = np.arange(ncomp-1, 0, -1)
+    z_fraction = stats.beta.ppf(q=rand_vals, a = alpha*5, b=np.ones_like(alpha)*5)
+    sfr_fraction = np.zeros(len(z_fraction) + 1)
+    sfr_fraction[0] = 1.0 - z_fraction[0]
+    for i in range(1, len(z_fraction)):
+        sfr_fraction[i] = np.prod(z_fraction[:i]) * (1.0 - z_fraction[i])
+    sfr_fraction[-1] = 1 - np.sum(sfr_fraction[:-1])
+    return from_rand_to_dval(sfr_fraction)
+
+def from_rand_to_dval(rvals):
+    dvals = np.array([U/np.sum(rvals)  for U in rvals])
+    x = []
+    for i in range(len(dvals)):
+        x.append(np.sum(dvals[0:i+1]))
+    
+    return x[:-1]
+
 def log_10_prior(value, limits):
     """ Uniform prior in log_10(x) where x is the parameter. """
     value = 10**((np.log10(limits[1]/limits[0]))*value
@@ -195,6 +214,8 @@ def zfit_prior(u):
 ##########################
 #functions for likelihood#
 ##########################
+
+
 class noise_model(object):
     """ A class for modelling the noise properties of spectroscopic
     data, including correlated noise.
@@ -425,9 +446,9 @@ def Gather_grism_data_from_2d(spec, sp):
     beams = []
     trans = []
     if spec.g102:
-        wvs.append(spec.Bwv)
-        flxs.append(spec.Bfl)
-        errs.append(spec.Ber)
+        wvs.append(np.array(spec.Bwv))
+        flxs.append(np.array(spec.Bfl))
+        errs.append(np.array(spec.Ber))
         BEAMS = []
         PAlist = []
         for bm in spec.mb_g102.beams:
@@ -443,9 +464,9 @@ def Gather_grism_data_from_2d(spec, sp):
         trans.append(TRANS)  
 
     if spec.g141:
-        wvs.append(spec.Rwv)
-        flxs.append(spec.Rfl)
-        errs.append(spec.Rer)
+        wvs.append(np.array(spec.Rwv))
+        flxs.append(np.array(spec.Rfl))
+        errs.append(np.array(spec.Rer))
         BEAMS = []
         PAlist = []
         for bm in spec.mb_g141.beams:
@@ -461,3 +482,38 @@ def Gather_grism_data_from_2d(spec, sp):
         trans.append(TRANS)  
         
     return np.array([wvs, flxs, errs, beams, trans])
+
+import george
+from george import kernels
+def gp_interpolator(x,y,res = 1000, Nparam = 3):
+    
+    yerr = np.zeros_like(y)
+    yerr[2:(2+Nparam)] = 0.001/np.sqrt(Nparam)
+    if len(yerr) > 26:
+        yerr[2:(2+Nparam)] = 0.1/np.sqrt(Nparam)
+
+    #kernel = np.var(yax) * kernels.ExpSquaredKernel(np.median(yax)+np.std(yax))
+    #k2 = np.var(yax) * kernels.LinearKernel(np.median(yax),order=1)
+    #kernel = np.var(y) * kernels.Matern32Kernel(np.median(y)) #+ k2
+    kernel = np.var(y) * (kernels.Matern32Kernel(np.median(y)) + kernels.LinearKernel(np.median(y), order=2))
+    gp = george.GP(kernel)
+
+    #print(xax.shape, yerr.shape)
+
+    gp.compute(x.ravel(), yerr.ravel())
+
+    x_pred = np.linspace(np.amin(x), np.amax(x), res)
+    y_pred, pred_var = gp.predict(y.ravel(), x_pred, return_var=True)
+    return x_pred, y_pred
+
+def tuple_to_sfh_stand_alone(sfh_tuple, zval):
+    mass_quantiles = np.array([0., 0.,  0.25, 0.5,  0.75,1.,1.,1.,1., 1.  ])
+    time_quantiles = np.array([0,0.01,sfh_tuple[3],sfh_tuple[4],sfh_tuple[5],0.96,0.97,0.98,0.99,1])
+
+    time_arr_interp, mass_arr_interp = gp_interpolator(time_quantiles, mass_quantiles, Nparam = 3)
+    sfh_scale = 10**(sfh_tuple[0])/(cosmo.age(zval).value*1e9/1000)
+    sfh = np.diff(mass_arr_interp)*sfh_scale
+    sfh[sfh<0] = 0
+    sfh = np.insert(sfh,0,[0])
+
+    return sfh, time_arr_interp * cosmo.age(zval).value

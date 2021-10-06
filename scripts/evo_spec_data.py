@@ -40,98 +40,9 @@ if hpath == '/Users/Vince.ec/':
     
 else:
     dpath = hpath + 'Data/' 
-
-alldb = pd.read_pickle('../dataframes/fitdb/allfits_1D.pkl')
-sfdb = pd.read_pickle('../dataframes/fitdb/SFfits_1D.pkl')
-
-inout = []
-for i in alldb.index:
-    IO = 'i'
-    if alldb.field[i] == 'GND' and alldb.id[i] in sfdb.query('field == "GND"').id.values:
-        IO = 'o' 
-    if alldb.field[i] == 'GSD' and alldb.id[i] in sfdb.query('field == "GSD"').id.values:
-        IO = 'o' 
-    inout.append(IO)
-    
-alldb['inout'] = inout
-
-Qdb = alldb.query('inout == "i" and t_50 > 0')
-
-adb = pd.concat([Qdb, sfdb])
-adb = adb.reset_index()
-adb = adb.drop(columns='index')
-Adb = adb.query('AGN != "AGN" and lmass > 10 and 0.7 < zgrism < 2.7')
-
-from scipy.optimize import curve_fit
-
-def gauss(x,mu,sigma,A):
-    return A*np.exp(-(x-mu)**2/2/sigma**2)
-
-def bimodal(x,mu1,sigma1,A1,mu2,sigma2,A2):
-    return gauss(x,mu1,sigma1,A1)+gauss(x,mu2,sigma2,A2)
-
-y,x=np.histogram(Adb.log_ssfr.values,100)
-
-x=(x[1:]+x[:-1])/2 # for len(x)==len(y)
-
-expected=(-12, 0.45, 12,-9.56, 0.649,25)
-params,cov=curve_fit(bimodal,x,y,expected)
-sigma=np.sqrt(np.diag(cov))
-print(params)
-X = np.linspace(-14, -7, 10000)
-Qdist = gauss(X, -11.50173391, 0.68224873, 7.21979314)
-SFdist = gauss(X, -9.46921134, 0.49696219, 20.36197415)
-
-Qint = []
-Sint = []
-for i in range(len(X)):
-    Qint.append(np.trapz(Qdist[i:i+2],X[i:i+2]))
-    Sint.append(np.trapz(SFdist[i:i+2],X[i:i+2]))    
-
-Fint = np.add(Qint, Sint)
-
-SFprob = interp1d(X,Sint / Fint)
-
-t_q = []
-lSig = []
-lRe = []
-lZ = []
-z50 = []
-concen = []
-SFR = []
-sfprob = []
-for i in adb.index:
-    if adb.zgrism[i] < 0:
-        adb.zgrism[i] = adb.zfit[i]
-
-    if adb.sSFR_avg[i] > 0:
-        adb.log_ssfr[i] = adb.sSFR_avg[i]
-     
-    t_q.append(adb.t_50[i] - adb.t_90[i])
-    lSig.append(np.log10(adb.Sigma1[i]))
-    lRe.append(np.log10(adb.Re[i]))
-    lZ.append(np.log10(adb.Z[i]))
-    z50.append(cosmo.lookback_time(adb.z_50[i]).value)
-    concen.append(np.log10(adb.Sigma1[i] / (10**adb.lmass[i])))
-    SFR.append(np.log10(10**adb.log_ssfr[i] * 10**adb.lmass[i]))
-    sfprob.append(float(SFprob(adb.log_ssfr[i])))
-    
-adb['t_q'] = t_q
-adb['log_Sigma1'] = lSig
-adb['log_Re'] = lRe
-adb['log_Z'] = lZ
-adb['z50'] = z50
-adb['concen'] = concen
-adb['log_sfr'] = SFR
-adb['sf_prob'] = sfprob
   
+adb = pd.read_pickle('../dataframes/fitdb/evolution_db.pkl')
 Adb = adb.query('AGN != "AGN" and lmass > 10 and concen < -0.4 and 0.7 < zgrism < 2.7')
-Axdb = adb.query('AGN == "AGN" and lmass > 10 and concen < -0.4 and 0.7 < zgrism < 2.7')
-
-qdb = Adb.query('log_ssfr < -11 and AGN != "AGN" and n_f < 3 and  -2.4 < concen < -0.5')
-sfdb = Adb.query('log_ssfr > -11 and AGN != "AGN" and n_f < 3 and  -2.4 < concen < -0.5')
-xqdb = adb.query('log_ssfr < -11 and AGN == "AGN" and n_f < 3 and  -2.4 < concen < -0.5')
-xsdb = adb.query('log_ssfr > -11 and AGN == "AGN" and n_f < 3 and -2.4 < concen < -0.5')
     
 from spec_id import Calibrate_grism, Scale_model
 def Best_fit_scale(wv, fl, er, mfl, p1):
@@ -194,17 +105,21 @@ def SF_spec_adjust(Gs, bestfits, z):
 from spec_id import convert_sfh, Full_forward_model, Full_calibrate_2, get_agebins, F_lam_per_M
 
 
-gs = gridspec.GridSpec(2,2, hspace = 0.35, wspace=0.15)
+gs = gridspec.GridSpec(2,2, hspace = 0.3, wspace=0.15)
 
-plt.figure(figsize=[18,10])
+plt.figure(figsize=[15,8])
 
 LDX = 0 
 TDX = 0
 
-gid = [36795,45994,21156,39170]
+# gid = [36795,45994,21156,39170]
+# field = ['GND','GSD','GND','GSD']
+gid = [16499,45994,16499,45994]
 field = ['GND','GSD','GND','GSD']
-usedb = [True, True, False,False]
-sf = ['SF', 'SF', 'Q', 'Q']
+# usedb = [True, True, False,False]
+# sf = ['SF', 'SF', 'Q', 'Q']
+usedb = [True, True, True, True]
+sf = ['SF', 'SF', 'SF', 'SF']
 for i in range(4):   
     x=i
     Gs = Gen_spec_2D(field[x], gid[x],Adb.query('id == {}'.format(gid[x])).zgrism.values[0], g102_lims=[8200, 11300], g141_lims=[11200, 16000],
@@ -216,7 +131,7 @@ for i in range(4):
         BFS = []
 
         for i in params:
-            BFS.append(sfdb.query('field == "{}" and id == {}'.format(field[x], gid[x]))['bf{}'.format(i)].values[0])
+            BFS.append(Adb.query('field == "{}" and id == {}'.format(field[x], gid[x]))['bf{}'.format(i)].values[0])
     else:
         BFS = np.load('../data/bestfits/{}_{}_tabfit_bfit.npy'.format(field[x], gid[x]))
 
@@ -227,20 +142,31 @@ for i in range(4):
         BFL, BER, RFL, RER, Gmfl, wave, flam = Q_spec_adjust(Gs, BFS)
 
     ax = plt.subplot(gs[TDX,LDX])
-
-    ax.errorbar(np.log10(Gs.Bwv_rf),BFL*1E18, BER*1E18,
-            linestyle='None', marker='o', markersize=0.25, color='#36787A', zorder = 2, elinewidth = 0.4)
+    if i == 0:
+        ax.errorbar(np.log10(Gs.Bwv_rf),BFL*1E18, BER*1E18,
+            linestyle='None', marker='o', markersize=0.25, color='#1f8ba3', zorder = 2, elinewidth = 0.4, alpha = 1, label = 'G102')
+    else:
+        ax.errorbar(np.log10(Gs.Bwv_rf),BFL*1E18, BER*1E18,
+            linestyle='None', marker='o', markersize=0.25, color='#1f8ba3', zorder = 2, elinewidth = 0.4, alpha = 1)
     ax.plot(np.log10(Gs.Bwv_rf),Gmfl[0] *1E18,'k', zorder = 4, alpha = 0.75)
     IDB = [U for U in range(len(wave)) if wave[U] < Gs.Bwv_rf[0]]
 
-    ax.errorbar(np.log10(Gs.Rwv_rf),RFL*1E18, RER*1E18,
-            linestyle='None', marker='o', markersize=0.25, color='#EA2E3B', zorder = 2, elinewidth = 0.4)
+    if i ==0:
+        ax.errorbar(np.log10(Gs.Rwv_rf),RFL*1E18, RER*1E18,
+            linestyle='None', marker='o', markersize=0.25, color='#dc1f22', zorder = 2, elinewidth = 0.4, alpha = 1, label = 'G102')
+    else:
+        ax.errorbar(np.log10(Gs.Rwv_rf),RFL*1E18, RER*1E18,
+            linestyle='None', marker='o', markersize=0.25, color='#dc1f22', zorder = 2, elinewidth = 0.4, alpha = 1)
     ax.plot(np.log10(Gs.Rwv_rf),Gmfl[1] *1E18,'k', zorder = 4, alpha = 0.75)
     IDR = [U for U in range(len(wave)) if wave[U] > Gs.Rwv_rf[-1]]
 
-
-    ax.errorbar(np.log10(Gs.Pwv_rf),Gs.Pflx*1E18,Gs.Perr*1E18,
-            linestyle='None', marker='o', markersize=7, markerfacecolor='#B5677D', zorder = 1,
+    if i==0:
+        ax.errorbar(np.log10(Gs.Pwv_rf),Gs.Pflx*1E18,Gs.Perr*1E18,
+            linestyle='None', marker='o', markersize=10, markerfacecolor='#8a1e72', zorder = 1,
+                 markeredgecolor = '#685877',markeredgewidth = 1, label = 'Photometry')
+    else:
+        ax.errorbar(np.log10(Gs.Pwv_rf),Gs.Pflx*1E18,Gs.Perr*1E18,
+            linestyle='None', marker='o', markersize=10, markerfacecolor='#8a1e72', zorder = 1,
                  markeredgecolor = '#685877',markeredgewidth = 1)
 
     ax.plot(np.log10(wave)[IDB],flam[IDB]*1E18,'k', alpha = 0.75, zorder=5)
@@ -256,14 +182,14 @@ for i in range(4):
         fmax = max(Gs.Pflx *1E18)
     
     
+    ax.legend(title ='{}-{}, z={}'.format(field[x], gid[x], np.round(Gs.specz,3)), fontsize = 12)
     ax.set_ylim(-0.1,fmax*1.1)
     ax.set_xticks(np.log10([2500,5000,10000,25000]))
     ax.set_xticklabels(np.array([2500,5000,10000,25000]))
-    ax.set_xlabel(r'Wavelength ($\rm \AA$)', fontsize=20)
+    ax.set_xlabel(r'Wavelength ($\rm \AA$)', fontsize=18)
     ax.set_ylabel(r'F$_\lambda$', fontsize=20)
     ax.tick_params(axis='both', which='major', labelsize=15)
-    
-    ax.set_title('{}-{}, z={}'.format(field[x], gid[x], np.round(Gs.specz,3)), fontsize = 20)
+    ax.get_legend().get_title().set_fontsize('15')
 
     if LDX == 0:
         LDX += 1
@@ -271,7 +197,7 @@ for i in range(4):
         LDX = 0
         TDX +=1
 
-plt.savefig('../plots/evolution_plots/spec_plot.pdf', bbox_inches = 'tight')    
+plt.savefig('../plots/evolution_plots/spec_plot.png', bbox_inches = 'tight')    
 
 
 

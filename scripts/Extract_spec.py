@@ -1,130 +1,128 @@
-import numpy as np
-import pandas as pd
-from shutil import copyfile
-from astropy.cosmology import FlatLambdaCDM
-cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
-from astropy.cosmology import z_at_value
-import fsps
-from matplotlib import gridspec
-import matplotlib as mpl
-from astropy.io import fits
-from astropy import wcs
-from astropy.table import Table
-import astropy.units as u
-from sim_engine import Scale_model
-from spec_tools import Source_present, Oldest_galaxy, Sig_int, Smooth, Rescale_sfh, lbt_to_z, boot_to_posterior, age_to_z, Posterior_spec
-from spec_stats import Smooth, Highest_density_region, Linear_fit
+#!/home/vestrada78840/miniconda3/envs/astroconda/bin/python
 from spec_id import *
-from spec_stats import Highest_density_region, Linear_fit
-from spec_exam import Gen_spec
-import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d, interp2d
-from glob import glob
-import seaborn as sea
-import os
-from grizli import multifit
-from grizli import model
-from grizli.utils import SpectrumTemplate 
-from sim_engine import forward_model_grism
-import pickle
-from spec_tools import Gen_SFH
+from spec_id_2d import *
+import numpy as np
+import fsps
+# import matplotlib.pyplot as plt
+if __name__ == '__main__':
+    field = sys.argv[1] 
+    galaxy = int(sys.argv[2])
+    SF = sys.argv[3]
+    specz = float(sys.argv[4])
 
-alldb = pd.read_pickle('../dataframes/fitdb/allfits_1D.pkl')
-morph_db = alldb.query('W_UVJ == "Q" and AGN != "AGN" and lmass >= 10.5 and n_f < 3 and Re < 20 ')
+############
+from spec_id import Calibrate_grism, Scale_model
+def Best_fit_scale(wv, fl, er, mfl, p1):
+    cal = Calibrate_grism([wv, fl, er], mfl, p1)
+    scale = Scale_model(fl / cal, er/ cal, mfl)
+    FL =  fl/ cal/ scale
+    ER =  er/ cal/ scale
+    return FL, ER
 
-bspec = [27458,294464,36348,48631,19290,32566,32691,33093,26272,35640,45333, 30144]
-# nog141 = [27915,37955,17746,17735]
-nog102 = [27714,37189,26139,32799,47223,22774,28890,23073,31452,24033]
-# nog102 = []
-
-inout = []
-for i in morph_db.index:     
-    if morph_db.id[i] not in bspec and morph_db.id[i] not in nog102: 
-        inout.append('i')
-    else:
-        inout.append('o')
-        
-morph_db['inout'] = inout
-mdb = morph_db.query('inout == "i" and 0.7 < zgrism < 2.5 and Sigma1 > 10**9.6')
-
-def Extract_grism_fit(MB, fit, instr, lims):
-    spec = fit['line1d'].wave, fit['line1d'].flux
-    spf = fit['line1d'].wave, fit['line1d'].wave*0+1
-    sptbl = MB.oned_spectrum(tfit = fit)
-
-    W = sptbl[instr]['wave']
-
-    fgrid = np.zeros([MB.N, len(W)])
+def Q_spec_adjust(Gs):
+    sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1)
+    sp.params['dust2'] = fit_db['bfd']
+    sp.params['dust1'] = fit_db['bfd']
+    sp.params['logzsol'] = np.log10(fit_db['bfm'])
     
-    for i in range(MB.N):
-        beam = MB.beams[i]
-        b_mask = beam.fit_mask.reshape(beam.sh)
+    time, sfr, tmax = convert_sfh(get_agebins(fit_db['bfa']), 
+        [fit_db['bfm1'], fit_db['bfm2'], fit_db['bfm3'], 
+         fit_db['bfm4'], fit_db['bfm5'], 
+         fit_db['bfm6'],fit_db['bfm7'], fit_db['bfm8'], 
+         fit_db['bfm9'], fit_db['bfm10']], maxage = fit_db['bfa']*1E9)
 
-        m_i = beam.compute_model(spectrum_1d=spec, is_cgs=True, in_place=False).reshape(beam.sh)
-        f_i = beam.compute_model(spectrum_1d=spf, is_cgs=True, in_place=False).reshape(beam.sh)
+    sp.set_tabular_sfh(time,sfr) 
 
-        grism = beam.grism.filter
-
-        w, flm, erm = beam.beam.optimal_extract(m_i, bin=1, ivar=beam.ivar*b_mask)
-        w, sens, ers = beam.beam.optimal_extract(f_i, bin=1, ivar=beam.ivar*b_mask)
-
-        sens[~np.isfinite(sens)] = 1
-
-        unit_corr = 1./sens
-
-        clip = [U for U in range(len(w)) if lims[0] < w[U] < lims[1]]
-
-        flm *= unit_corr
-        
-        FLUX = interp1d(w,flm, bounds_error=False, fill_value=0)(W)
-        
-        for ii in range(len(FLUX)):
-            if not FLUX[ii]**2 > 0:
-                FLUX[ii] = 0
-        
-        fgrid[i] = FLUX        
+    wave, flux = sp.get_spectrum(tage = fit_db['bfa'], peraa = True)
+    flam = F_lam_per_M(flux,wave*(1 + specz), specz, 0, sp.stellar_mass)*10**fit_db['bflm']
     
-    w = sptbl[instr]['wave']
-    f = sptbl[instr]['flux']
-    e = sptbl[instr]['err']
-    fl = sptbl[instr]['flat']
-    m = []
+    return wave, flam, sp
+
+def SF_spec_adjust(Gs):
+    sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 2)
+    sp.params['dust1'] = 0
+    sp.params['dust2'] = fit_db['bfd']
+    sp.params['logzsol'] = np.log10(fit_db['bfm'])
     
-    for ff in fgrid.T:
-        m.append(np.mean(ff[ff>0]))
-    clip = [U for U in range(len(w)) if lims[0] < w[U] < lims[1] and f[U]**2 > 0 and m[U] > 0]
-    return w[clip], f[clip]/fl[clip], e[clip]/fl[clip], np.array(m)[clip]
+    time, sfr, tmax = convert_sfh(get_agebins(fit_db['bfa'], binnum = 6), 
+        [fit_db['bfm1'], fit_db['bfm2'], fit_db['bfm3'], fit_db['bfm4'], fit_db['bfm5'], 
+         fit_db['bfm6']], maxage = fit_db['bfa']*1E9)
 
-temps = {}
-for idx in mdb.index:
-    Gs = Gen_spec_2D(mdb.field[idx], mdb.id[idx], mdb.zgrism[idx], g102_lims=[8300, 11288], 
-                     g141_lims=[11288, 16500],phot_errterm = 0.04, irac_err = 0.08,) 
+    sp.set_tabular_sfh(time,sfr) 
 
-    wave, spec = np.load('../data/allsed/phot/{}-{}_mod.npy'.format(mdb.field[idx], mdb.id[idx]))
-    x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Pbp1.npy'.format(mdb.field[idx], mdb.id[idx]))
-    bp1 = x[px == max(px)][0]
-    x,px = np.load('../data/posteriors/{0}_{1}_tabfit_Prp1.npy'.format(mdb.field[idx], mdb.id[idx]))
-    rp1 = x[px == max(px)][0]
+    wave, flux = sp.get_spectrum(tage = fit_db['bfa'], peraa = True)
+    flam = F_lam_per_M(flux,wave*(1 + specz), specz, 0, sp.stellar_mass)*10**fit_db['bflm']
+    
+    return wave, flam, sp
 
-    if Gs.g102:
-        np.save('../data/allsed/g102/{}-{}_O'.format(mdb.field[idx], mdb.id[idx]),[Gs.Bwv, Gs.Bfl, Gs.Ber])
-    if Gs.g141:
-        np.save('../data/allsed/g141/{}-{}_O'.format(mdb.field[idx], mdb.id[idx]),[Gs.Rwv, Gs.Rfl, Gs.Rer])
 
-    if Gs.g102:
-        temps['fsps_model'] = SpectrumTemplate(wave=wave, flux=spec*1E18)
-        fit = Gs.mb_g102.template_at_z(mdb.zgrism[idx], templates = temps, fitter='lstsq')
-        w,f,e,m = Extract_grism_fit(Gs.mb_g102, fit, 'G102', [8300,11300])
-        S1 = Scale_model(interp1d(wave*(1+mdb.zgrism[idx]),spec)(w), np.ones_like(w), m)
-        S2 = Scale_model(f,e, m*S1)
-        np.save('../data/allsed/g102/{}-{}'.format(mdb.field[idx], mdb.id[idx]),[w,f/S2,e/S2])
-        np.save('../data/allsed/g102/{}-{}_mod'.format(mdb.field[idx], mdb.id[idx]),[w,m*S1])
+#full_db = pd.read_pickle(data_path + 'all_galaxies_1d.pkl')
+# full_db = pd.read_pickle(data_path + 'evolution_db_masslim.pkl')
 
-    if Gs.g141:
-        temps['fsps_model'] = SpectrumTemplate(wave=wave, flux=spec*1E18)
-        fit = Gs.mb_g141.template_at_z(mdb.zgrism[idx], templates = temps, fitter='lstsq')
-        w,f,e,m = Extract_grism_fit(Gs.mb_g141, fit, 'G141', [11300, 16500])
-        S1 = Scale_model(interp1d(wave*(1+mdb.zgrism[idx]),spec)(w), np.ones_like(w), m)
-        S2 = Scale_model(f,e, m*S1)
-        np.save('../data/allsed/g141/{}-{}'.format(mdb.field[idx], mdb.id[idx]),[w,f/S2,e/S2])
-        np.save('../data/allsed/g141/{}-{}_mod'.format(mdb.field[idx], mdb.id[idx]),[w,m*S1])
+
+# fields = ['GSD', 'GSD', 'GSD', 'GSD', 'GSD', 'GSD', 'GSD', 'GSD', 'GSD', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND', 'GND'] 
+# galaxies = [26087, 29632, 29730, 27565, 28995, 30871, 36451, 37939, 46846, 9128, 11630, 13970, 14516, 16484, 18815, 18939, 19558, 20466, 20513, 20702, 21048, 23936, 27567, 27660, 32842, 33707, 35292, 37647] 
+
+
+# for i in range(len(fields)):
+#     field = fields[i]
+#     galaxy = galaxies[i]
+
+# print(full_db)
+if SF == 'Q':
+    fit_db = np.load(pos_path + '{}_{}_tabfit.npy'.format(field, galaxy), allow_pickle = True).item()
+    specz = fit_db['bfz']
+else:
+    fit_db = np.load(pos_path + '{}_{}_SFfit_p1_fits.npy'.format(field, galaxy), allow_pickle = True).item()
+    
+# print(fit_db)
+
+Gs = Gen_spec_2D(field, galaxy, specz)
+
+######## Q-method
+# if fit_db.bfm10.values[0]**2 > 0:
+if SF == 'Q':
+    wave, flam, sp = Q_spec_adjust(Gs)
+
+######## SF-method
+else:
+    wave, flam, sp = SF_spec_adjust(Gs)
+wvs, flxs, errs, beams, trans = Gather_grism_data_from_2d(Gs, sp)
+
+Gmfl, Pmfl = Full_forward_model(Gs, wave,flam, specz, wvs, flxs, errs, beams, trans)
+
+Bi = 'none'
+Ri = 'none'
+if Gs.g102:
+    Bi = 0
+else:
+    Ri = 0
+
+if Gs.g141 and Gs.g102:
+    Ri = 1
+
+if Gs.g102:
+    BFL, BER = Best_fit_scale(wvs[Bi], flxs[Bi], errs[Bi], Gmfl[Bi],  fit_db['bfbp1'])
+
+if Gs.g141:
+    RFL, RER = Best_fit_scale(wvs[Ri], flxs[Ri], errs[Ri], Gmfl[Ri],  fit_db['bfrp1'])
+
+spec_dict = {'Bwv':[],'Bfl':[], 'Ber':[], 'Bmfl':[], 
+             'Rwv':[],'Rfl':[], 'Rer':[], 'Rmfl':[],       
+             'Pwv':Gs.Pwv,'Pfl':Gs.Pflx, 'Per':Gs.Perr,
+            'wave':wave, 'flam':flam}
+
+if Gs.g102:
+    spec_dict['Bwv'] = Gs.Bwv
+    spec_dict['Bfl'] = BFL
+    spec_dict['Ber'] = BER
+    spec_dict['Bmfl'] =  Gmfl[Bi]
+
+if Gs.g141:
+    spec_dict['Rwv'] = Gs.Rwv
+    spec_dict['Rfl'] = RFL
+    spec_dict['Rer'] = RER
+    spec_dict['Rmfl'] = Gmfl[Ri]
+
+np.save(pos_path + '{}_{}_fullspec'.format(field, galaxy), spec_dict, allow_pickle = True)
+# np.save('../full_specs/{}_{}_fullspec'.format(field, galaxy), spec_dict, allow_pickle = True)

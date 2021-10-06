@@ -2,7 +2,8 @@ __author__ = 'vestrada'
 
 import numpy as np
 from scipy.interpolate import interp1d, interp2d
-from astropy.cosmology import Planck13 as cosmo
+from astropy.cosmology import FlatLambdaCDM
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 from astropy.cosmology import z_at_value
 import astropy.units as u
 from astropy.io import fits
@@ -13,12 +14,12 @@ import os
 import re
 import img_scale
 from glob import glob
-import rpy2
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
-from rpy2.robjects import pandas2ri
-R = robjects.r
-pandas2ri.activate()
+# import rpy2
+# import rpy2.robjects as robjects
+# from rpy2.robjects.packages import importr
+# from rpy2.robjects import pandas2ri
+# R = robjects.r
+# pandas2ri.activate()
 
 ### set home for files
 hpath = os.environ['HOME'] + '/'

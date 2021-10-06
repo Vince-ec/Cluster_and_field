@@ -11,7 +11,8 @@ from glob import glob
 import os
 from grizli import multifit
 from grizli import model
-from astropy.cosmology import Planck13 as cosmo
+from astropy.cosmology import FlatLambdaCDM
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 import fsps
 
 hpath = os.environ['HOME'] + '/'
@@ -199,7 +200,9 @@ def load_phot_precalc(Pnum):
     MFWV = np.load(template_path + 'effwv_precalc.npy',allow_pickle=True) 
         
     return MDF, IDP, SWV, TR, B, DNU, ADJ, MFWV
-        
+   
+
+    
 """def load_beams_and_trns(wv, beam):
     ### Set transmission curve
     sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), 

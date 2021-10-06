@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import os
 from glob import glob
-
 from dynesty.utils import quantile as _quantile
 from scipy.ndimage import gaussian_filter as norm_kde
 import fsps

@@ -39,85 +39,63 @@ else:
     goodsn_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodsn/goodsn_3dhst.v4.1_f160w.galfit',format='ascii').to_pandas()
     goodss_160 = Table.read('/Users/Vince.ec/Clear_data/galaxy_meas/goodss/goodss_3dhst.v4.1_f160w.galfit',format='ascii').to_pandas()
     
-GSD_X = Table.read(data_path + 'clear_gdsxray.dat', format = 'ascii').to_pandas()
-GND_X = Table.read(data_path + 'clear_gdnxray.dat', format = 'ascii').to_pandas()
-    
-    
-GND= pd.read_pickle(db_path + 'All_GND.pkl')
-GSD= pd.read_pickle(db_path + 'All_GSD.pkl')
-
-GND= GND.query('fit != "Q"')
-GSD= GSD.query('fit != "Q"')
-    
+full_db = pd.read_pickle(data_path + 'emission_line_galaxies.pkl')
     
 ###### create tabit db#########
-list1 = glob(pos_path + '*SFfit_*fits.npy')
+list1 = glob(pos_path + '*SFfit_*p2*fits.npy')
 FIELD = []
 GID = []
 EXT = []
 SF = []
 ZFIT = []
+
+idx = 0
 for i in list1:
     FIELD.append(os.path.basename(i).split('_')[0])
     GID.append(int(os.path.basename(i).split('_')[1]))
     SF.append('S')
-    EXT.append('SFfit_p1')
-    if os.path.basename(i).split('_')[0] == 'GND': 
-        ZFIT.append(GND.query('id == {}'.format(os.path.basename(i).split('_')[1])).zgrizli.values[0])    
-    if os.path.basename(i).split('_')[0] == 'GSD': 
-        ZFIT.append(GSD.query('id == {}'.format(os.path.basename(i).split('_')[1])).zgrizli.values[0])  
-    
+    EXT.append('SFfit_p2')
+    ZFIT.append(full_db.query('field == "{}" and id == {}'.format(FIELD[idx], GID[idx])).zgrism.values[0])  
+    idx+=1
+
 AGN = []
 
 for i in range(len(FIELD)):
-    if FIELD[i] == 'GND':
-        AGN.append(GND_X.query('ID == {}'.format(GID[i])).Xclass.values[0])
-    if FIELD[i] == 'GSD':
-        AGN.append(GSD_X.query('ID == {}'.format(GID[i])).Xclass.values[0])
+    AGN.append(full_db.query('id == {}'.format(GID[i])).AGN.values[0])
         
 #####parameters to get Z, z, logmass, Av, lwa, z_50, t_50, z_q, t_q, log_ssfr, Reff, compactness
 
 #make a dictionary
 fitvals = {'Z':[], 'Z_hdr':[],'Z_modality':[],'lmass':[], 'lmass_hdr':[],
            'lmass_modality':[], 'Av':[], 'Av_hdr':[],'Av_modality':[],
-           'lwa':[],'lwa_hdr':[], 'lwa_modality':[],'lwa_u':[],'lwa_u_hdr':[], 'lwa_u_modality':[],
-           'lwa_r':[],'lwa_r_hdr':[], 'lwa_r_modality':[],'bfm':[], 'bfa':[], 'bfm1':[], 
+           'bfm':[], 'bfa':[], 'bfm1':[], 
            'bfm2':[], 'bfm3':[], 'bfm4':[], 'bfm5':[], 'bfm6':[], 
             'bflm':[], 'bfd':[], 'bfbp1':[], 'bfrp1':[], 'bfba':[], 
            'bfbb':[], 'bfbl':[], 'bfra':[], 'bfrb':[], 'bfrl':[]}
 
-k = ['Z','lmass', 'Av','lwa', 'lwa_u', 'lwa_r','bfm', 'bfa', 'bfm1', 'bfm2', 'bfm3', 'bfm4', 'bfm5', 'bfm6', 
+k = ['Z','lmass', 'Av','bfm', 'bfa', 'bfm1', 'bfm2', 'bfm3', 'bfm4', 'bfm5', 'bfm6', 
             'bflm', 'bfd', 'bfbp1', 'bfrp1', 'bfba', 'bfbb', 'bfbl', 'bfra', 'bfrb', 'bfrl']
-params = ['m','lm', 'd','lwa', 'lwa_u', 'lwa_r','bfm', 'bfa', 'bfm1', 'bfm2', 'bfm3', 'bfm4', 'bfm5', 'bfm6', 
+params = ['m','lm', 'd','bfm', 'bfa', 'bfm1', 'bfm2', 'bfm3', 'bfm4', 'bfm5', 'bfm6', 
             'bflm', 'bfd', 'bfbp1', 'bfrp1', 'bfba', 'bfbb', 'bfbl', 'bfra', 'bfrb', 'bfrl']
-P_params = ['Pm','Plm', 'Pd', 'Plwa', 'Plwa_u', 'Plwa_r','-', '-', '-', '-', '-', '-', '-', '-', 
+P_params = ['Pm','Plm', 'Pd','-', '-', '-', '-', '-', '-', '-', '-', 
             '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
 
 for i in range(len(FIELD)):
-    try:
-        fit_db = np.load(pos_path + '{}_{}_{}_fits.npy'.format(FIELD[i], GID[i], EXT[i]),allow_pickle=True).item()
-        for p in range(len(params)):
-            if P_params[p] == '-':
-                fitvals[k[p]].append(fit_db[params[p]])
-            else:
-                m, mreg, oreg = Highest_density_region(fit_db[P_params[p]],fit_db[params[p]])
-                fitvals['{}'.format(k[p])].append(m)
-                fitvals['{}_hdr'.format(k[p])].append(mreg)
-                fitvals['{}_modality'.format(k[p])].append(oreg)
-    except:
-        for p in range(len(params)):
-            if P_params[p] == '-':
-                fitvals[k[p]].append(-99)
-            else:
-                fitvals['{}'.format(k[p])].append(-99)
-                fitvals['{}_hdr'.format(k[p])].append(-99)
-                fitvals['{}_modality'.format(k[p])].append(-99)
+#    try:
+    fit_db = np.load(pos_path + '{}_{}_{}_fits.npy'.format(FIELD[i], GID[i], EXT[i]),allow_pickle=True).item()
+    for p in range(len(params)):
+        if P_params[p] == '-':
+            fitvals[k[p]].append(fit_db[params[p]])
+        else:
+            m, mreg, oreg = Highest_density_region(fit_db[P_params[p]],fit_db[params[p]])
+            fitvals['{}'.format(k[p])].append(m)
+            fitvals['{}_hdr'.format(k[p])].append(mreg)
+            fitvals['{}_modality'.format(k[p])].append(oreg)
+
                 
 #make db
 for i in fitvals.keys():
     print(len(fitvals[i]))
-
-
 tabfits = pd.DataFrame(fitvals)
 tabfits['field'] = FIELD
 tabfits['id'] = GID
@@ -148,42 +126,43 @@ log_ssfr= np.repeat(-99.0,len(tabfits))
 log_ssfr_hci = []
 log_ssfr_oreg = []
 for i in range(len(tabfits.index)):
-    try:
-        with open(sfh_path + '{}_{}_1D.pkl'.format(tabfits.field[i], tabfits.id[i]), 'rb') as sfh_file:
-            sfh = pickle.load(sfh_file)
+#    try:
+    with open(sfh_path + '{}_{}_p2_1D.pkl'.format(tabfits.field[i], tabfits.id[i]), 'rb') as sfh_file:
+        sfh = pickle.load(sfh_file)
             
-        np.save(sfh_path + '{}_{}'.format(tabfits.field[i], tabfits.id[i]),[sfh.LBT, sfh_SFH],allow_pickle=True)
-        np.save(sfh_path + '{}_{}_16'.format(tabfits.field[i], tabfits.id[i]),[sfh.LBT, sfh_SFH_16],allow_pickle=True)
-        np.save(sfh_path + '{}_{}_84'.format(tabfits.field[i], tabfits.id[i]),[sfh.LBT, sfh_SFH_84],allow_pickle=True)
+    np.save(sfh_path + '{}_{}'.format(tabfits.field[i], tabfits.id[i]),[sfh.LBT, sfh.SFH],allow_pickle=True)
+    np.save(sfh_path + '{}_{}_16'.format(tabfits.field[i], tabfits.id[i]),[sfh.LBT, sfh.SFH_16],allow_pickle=True)
+    np.save(sfh_path + '{}_{}_84'.format(tabfits.field[i], tabfits.id[i]),[sfh.LBT, sfh.SFH_84],allow_pickle=True)
             
-        z_50[i] = sfh.z_50
-        z_50_hci.append(sfh.z_50_hci)
-        z_50_oreg.append(sfh.z_50_offreg)
+    z_50[i] = sfh.z_50
+    z_50_hci.append(sfh.z_50_hci)
+    z_50_oreg.append(sfh.z_50_offreg)
 
-        z_80[i] = sfh.z_80
-        z_80_hci.append(sfh.z_80_hci)
-        z_80_oreg.append(sfh.z_80_offreg)
+    z_80[i] = sfh.z_80
+    z_80_hci.append(sfh.z_80_hci)
+    z_80_oreg.append(sfh.z_80_offreg)
 
-        z_90[i] = sfh.z_90
-        z_90_hci.append(sfh.z_90_hci)
-        z_90_oreg.append(sfh.z_90_offreg)
+    z_90[i] = sfh.z_90
+    z_90_hci.append(sfh.z_90_hci)
+    z_90_oreg.append(sfh.z_90_offreg)
 
-        t_50[i] = sfh.t_50
-        t_50_hci.append(sfh.t_50_hci)
-        t_50_oreg.append(sfh.t_50_offreg)
+    t_50[i] = sfh.t_50
+    t_50_hci.append(sfh.t_50_hci)
+    t_50_oreg.append(sfh.t_50_offreg)
 
-        t_80[i] = sfh.t_80
-        t_80_hci.append(sfh.t_80_hci)
-        t_80_oreg.append(sfh.t_80_offreg)
+    t_80[i] = sfh.t_80
+    t_80_hci.append(sfh.t_80_hci)
+    t_80_oreg.append(sfh.t_80_offreg)
 
-        t_90[i] = sfh.t_90
-        t_90_hci.append(sfh.t_90_hci)
-        t_90_oreg.append(sfh.t_90_offreg)
+    t_90[i] = sfh.t_90
+    t_90_hci.append(sfh.t_90_hci)
+    t_90_oreg.append(sfh.t_90_offreg)
             
-        log_ssfr[i] = np.log10((np.trapz(sfh.SFH[:11], sfh.LBT[:11])/0.1) / 10**tabfits.lmass[i])
-        log_ssfr_hci.append(sfh.lssfr_hci)
-        log_ssfr_oreg.append(sfh.lssfr_offreg)
-    except:
+    log_ssfr[i] = np.log10((np.trapz(sfh.SFH[:11], sfh.LBT[:11])/0.1) / 10**tabfits.lmass[i])
+    log_ssfr_hci.append(sfh.lssfr_hci)
+    log_ssfr_oreg.append(sfh.lssfr_offreg)
+
+"""except:
         z_50_hci.append(np.array([0]))
         z_80_hci.append(np.array([0]))
         z_90_hci.append(np.array([0]))
@@ -198,7 +177,7 @@ for i in range(len(tabfits.index)):
         t_50_oreg.append([0])
         t_80_oreg.append([0])
         t_90_oreg.append([0])
-        log_ssfr_oreg.append([0])
+        log_ssfr_oreg.append([0])"""
 
 tabfits['z_50'] = z_50
 tabfits['z_50_hdr'] = z_50_hci
@@ -335,10 +314,10 @@ Rarc125_sig = []
 Rarc160_sig = []
 
 for i in tabfits.index:
-    if tabfits.zgrism[i] > 0:
-        rshift = tabfits.zgrism[i]
-    else:
-        rshift = tabfits.zfit[i]
+#    if tabfits.zgrism[i] > 0:
+    rshift = tabfits.zgrism[i]
+#    else:
+#        rshift = tabfits.zfit[i]
     
     if tabfits.field[i][1] == 'S':   
         r = goodss_125.re[goodss_125.NUMBER == tabfits.id[i]].values
@@ -530,10 +509,10 @@ from S1_err_tool import Extract_params, Sigma1_sig
 
 dS1 = []
 for i in tabfits.index:
-    if tabfits.zgrism[i] > 0:
-        rshift = tabfits.zgrism[i]
-    else:
-        rshift = tabfits.zfit[i]
+#    if tabfits.zgrism[i] > 0:
+    rshift = tabfits.zgrism[i]
+#    else:
+#        rshift = tabfits.zfit[i]
 
     try:
         re, n, Lg, Lp, M, dre, dn, dLg, dLp, dM = Extract_params(tabfits.field[i], tabfits.id[i], rshift,tabfits)
@@ -542,4 +521,4 @@ for i in tabfits.index:
         dS1.append(-99)
         
 tabfits['Sigma1_sig'] = np.array(dS1)
-tabfits.to_pickle(pos_path + 'SFfits_1D.pkl')
+tabfits.to_pickle(pos_path + 'SFfits_p2_1D.pkl')

@@ -22,7 +22,7 @@ if __name__ == '__main__':
     field = sys.argv[1] 
     galaxy = int(sys.argv[2])
     rshift = float(sys.argv[3])
-
+    sfa = sys.argv[4]
 sfh_path = '/scratch/user/vestrada78840/SFH/'
 pos_path = '/home/vestrada78840/posteriors/'
  
@@ -30,9 +30,8 @@ pos_path = '/home/vestrada78840/posteriors/'
 #pos_path = '../data/posteriors/'
     
 class Gen_SFH(object):
-    def __init__(self, field, galaxy, zgrizli, trials = 1000):
+    def __init__(self, fname, field, galaxy, zgrizli, trials = 1000):
         ppf_dict = {}
-        fname = glob(pos_path + '{}_{}_*_fits.npy'.format(field,galaxy))[0]
         fit_db = np.load(fname, allow_pickle = True).item()
 
         fext = os.path.basename(fname).split('_')[2]
@@ -177,7 +176,18 @@ class Gen_SFH(object):
                               
         x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
         self.lssfr, self.lssfr_hci, self.lssfr_offreg = Highest_density_region(y,x)
-        
-sfh = Gen_SFH(field, galaxy, rshift, 5000)
-with open(sfh_path + '{}_{}_1D.pkl'.format(field, galaxy), 'wb') as output:
-    pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)
+
+if sfa == 'Q':
+    fname = glob(pos_path + '{}_{}_tabfit.npy'.format(field,galaxy))[0]
+
+    sfh = Gen_SFH(fname, field, galaxy, rshift, 5000)
+    
+    with open(sfh_path + '{}_{}_1D.pkl'.format(field, galaxy), 'wb') as output:
+        pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)
+else:
+    fname = glob(pos_path + '{}_{}_SFfit_p1_fits.npy'.format(field,galaxy))[0]
+
+    sfh = Gen_SFH(fname, field, galaxy, rshift, 5000)
+
+    with open(sfh_path + '{}_{}_p1_1D.pkl'.format(field, galaxy), 'wb') as output:
+        pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)

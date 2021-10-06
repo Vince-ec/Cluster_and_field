@@ -15,163 +15,44 @@ from astropy.cosmology import FlatLambdaCDM
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 from astropy.cosmology import z_at_value
 import astropy.units as u
+from make_sfh_tool import Gen_sim_SFH
 ### set home for files
 hpath = os.environ['HOME'] + '/'
 
-
 sfh_path = '/scratch/user/vestrada78840/SFH/'
 pos_path = '/home/vestrada78840/posteriors/'
- 
-#sfh_path = '../data/SFH/'
-#pos_path = '../data/posteriors/'
+
+
+if __name__ == '__main__':
+    field = sys.argv[1] 
+    galaxy = int(sys.argv[2])
+    specz = float(sys.argv[3])
+    sfa = sys.argv[4]
+
+if sfa == 'Q':
+    fname = '{}_{}_tabfit.npy'.format(field,galaxy)
+
+    sfh = Gen_sim_SFH(fname, 5000, specz)
     
-class Gen_sim_SFH(object):
-    def __init__(self, fname, trials = 1000):
-        ppf_dict = {}
-        fname = glob(pos_path + '{}'.format(fname))[0]
-        fit_db = np.load(fname, allow_pickle = True).item()
-
-        fext = os.path.basename(fname).split('_')[2]
-
-        params = ['a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm']
-        P_params = ['Pa', 'Pm1', 'Pm2', 'Pm3', 'Pm4', 'Pm5', 'Pm6', 'Pm7', 'Pm8', 'Pm9', 'Pm10', 'Plm']
-        x = fit_db['z']
-        px = fit_db['Pz']
-        rshift = x[px == max(px)][0]
-            
-
-        for i in range(len(params)):
-            x = fit_db[params[i]]
-            px = fit_db[P_params[i]]
-            ppf_dict[params[i]] = Gen_PPF(x,px)
-
-        idx = 0
-
-        self.fulltimes = np.arange(0.0,Oldest_galaxy(rshift),0.01)
-        sfr_grid = []
-        ssfr_grid = []
-        t_50_grid = []
-        t_80_grid = []
-        t_90_grid = []
-        mwa_grid = []
-        
-        while idx < trials:
-            try:
-                draw = np.zeros(len(params))
-
-                for i in range(len(draw)):
-                    draw[i] = ppf_dict[params[i]](np.random.rand(1))[0]
-
-                masses = draw[1:len(params) - 1]
-                lmass = draw[-1]
-
-                time, sfr, tmax = convert_sfh(get_agebins(draw[0], binnum=len(params) - 2), masses, maxage = draw[0]*1E9)
-
-                T=[0]
-                M=[0]
-                for i in range(len(time)//2):
-                    mass = sfr[i*2+1] * (time[i*2+1] - time[i*2])
-                    M.append(M[i] + mass)
-                    T.append(time[i*2+1])
-
-                sfr = sfr/ M[-1] * 10**lmass / 1E9
-
-                lbt = np.abs(time - time[-1])[::-1]
-                lbsfr = sfr[::-1]
-
-                T=[0]
-                M=[0]
-                for i in range(len(lbt)//2):
-                    mass = lbsfr[i*2+1] * (lbt[i*2+1] - lbt[i*2])
-                    M.append(M[i] + mass)
-                    T.append(lbt[i*2+1])
-
-                t_50_grid.append(interp1d(M/ M[-1], T)(0.5))
-                t_80_grid.append(interp1d(M/ M[-1], T)(0.2))
-                t_90_grid.append(interp1d(M/ M[-1], T)(0.1))
-
-                sfrmax = np.argmax(lbsfr) 
-
-                sfr_grid.append(interp1d(lbt,lbsfr,bounds_error=False,fill_value=0)(self.fulltimes))
-
-                ssfr_grid.append(lbsfr[0] / 10**lmass)
-
-                mwa_grid.append(np.trapz(sfr_grid[idx]*self.fulltimes,self.fulltimes)/np.trapz(sfr_grid[idx],self.fulltimes))
-                idx +=1
-            except:
-                pass
-
-        SFH = []
-        SFH_16 = []
-        SFH_84 = []
-        ftimes = []
-        for i in range(len(np.array(sfr_grid).T)):
-            adat = np.array(np.array(sfr_grid).T[i])
-            gdat = adat[adat>0]
-            if len(gdat) < trials * 0.1:
-                break
-            else:
-                SFH.append(np.percentile(gdat,50))
-                SFH_16.append(np.percentile(gdat,16))
-                SFH_84.append(np.percentile(gdat,84))
-
-                ftimes.append(self.fulltimes[i])
-                
-        self.SFH = np.array(SFH)
-        self.SFH_16 = np.array(SFH_16)
-        self.SFH_84 = np.array(SFH_84)
-        self.LBT = np.array(ftimes)
-        
-        self.sfr_grid = np.ma.masked_less_equal(sfr_grid,1E-10)
-
-        weights = Derive_SFH_weights(self.SFH, sfr_grid[0:trials])
-       
-        ####### mwa values
-        x,y = boot_to_posterior(mwa_grid[0:trials], weights)
-        self.mwa, self.mwa_hci, self.mwa_offreg = Highest_density_region(y,x)
-    
-        ####### t values
-        x,y = boot_to_posterior(t_50_grid[0:trials], weights)
-        self.t_50, self.t_50_hci, self.t_50_offreg = Highest_density_region(y,x)
-        
-        x,y = boot_to_posterior(t_80_grid[0:trials], weights)
-        self.t_80, self.t_80_hci, self.t_80_offreg = Highest_density_region(y,x)
-        
-        x,y = boot_to_posterior(t_90_grid[0:trials], weights)
-        self.t_90, self.t_90_hci, self.t_90_offreg = Highest_density_region(y,x)
-        
-        self.t_50 = interp1d(np.cumsum(self.SFH[::-1]) / np.cumsum(self.SFH[::-1])[-1],self.LBT[::-1])(0.5)
-        self.t_80 = interp1d(np.cumsum(self.SFH[::-1]) / np.cumsum(self.SFH[::-1])[-1],self.LBT[::-1])(0.8)
-        self.t_90 = interp1d(np.cumsum(self.SFH[::-1]) / np.cumsum(self.SFH[::-1])[-1],self.LBT[::-1])(0.9)
-
-        ####### z values
-        self.z_50 = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_50)*u.Gyr)
-        hci=[]
-        for lims in self.t_50_hci:
-            hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
-        self.z_50_hci = np.array(hci)
-        self.z_50_offreg = np.array(self.t_50_offreg)
-
-        self.z_80 = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_80)*u.Gyr)
-        hci=[]
-        for lims in self.t_80_hci:
-            hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
-        self.z_80_hci = np.array(hci)
-        self.z_80_offreg = np.array(self.t_80_offreg)
-                       
-        self.z_90 = z_at_value(cosmo.age,(Oldest_galaxy(rshift) - self.t_90)*u.Gyr)
-        hci=[]
-        for lims in self.t_90_hci:
-            hci.append(z_at_value(cosmo.age,(Oldest_galaxy(rshift) - lims)*u.Gyr))
-        self.z_90_hci = np.array(hci)
-        self.z_90_offreg = np.array(self.t_90_offreg)
-                              
-        x,y = boot_to_posterior(np.log10(ssfr_grid[0:trials]), weights)
-        self.lssfr, self.lssfr_hci, self.lssfr_offreg = Highest_density_region(y,x)
-
-fnames = glob(pos_path + '*trial*')
-
-for fname in fnames:
-    sfh = Gen_sim_SFH(fname, 5000)
-    with open(sfh_path + '{}_1D.pkl'.format(fname), 'wb') as output:
+    with open(sfh_path + '{}_{}_1D.pkl'.format(field, galaxy), 'wb') as output:
         pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)
+        
+else:
+    fname ='{}_{}_SFfit_p1_fits.npy'.format(field,galaxy)
+
+    sfh = Gen_sim_SFH(fname, 5000, specz)
+
+    with open(sfh_path + '{}_{}_p1_1D.pkl'.format(field, galaxy), 'wb') as output:
+        pickle.dump(sfh, output, pickle.HIGHEST_PROTOCOL)
+
+fit_db = np.load(pos_path + fname, allow_pickle=True).item()
+
+fit_db['Pssfr'] = sfh.Pssfr
+fit_db['ssfr'] = sfh.ssfr
+
+np.save(pos_path + fname,fit_db, allow_pickle=True)
+        
+
+np.save(sfh_path + '{}_{}'.format(field, galaxy),[sfh.LBT, sfh.SFH],allow_pickle=True)
+np.save(sfh_path + '{}_{}_16'.format(field, galaxy),[sfh.LBT, sfh.SFH_16],allow_pickle=True)
+np.save(sfh_path + '{}_{}_84'.format(field, galaxy),[sfh.LBT, sfh.SFH_84],allow_pickle=True)

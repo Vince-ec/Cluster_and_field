@@ -70,7 +70,7 @@ def Gen_initial_MB(field, gid):
     
     return mb
 
-def Plot_grism(MB,ax, color,instr, lims):
+def Plot_grism(MB,ax, color,instr, lims,z):
     sptbl = MB.oned_spectrum()
 
     w = sptbl[instr]['wave']
@@ -80,10 +80,10 @@ def Plot_grism(MB,ax, color,instr, lims):
         
     clip = [U for U in range(len(w)) if lims[0] < w[U] < lims[1]]
 
-    ax.errorbar(w[clip],f[clip]/fl[clip],e[clip]/fl[clip], color = color,
+    ax.errorbar(w[clip]/(1+z),f[clip]/fl[clip],e[clip]/fl[clip], color = color,
                 linestyle='None', marker='o', markersize=0.25, zorder = 1, elinewidth = 1)
 
-def Plot_beams(mb,W,P,E, field, gid):
+def Plot_beams(mb,W,P,E, field, gid,z):
     gs = gridspec.GridSpec(2,2)
 
     plt.figure(figsize=[20,12])
@@ -98,27 +98,27 @@ def Plot_beams(mb,W,P,E, field, gid):
 
         if bm.grism.filter == 'G102':
             IDX = [U for U in range(len(xspec)) if 8000 < xspec[U] < 11300]
-            ax1.plot(xspec[IDX],yspec[IDX]/yspecm[IDX], color = 'b')
+            ax1.plot(xspec[IDX]/(1+z),yspec[IDX]/yspecm[IDX], color = 'b')
         else:
             IDX = [U for U in range(len(xspec)) if 11200 < xspec[U] < 16500]
-            ax2.plot(xspec[IDX],yspec[IDX]/yspecm[IDX], color = 'r') 
+            ax2.plot(xspec[IDX]/(1+z),yspec[IDX]/yspecm[IDX], color = 'r') 
     
     ax = plt.subplot(gs[1,:])
     try:
-        Plot_grism(mb , ax, 'b', 'G102', [8000,11500])
+        Plot_grism(mb , ax, 'b', 'G102', [8000,11500],z)
     except:
         pass
     try:
-        Plot_grism(mb , ax, 'r', 'G141', [11000,16500])
+        Plot_grism(mb , ax, 'r', 'G141', [11000,16500],z)
     except:
         pass
     
     IDP = [U for U in range(len(W)) if P[U]/E[U]  > 0.01]
 
     
-    ax.errorbar(np.array(W)[IDP],np.array(P)[IDP],np.array(E)[IDP], fmt='o', color='k', zorder=0)
+    ax.errorbar(np.array(W)[IDP]/(1+z),np.array(P)[IDP],np.array(E)[IDP], fmt='o', color='k', zorder=0)
     ax.set_xscale('log')  
-    
+    plt.title('z={}'.format(z))
     plt.savefig('../plots/newspec_exam_2/G{}D-{}_beams.png'.format(field, gid),bbox_inches = 'tight')
     
 def Beam_cleanup(mb, B_condition=[], R_condition=[]):
@@ -254,12 +254,19 @@ def Phot_load(field, galaxy_id,ref_cat_loc,masterlist = '../phot/master_template
 ########################################################################################
 ########################################################################################
     
-CNdb = pd.read_pickle('../dataframes/galaxy_frames/massMetal_GND_full.pkl')
-CSdb = pd.read_pickle('../dataframes/galaxy_frames/massMetal_GSD_full.pkl')
+# CNdb = pd.read_pickle('../dataframes/galaxy_frames/massMetal_GND_full.pkl')
+# CSdb = pd.read_pickle('../dataframes/galaxy_frames/massMetal_GSD_full.pkl')
 
-v4Ncat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodsn_3dhst.v4.4.cats/Catalog/goodsn_3dhst.v4.4.cat',
+NGSID = np.load('../dataframes/N_GSD.npy', allow_pickle=True)
+NGNID = np.load('../dataframes/N_GND.npy', allow_pickle=True)
+
+NGSz = np.load('../dataframes/N_GSD_z.npy', allow_pickle=True)
+NGNz = np.load('../dataframes/N_GND_z.npy', allow_pickle=True)
+
+
+v4Ncat = Table.read(hpath + 'Downloads/goodsn_3dhst.v4.5.cat',
                  format='ascii').to_pandas()
-v4Scat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodss_3dhst.v4.4.cats/Catalog/goodss_3dhst.v4.4.cat',
+v4Scat = Table.read(hpath + 'Downloads/goodss_3dhst.v4.5.cat',
                  format='ascii').to_pandas()
 
 temps = {}
@@ -269,23 +276,23 @@ for k in args['t1']:
 
 field = 'S'
 cat = v4Scat 
-db = CSdb
+# db = CSdb
 
-for idx in db.index:
-    rshift = db.z_50[idx] 
+for idx in range(len(NGSID)):
+    rshift = NGSID[idx] 
 
-    if len(str(db.id[idx])) < 5:
-        gid = '0' + str(db.id[idx])
+    if len(str(NGSID[idx])) < 5:
+        gid = '0' + str(NGSID[idx])
     else:
-        gid = str(db.id[idx])
+        gid = str(NGSID[idx])
 
     if not os.path.isfile('../beams/beam_config/GSD_{}.npy'.format(gid)):
         print('run',glob('../beams/beam_config/GSD_{}.npy'.format(gid)))
-        W,P,E = Phot_load('G{}D'.format(field), db.id[idx], cat)
+        W,P,E = Phot_load('G{}D'.format(field), NGSID[idx], cat)
 
         mb  = Gen_initial_MB(field, gid)
 
-        Plot_beams(mb,W,P,E, field, gid)
+        Plot_beams(mb,W,P,E, field, gid,NGSz[idx])
         BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
 
         np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
@@ -296,28 +303,28 @@ for idx in db.index:
 
 field = 'N'
 cat = v4Ncat 
-db = CNdb
+# db = CSdb
 
-for idx in db.index:
-    rshift = db.z_50[idx] 
+for idx in range(len(NGNID)):
+    rshift = NGNID[idx] 
 
-    if len(str(db.id[idx])) < 5:
-        gid = '0' + str(db.id[idx])
+    if len(str(NGNID[idx])) < 5:
+        gid = '0' + str(NGNID[idx])
     else:
-        gid = str(db.id[idx])
+        gid = str(NGNID[idx])
 
     if not os.path.isfile('../beams/beam_config/GND_{}.npy'.format(gid)):
         print('run',glob('../beams/beam_config/GND_{}.npy'.format(gid)))
-        W,P,E = Phot_load('G{}D'.format(field), db.id[idx], cat)
+        W,P,E = Phot_load('G{}D'.format(field), NGNID[idx], cat)
 
         mb  = Gen_initial_MB(field, gid)
 
-        Plot_beams(mb,W,P,E, field, gid)
+        Plot_beams(mb,W,P,E, field, gid,NGNz[idx])
         BMX, Clims, Cspec, Ospec = Beam_cleanup(mb, B_condition=[], R_condition=[])
 
         np.save('../beams/beam_config/G{}D_{}_ex'.format(field, gid),[BMX])
         np.save('../beams/beam_config/G{}D_{}'.format(field, gid),[Clims, Cspec, Ospec])
- 
+
     else:
         print(glob('../beams/beam_config/GND_{}.npy'.format(gid)))
 

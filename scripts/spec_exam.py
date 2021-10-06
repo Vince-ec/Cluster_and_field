@@ -10,12 +10,14 @@ from glob import glob
 import os
 from grizli import multifit
 from grizli import model
-from astropy.cosmology import Planck13 as cosmo
+from astropy.cosmology import FlatLambdaCDM
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 import fsps
 #from spec_tools import Scale_model
 from time import time
 from sim_engine import *
 from matplotlib import gridspec
+from spec_stats import SN
 hpath = os.environ['HOME'] + '/'
 
 """
@@ -786,6 +788,8 @@ class Gen_spec_2D(object):
                 if clipspec[idc] == 1:
                     xspec, yspec, yerr = bm.beam.optimal_extract(bm.grism.data['SCI'] - bm.contam,ivar = bm.ivar) 
                     lms = clip[idc]
+                    if len(lms) == 1:
+                        lms = lms[0]
                     for i in range(len(xspec)):
                         if lms[0] < xspec[i]< lms[1]:
                             bm.grism.data['SCI'].T[i] = np.zeros_like(bm.grism.data['SCI'].T[i])
@@ -886,3 +890,172 @@ class Gen_spec_2D(object):
         W,F,E = np.load(spec_path +'{}_{}_{}.npy'.format(self.field, self.galaxy_id, instr.lower()),allow_pickle=True)
         print('simple')
         return W,F,E
+    
+    ################################
+    
+class Gen_spec_NIRISS_sim(object):
+    def __init__(self, specz, sim_wave, sim_flam, Iused = ['F150W','F200W'], Fused = ['F150W','F200W', 'F444W'], #SNR = 10, 
+                 I_lims=[[13400,16600],[17700, 22100]], phot_errterm = 0.1, random_seed=None):
+        self.specz = specz
+        self.c = 3E18          # speed of light angstrom s^-1
+        self.I_lims = I_lims
+        self.swave = sim_wave
+        self.sflam = sim_flam
+#         self.SNR = SNR
+        self.Iused = Iused
+        self.Fused = Fused
+        self.random_seed = random_seed
+        self.phot_err = phot_errterm
+        """
+        B - prefix refers to f115 ** skipping for now **
+        G - prefix refers to f150 ** skipping for now **
+        R - prefix refers to f200
+        P - prefix refers to photometry ** skipping for now **
+
+        specz - redshift
+
+        """
+        ##load spec
+        self.sim_and_load_spec()
+
+        ##load phot
+        self.sens_wv, self.TR = np.load(template_path + 'niriss_master_tmp.npy',allow_pickle=True)
+        self.b = np.load(template_path + 'niriss_bottom_precalc.npy',allow_pickle=True)
+        self.dnu = np.load(template_path + 'niriss_dnu_precalc.npy',allow_pickle=True)
+        self.adj = np.load(template_path + 'niriss_adj_precalc.npy',allow_pickle=True)
+        self.MFWV = np.load(template_path + 'niriss_effwv_precalc.npy',allow_pickle=True)
+        
+        Afilts = ['F115W','F150W','F200W', 'F444W']
+        self.IDP = []
+        for i in range(len(Afilts)):
+            if Afilts[i] in self.Fused:
+                self.IDP.append(i)
+        self.IDP = np.array(self.IDP)
+        
+        np.random.seed(self.random_seed)
+
+        self.Pwv, self.Pfl = self.forward_model_phot(self.swave*(1+self.specz), self.sflam)
+        self.Per = self.phot_err * self.Pfl
+        self.Pflx = self.Pfl + np.random.normal(0, self.Per)
+        
+    def sim_and_load_spec(self,):
+        self.mb = mb = multifit.MultiBeam(data_path + 'niriss-point-jhk_00031.beams.fits', **args)
+        spec = make_oned_spec(self.mb, self.swave*(1+self.specz), self.sflam, bin=1, random_seed = self.random_seed)
+
+        for i in range(len(self.Iused)):
+            w=spec[self.Iused[i]]['wave']
+            f=spec[self.Iused[i]]['flam']
+            e= spec[self.Iused[i]]['eflam']
+    
+            IDX = [U for U in range(len(w)) if self.I_lims[i][0] < w[U] < self.I_lims[i][1]]
+    
+            w = np.array(w[IDX])
+            f = f[IDX]
+            e = e[IDX]
+
+            BEAMS, TRANS = self.load_beams_and_trns_NS(w, instr = self.Iused[i])
+           
+            if self.Iused[i] == 'F150W':
+                self.Gwv = w ; self.Gflx = f; self.Ger = e;
+                self.GBEAMS = BEAMS; self.GTRANS = TRANS
+        
+            if self.Iused[i] == 'F200W':
+                self.Rwv = w ; self.Rflx = f; self.Rer = e;
+                self.RBEAMS = BEAMS; self.RTRANS = TRANS
+        
+    def load_beams_and_trns_NS(self, wv, instr = 'F200W'):
+        ### Set transmission curve
+        sp = fsps.StellarPopulation(imf_type = 0, tpagb_norm_type=0, zcontinuous = 1, logzsol = np.log10(0.002/0.019), 
+                                    sfh = 4, tau = 0.6, dust_type = 1)
+
+        model_wave, model_flux = sp.get_spectrum(tage = 3.6, peraa = True)
+
+        ### set beams
+        BEAMS = []
+        PAlist = []
+        for bm in self.mb.beams:
+            if bm.direct.pupil == instr:
+                if bm.get_dispersion_PA() not in PAlist:
+                    PAlist.append(bm.get_dispersion_PA())
+                    BEAMS.append(bm)
+
+        TRANS = []
+        for i in BEAMS:
+            W, F = forward_model_grism(i, model_wave, np.ones(len(model_wave)))
+            trans = interp1d(W,F)(wv)       
+            TRANS.append(trans)
+
+        return BEAMS, TRANS
+
+    def forward_model_phot(self, model_wave, model_flux):
+        imfl =interp1d(self.c / model_wave, (self.c/(self.c / model_wave)**2) * model_flux)
+
+        mphot = (np.trapz(imfl(self.c /(self.sens_wv[self.IDP])).reshape([len(self.IDP),len(self.sens_wv[0])]) \
+                          * self.b[self.IDP], self.dnu[self.IDP])/np.trapz(self.b[self.IDP], self.dnu[self.IDP])) * self.adj[self.IDP]
+        return np.array(self.MFWV[self.IDP]), np.array(mphot)
+    
+def update_model(mb, wave, flam, target_exptime=None, reset=False, random_seed=None, **kwargs):
+    """
+    Update the science extension of the 2D beams based on a new 1D model
+    """
+    mb.compute_model(spectrum_1d=(wave, flam), is_cgs=True)
+    if target_exptime is not None:
+        for gr in mb.PA:
+            expt_scale = target_exptime / orig_expt[gr]
+            for pa in mb.PA[gr]:
+                for _b in mb.PA[gr][pa]:
+                    mb.beams[_b].grism.exptime = mb.beams[_b].grism.exptime_orig * expt_scale
+                    mb.beams[_b].grism.header['EXPTIME'] = mb.beams[_b].grism.exptime
+                    mb.beams[_b].grism.data['ERR'] = mb.beams[_b].err_orig/np.sqrt(expt_scale)
+    elif reset:
+        for gr in mb.PA:
+            expt_scale = 1.
+            for pa in mb.PA[gr]:
+                for _b in mb.PA[gr][pa]:
+                    mb.beams[_b].grism.exptime = mb.beams[_b].grism.exptime_orig * expt_scale
+                    mb.beams[_b].grism.header['EXPTIME'] = mb.beams[_b].grism.exptime
+                    mb.beams[_b].grism.data['ERR'] = mb.beams[_b].err_orig/np.sqrt(expt_scale)
+        
+    
+    np.random.seed(random_seed)
+    for beam in mb.beams:
+
+        # No bad pixels
+        msk = (beam.grism.data['ERR'] == 0) | (beam.grism.data['DQ'] > 0)
+        beam.grism.data['ERR'][msk] = np.median(beam.grism.data['ERR'][~msk])
+        beam.grism.data['DQ'][msk] = 0
+
+        noise = np.random.normal(size=beam.sh)*beam.grism['ERR']
+        beam.grism.data['SCI'] = (beam.beam.model + beam.contam + noise).astype(np.float32)
+        #print(scale_frac, scale_noise)
+        beam._parse_from_data(**beam._parse_params)
+
+    mb._parse_beam_arrays()
+    mb._parse_beams(psf=False)
+    mb.initialize_masked_arrays()
+
+def make_oned_spec(mb, wave, flam, **kwargs):
+    """
+    Extract 1D spectrum based on an input model template
+    
+    kwargs can be, e.g., 
+    
+        bin = binning factor
+        target_exptime = new exposure time per grism, seconds
+        
+    """
+    import astropy.units as u
+    
+    update_model(mb, wave, flam, **kwargs)
+    
+    spec = mb.optimal_extract(data=mb.scif_mask, **kwargs)
+    spec_flat = mb.optimal_extract(data=mb.flat_flam[mb.fit_mask], **kwargs)
+    
+    for k in spec:
+        spec[k]['flam'] = spec[k]['flux']/spec_flat[k]['flux']
+        spec[k]['eflam'] = spec[k]['err']/spec_flat[k]['flux']
+        spec[k]['flam'].unit = u.erg/u.second/u.cm**2/u.Angstrom
+        spec[k]['eflam'].unit = spec[k]['flam'].unit
+        
+    return spec
+    

@@ -16,7 +16,7 @@ if __name__ == '__main__':
     galaxy = int(sys.argv[2])
     specz = float(sys.argv[3])
     logmass = float(sys.argv[4])
-    trial = int(sys.argv[54])
+    trial = int(sys.argv[5])
     
 verbose=False
 poolsize = 8
@@ -102,8 +102,8 @@ sp = fsps.StellarPopulation(zcontinuous = 1, logzsol = 0, sfh = 3, dust_type = 1
 Gs = Gen_spec_2D(field, galaxy, specz, g102_lims=[8200, 11300], g141_lims=[11200, 16000],
                  phot_errterm = 0.04, irac_err = 0.08, mask = True)
 ####generate grism items#####
-#full_db = pd.read_pickle(data_path + 'all_galaxies_1d.pkl')
-full_db = pd.read_pickle('../dataframes/fitdb/all_galaxies_1d.pkl')
+full_db = pd.read_pickle(data_path + 'all_galaxies_1d.pkl')
+#full_db = pd.read_pickle('../dataframes/fitdb/all_galaxies_1d.pkl')
 
 params = ['m', 'a', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'lm', 'z', 'd', 'bp1', 
           'rp1', 'ba', 'bb', 'bl', 'ra', 'rb', 'rl']

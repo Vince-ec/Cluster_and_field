@@ -1,139 +1,180 @@
-import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
-from astropy.table import Table
-from glob import glob 
-from spec_extract import Stack
+import pandas as pd
+from shutil import copyfile
+from astropy.cosmology import FlatLambdaCDM
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+from astropy.cosmology import z_at_value
+import fsps
+from matplotlib.gridspec import GridSpec
 from astropy.io import fits
+from astropy import wcs
+from astropy.table import Table
+# from sim_engine import Scale_model
+# from spec_tools import Source_present, Oldest_galaxy, Sig_int, Smooth, Rescale_SF_sfh, Posterior_SF_spec, lbt_to_z
+# from spec_stats import Smooth, Highest_density_region
+# from spec_id import *
+from spec_stats import Highest_density_region, Linear_fit
+from spec_exam import Gen_SF_spec, Gen_spec, Gen_spec_2D
+import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d, interp2d
+from glob import glob
+import seaborn as seadddd
+import os
+from grizli import multifit
+from grizli import model
+# from sim_engine import forward_model_grism
 
-def Phot_load(field, galaxy_id,ref_cat_loc,masterlist = '../phot/master_template_list.pkl'):
-    galdf = ref_cat_loc[ref_cat_loc.id == galaxy_id]
-    master_tmp_df = pd.read_pickle(masterlist)
+import seaborn as sea
+from time import time
+sea.set(style='white')
+sea.set(style='ticks')
+sea.set_style({'xtick.direct'
+               'ion': 'in','xtick.top':True,'xtick.minor.visible': True,
+               'ytick.direction': "in",'ytick.right': True,'ytick.minor.visible': True})
+cmap = sea.cubehelix_palette(12, start=2, rot=.2, dark=0, light=1.0, as_cmap=True)
 
-    if field == 'GSD':
-        pre= 'S_'
+NGSID = np.load('../dataframes/N_GSD_2.npy',  allow_pickle=True)
+NGNID = np.load('../dataframes/N_GND_2.npy',  allow_pickle=True)
+NGSz = np.load('../dataframes/N_GSD_2_z.npy', allow_pickle=True)
+NGNz = np.load('../dataframes/N_GND_2_z.npy', allow_pickle=True)
+print(len(NGSID))
+print(len(NGNID))
 
-    if field == 'GND':
-        pre= 'N_'
+# field='GSD'
+# pre = field[1]
 
-    eff_wv = []
-    phot_fl = []
-    phot_er = []
-    phot_num = []
+# for i in range(len(NGSID)):
+#     gid  = NGSID[i]
+#     rshift = NGSz[i]
 
-    for i in galdf.keys():
-        if i[0:2] == 'f_':
-            Clam = 3E18 / master_tmp_df.eff_wv[master_tmp_df.tmp_name == pre + i].values[0] **2 * 10**((-1.1)/2.5-29)
-            if galdf[i].values[0] > -99.0:
-                eff_wv.append(master_tmp_df.eff_wv[master_tmp_df.tmp_name == pre + i].values[0])
-                phot_fl.append(galdf[i].values[0]*Clam)
-                phot_num.append(master_tmp_df.tmp_num[master_tmp_df.tmp_name == pre + i].values[0])
-        if i[0:2] == 'e_':
-            if galdf[i].values[0] > -99.0:
-                phot_er.append(galdf[i].values[0]*Clam)
+#     if gid < 10000:
+#         GID = '0' + str(gid)
+#     else:
+#         GID = str(gid)
+
+#     Gs = Gen_spec_2D('G{}D'.format(pre), GID, rshift)
     
-    return eff_wv, phot_fl, phot_er
+#     plt.figure(figsize = [15,13])
+#     plt.subplot(211)
+#     if Gs.g102:
+#         plt.errorbar(Gs.Bwv,Gs.Bfl,Gs.Ber,
+#                     linestyle='None', marker='o', markersize=3, color='#377eb8',zorder = 2, label = 'CLEAR G102')
+#         IDMB = np.repeat(True, len(Gs.Bwv))
 
-def Extract_spec(Field, galaxy_id):
-    spec_list = glob('/Volumes/Vince_CLEAR/RELEASE_v2.1.0/*{}*/*{}*.1D.fits'.format(Field, galaxy_id))
+#     if Gs.g141:
+#         plt.errorbar(Gs.Rwv,Gs.Rfl,Gs.Rer,
+#                     linestyle='None', marker='o', markersize=3, color='#e41a1c',zorder = 2, label = '3D-HST G141')
+#         IDMR = np.repeat(True, len(Gs.Rwv))
 
-    Bwv, Bfl, Ber, Bft, Bln, Bct = [[],[],[],[],[],[]]
+#     plt.errorbar(Gs.Pwv,Gs.Pflx,Gs.Perr,
+#                     linestyle='None', marker='o', markersize=10, color='#4daf4a',zorder = 1, label = '3D-HST Photometry')
 
-    Rwv, Rfl, Rer, Rft, Rln, Rct = [[],[],[],[],[],[]]
+#     plt.axvline(2799.177 * (1 + rshift),linestyle='--', alpha=.3) # MGII
+#     plt.axvline(3727.092 * (1 + rshift),linestyle='--', alpha=.3) # OII
+#     plt.axvline(4102.89 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(4341.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(4862.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(5008.240 * (1 + rshift),linestyle='--', alpha=.3)
+#     plt.axvline(6564.61 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(6718.29 * (1 + rshift),linestyle='--', alpha=.3, color = 'k')
 
-    for i in range(len(spec_list)):
-        dat = fits.open(spec_list[i])
+#     plt.xlabel('Wavelength ($\AA$)', fontsize=25)
+#     plt.ylabel('F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/\AA $)', fontsize=25)
+#     plt.tick_params(axis='both', which='major', labelsize=20)
+#     plt.xlim(7500,16500)
+#     plt.title('{}-{}'.format(field, gid))
 
-        try:
-            Bwv.append(np.array(dat['G102'].data['wave']).T)
-            Bfl.append(np.array(dat['G102'].data['flux']).T)
-            Ber.append(np.array(dat['G102'].data['err']).T)
-            Bft.append(np.array(dat['G102'].data['flat']).T)
-            Bln.append(np.array(dat['G102'].data['line']).T)
-            Bct.append(np.array(dat['G102'].data['cont']).T)
+#     plt.subplot(212)
+#     if Gs.g102:
+#         plt.errorbar(Gs.Bwv,Gs.Bfl,Gs.Ber,
+#                 linestyle='None', marker='o', markersize=3, color='#377eb8',zorder = 2, label = 'CLEAR G102')
+#     if Gs.g141:
+#         plt.errorbar(Gs.Rwv,Gs.Rfl,Gs.Rer,
+#                     linestyle='None', marker='o', markersize=3, color='#e41a1c',zorder = 2, label = '3D-HST G141')
+#     plt.errorbar(Gs.Pwv,Gs.Pflx,Gs.Perr,
+#                     linestyle='None', marker='o', markersize=10, color='#4daf4a',zorder = 1, label = '3D-HST Photometry')
 
-        except:
-            print('no g102')
 
-        try:
-            Rwv.append(np.array(dat['G141'].data['wave']).T)
-            Rfl.append(np.array(dat['G141'].data['flux']).T)
-            Rer.append(np.array(dat['G141'].data['err']).T)
-            Rft.append(np.array(dat['G141'].data['flat']).T)
-            Rln.append(np.array(dat['G141'].data['line']).T)
-            Rct.append(np.array(dat['G141'].data['cont']).T)
+#     plt.axvline(3727.092 * (1 + rshift),linestyle='--', alpha=.3)
+#     plt.axvline(4102.89 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(4341.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(4862.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(5008.240 * (1 + rshift),linestyle='--', alpha=.3)
+#     plt.axvline(6564.61 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+#     plt.axvline(6718.29 * (1 + rshift),linestyle='--', alpha=.3, color = 'k')
 
-        except:
-            print('no g141')
-
-    if len(Bwv) > 0 and len(Rwv) == 0:                
-        SBW, SBF, SBE, SBT, SBL, SBC = Stack(Bwv, Bfl, Ber, Bft, Bln, Bct)
-        IDX = [U for U in range(len(SBW)) if 8500 < SBW[U] < 11100 and SBF[U] > 0 and SBF[U]/SBE[U] > .1]
-        return SBW[IDX], SBF[IDX] / SBT[IDX], SBE[IDX] / SBT[IDX]
-
-    if len(Rwv) > 0 and len(Bwv) == 0:     
-        SRW, SRF, SRE, SRT, SRL, SRC = Stack(Rwv, Rfl, Rer, Rft, Rln, Rct)
-        IDX = [U for U in range(len(SRW)) if 11100 < SRW[U] < 16500 and SRF[U] > 0 and SRF[U]/SRE[U] > .1]
-        return SRW[IDX], SRF[IDX] / SRT[IDX], SRE[IDX] / SRT[IDX]
+#     plt.xlabel('Wavelength ($\AA$)', fontsize=25)
+#     plt.ylabel('F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/\AA $)', fontsize=25)
+#     plt.tick_params(axis='both', which='major', labelsize=20)
+#     plt.xscale('log')
+#     plt.savefig('../plots/newspec_check/{}-{}_rshift_check.png'.format(field, gid), bbox_inches = 'tight')    
     
-    if len(Rwv) > 0 and len(Bwv) > 0:     
-        
-        SBW, SBF, SBE, SBT, SBL, SBC = Stack(Bwv, Bfl, Ber, Bft, Bln, Bct)
-        SRW, SRF, SRE, SRT, SRL, SRC = Stack(Rwv, Rfl, Rer, Rft, Rln, Rct)
-        
-        IDB = [U for U in range(len(SBW)) if 8500 < SBW[U] < 11100 and SBF[U] > 0 and SBF[U]/SBE[U] > .1]
-        IDR = [U for U in range(len(SRW)) if 11100 < SRW[U] < 16500 and SRF[U] > 0 and SRF[U]/SRE[U] > .1]
-        
-        return [SBW[IDB],SRW[IDR]], [SBF[IDB] / SBT[IDB],SRF[IDR] / SRT[IDR]], [SBE[IDB] / SBT[IDB],SRE[IDR] / SRT[IDR]]
+    
+field='GND'
+pre = field[1]
 
-        
-v4Ncat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodsn_3dhst.v4.4.cats/Catalog/goodsn_3dhst.v4.4.cat',
-                 format='ascii').to_pandas()
-v4Scat = Table.read('/Volumes/Vince_CLEAR/3dhst_V4.4/goodss_3dhst.v4.4.cats/Catalog/goodss_3dhst.v4.4.cat',
-                 format='ascii').to_pandas()
+for i in range(len(NGNID)):
+    gid  = NGNID[i]
+    rshift = NGNz[i]
 
-GND_all = pd.read_pickle('../dataframes/galaxy_frames/GND_CLEAR.pkl')
-GSD_all = pd.read_pickle('../dataframes/galaxy_frames/GSD_CLEAR.pkl')
-
-for i in GSD_all.index:
-    if len(str(GSD_all.id[i])) < 5:
-        gid = '0' + str(GSD_all.id[i])
+    if gid < 10000:
+        GID = '0' + str(gid)
     else:
-        gid = str(GSD_all.id[i])
-    
-    GWV,GFL,GER = Extract_spec('S', gid)
-    
-    W,P,E = Phot_load('GSD', GSD_all.id[i], v4Scat)
+        GID = str(gid)
 
-    plt.figure(figsize=[12,8])
-    plt.errorbar(W,P,E, fmt = 'o',ms=10)
+    Gs = Gen_spec_2D('G{}D'.format(pre), gid, rshift)
     
-    for ii in range(len(GWV)):
-        plt.errorbar(GWV[ii],GFL[ii],GER[ii], fmt = 'o',ms = 1, color = 'k')
-    
+    plt.figure(figsize = [15,13])
+    plt.subplot(211)
+    if Gs.g102:
+        plt.errorbar(Gs.Bwv,Gs.Bfl,Gs.Ber,
+                    linestyle='None', marker='o', markersize=3, color='#377eb8',zorder = 2, label = 'CLEAR G102')
+        IDMB = np.repeat(True, len(Gs.Bwv))
+
+    if Gs.g141:
+        plt.errorbar(Gs.Rwv,Gs.Rfl,Gs.Rer,
+                    linestyle='None', marker='o', markersize=3, color='#e41a1c',zorder = 2, label = '3D-HST G141')
+        IDMR = np.repeat(True, len(Gs.Rwv))
+
+    plt.errorbar(Gs.Pwv,Gs.Pflx,Gs.Perr,
+                    linestyle='None', marker='o', markersize=10, color='#4daf4a',zorder = 1, label = '3D-HST Photometry')
+
+    plt.axvline(2799.177 * (1 + rshift),linestyle='--', alpha=.3) # MGII
+    plt.axvline(3727.092 * (1 + rshift),linestyle='--', alpha=.3) # OII
+    plt.axvline(4102.89 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(4341.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(4862.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(5008.240 * (1 + rshift),linestyle='--', alpha=.3)
+    plt.axvline(6564.61 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(6718.29 * (1 + rshift),linestyle='--', alpha=.3, color = 'k')
+
+    plt.xlabel('Wavelength ($\AA$)', fontsize=25)
+    plt.ylabel('F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/\AA $)', fontsize=25)
+    plt.tick_params(axis='both', which='major', labelsize=20)
+    plt.xlim(7500,16500)
+    plt.title('{}-{}'.format(field, gid))
+
+    plt.subplot(212)
+    if Gs.g102:
+        plt.errorbar(Gs.Bwv,Gs.Bfl,Gs.Ber,
+                linestyle='None', marker='o', markersize=3, color='#377eb8',zorder = 2, label = 'CLEAR G102')
+    if Gs.g141:
+        plt.errorbar(Gs.Rwv,Gs.Rfl,Gs.Rer,
+                    linestyle='None', marker='o', markersize=3, color='#e41a1c',zorder = 2, label = '3D-HST G141')
+    plt.errorbar(Gs.Pwv,Gs.Pflx,Gs.Perr,
+                    linestyle='None', marker='o', markersize=10, color='#4daf4a',zorder = 1, label = '3D-HST Photometry')
+
+
+    plt.axvline(3727.092 * (1 + rshift),linestyle='--', alpha=.3)
+    plt.axvline(4102.89 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(4341.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(4862.68 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(5008.240 * (1 + rshift),linestyle='--', alpha=.3)
+    plt.axvline(6564.61 * (1 + rshift),linestyle='--', alpha=.3, color = 'r')
+    plt.axvline(6718.29 * (1 + rshift),linestyle='--', alpha=.3, color = 'k')
+
+    plt.xlabel('Wavelength ($\AA$)', fontsize=25)
+    plt.ylabel('F$_\lambda$ ($10^{-18}$ $erg/s/cm^{2}/\AA $)', fontsize=25)
+    plt.tick_params(axis='both', which='major', labelsize=20)
     plt.xscale('log')
-    plt.title('GSD-' + str(GSD_all.id[i],), fontsize = 20)
-    plt.xticks([5000,10000,25000,50000],[5000,10000,25000,50000])
-    plt.savefig('../plots/allspec_exam/GSD-{}'.format(GSD_all.id[i]), bbox_inches = 'tight')
-
-    
-for i in GND_all.index:
-    if len(str(GND_all.id[i])) < 5:
-        gid = '0' + str(GND_all.id[i])
-    else:
-        gid = str(GND_all.id[i])
-    
-    GWV,GFL,GER = Extract_spec('N', gid)
-    
-    W,P,E = Phot_load('GND', GND_all.id[i], v4Ncat)
-
-    plt.figure(figsize=[12,8])
-    plt.errorbar(W,P,E, fmt = 'o',ms=10)
-    
-    for ii in range(len(GWV)):
-        plt.errorbar(GWV[ii],GFL[ii],GER[ii], fmt = 'o',ms = 1, color = 'k')
-    
-    plt.xscale('log')
-    plt.title('GND-' + str(GND_all.id[i],), fontsize = 20)
-    plt.xticks([5000,10000,25000,50000],[5000,10000,25000,50000])
-    plt.savefig('../plots/allspec_exam/GND-{}'.format(GND_all.id[i]), bbox_inches = 'tight')
+    plt.savefig('../plots/newspec_check/{}-{}_rshift_check.png'.format(field, gid), bbox_inches = 'tight')   
